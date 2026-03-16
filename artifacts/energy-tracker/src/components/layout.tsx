@@ -17,6 +17,49 @@ const navItems = [
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
 ];
 
+function NavItem({ item }: { item: typeof navItems[number] }) {
+  const [isActive] = useRoute(item.href);
+  return (
+    <Link key={item.href} href={item.href} className="block">
+      <div
+        className={`
+          flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group relative
+          ${isActive 
+            ? "bg-primary/10 text-primary font-medium" 
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          }
+        `}
+      >
+        {isActive && (
+          <motion.div 
+            layoutId="sidebar-active" 
+            className="absolute inset-0 border border-primary/20 bg-primary/5 rounded-xl -z-10"
+            initial={false}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          />
+        )}
+        <item.icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
+        {item.name}
+      </div>
+    </Link>
+  );
+}
+
+function MobileNavItem({ item, onClose }: { item: typeof navItems[number]; onClose: () => void }) {
+  const [isActive] = useRoute(item.href);
+  return (
+    <Link href={item.href} onClick={onClose}>
+      <div className={`
+        flex items-center gap-4 px-4 py-4 rounded-xl text-lg
+        ${isActive ? "bg-primary/10 text-primary font-medium" : "text-foreground/70"}
+      `}>
+        <item.icon className="w-6 h-6" />
+        {item.name}
+      </div>
+    </Link>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -43,33 +86,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="px-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
             Analytics & Tools
           </div>
-          {navItems.map((item) => {
-            const [isActive] = useRoute(item.href);
-            return (
-              <Link key={item.href} href={item.href} className="block">
-                <div
-                  className={`
-                    flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group relative
-                    ${isActive 
-                      ? "bg-primary/10 text-primary font-medium" 
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                    }
-                  `}
-                >
-                  {isActive && (
-                    <motion.div 
-                      layoutId="sidebar-active" 
-                      className="absolute inset-0 border border-primary/20 bg-primary/5 rounded-xl -z-10"
-                      initial={false}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    />
-                  )}
-                  <item.icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
-                  {item.name}
-                </div>
-              </Link>
-            );
-          })}
+          {navItems.map((item) => (
+            <NavItem key={item.href} item={item} />
+          ))}
         </nav>
         
         <div className="p-6 border-t border-sidebar-border">
@@ -110,20 +129,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             className="md:hidden fixed inset-0 z-40 bg-background/98 backdrop-blur-xl pt-20 px-4"
           >
             <nav className="flex flex-col gap-2 mt-4">
-              {navItems.map((item) => {
-                const [isActive] = useRoute(item.href);
-                return (
-                  <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)}>
-                    <div className={`
-                      flex items-center gap-4 px-4 py-4 rounded-xl text-lg
-                      ${isActive ? "bg-primary/10 text-primary font-medium" : "text-foreground/70"}
-                    `}>
-                      <item.icon className="w-6 h-6" />
-                      {item.name}
-                    </div>
-                  </Link>
-                );
-              })}
+              {navItems.map((item) => (
+                <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
+              ))}
             </nav>
           </motion.div>
         )}
