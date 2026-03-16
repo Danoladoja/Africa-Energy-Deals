@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Africa Energy Investment Tracker"
+version = "1.0.0"
+id = "artifacts/energy-tracker"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 22663
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/energy-tracker run dev"
+
+[services.env]
+PORT = "22663"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/energy-tracker", "run", "build"]
+publicDir = "artifacts/energy-tracker/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

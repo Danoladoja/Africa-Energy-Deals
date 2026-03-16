@@ -1,0 +1,18 @@
+packages:
+  "recharts": "For dashboard and visualization studio charts"
+  "react-leaflet": "For the interactive map"
+  "leaflet": "Core map library for react-leaflet"
+  "@types/leaflet": "TypeScript definitions for leaflet"
+  "html2canvas": "For downloading charts as images in the visualization studio"
+  "framer-motion": "For page transitions and polished UI animations"
+  "date-fns": "For date formatting in tables and tooltips"
+  "lucide-react": "For icons across the application"
+
+images:
+  - path: "artifacts/energy-tracker/public/images/logo-icon.png"
+    description: "A minimal, modern geometric logo icon for an African energy investment tracker, neon green on transparent background"
+    aspect_ratio: "1:1"
+
+notes:
+  - Using generated Orval hooks from @workspace/api-client-react for all data fetching
+  - Using react-leaflet for the map component, requiring the leaflet CSS to be imported
