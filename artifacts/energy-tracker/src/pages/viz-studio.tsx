@@ -282,7 +282,7 @@ export default function VizStudio() {
             className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
           >
             {isExporting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            Export Full Profile
+            {viewMode === "overview" ? "Download Chart" : "Export Full Profile"}
           </button>
         </header>
 
