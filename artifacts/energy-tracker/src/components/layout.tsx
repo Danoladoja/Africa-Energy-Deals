@@ -11,7 +11,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
@@ -10,12 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 
 export default function DealTracker() {
+  const rawSearch = useSearch();
+  const initialSearch = new URLSearchParams(rawSearch).get("search") ?? "";
+
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState("");
   const [technology, setTechnology] = useState("");
   
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   
   // Simple debounce for search
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
