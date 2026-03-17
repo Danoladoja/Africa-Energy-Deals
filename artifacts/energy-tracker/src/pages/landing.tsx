@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useGetSummaryStats } from "@workspace/api-client-react";
-import { Zap, BarChart2, Globe, Layers } from "lucide-react";
+import { BarChart2, Globe, Layers, Cpu } from "lucide-react";
 
 function formatBillions(mn: number) {
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
@@ -27,10 +27,14 @@ export default function Landing() {
       {/* Navbar */}
       <header className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#00e676] to-[#00bcd4] flex items-center justify-center shadow-lg shadow-[#00e676]/20">
-            <Zap className="w-5 h-5 text-[#0b0f1a]" strokeWidth={2.5} />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+            <img
+              src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
+              alt="AfriEnergy Logo"
+              className="w-6 h-6 object-contain filter brightness-0"
+            />
           </div>
-          <span className="font-bold text-xl tracking-tight">AfriEnergy</span>
+          <span className="font-display font-bold text-xl tracking-tight">AfriEnergy</span>
         </div>
 
         <nav className="hidden md:flex items-center gap-8 text-sm text-white/70">
@@ -109,7 +113,7 @@ export default function Landing() {
             {
               value: stats ? stats.totalTechnologies.toString() : "—",
               label: "Technologies",
-              icon: <Zap className="w-4 h-4" />,
+              icon: <Cpu className="w-4 h-4" />,
             },
           ].map((stat, i, arr) => (
             <div
@@ -173,10 +177,14 @@ export default function Landing() {
       {/* Footer */}
       <footer className="border-t border-white/8 py-8 px-8 text-center text-white/30 text-sm">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="w-5 h-5 rounded bg-gradient-to-br from-[#00e676] to-[#00bcd4] flex items-center justify-center">
-            <Zap className="w-3 h-3 text-[#0b0f1a]" strokeWidth={2.5} />
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-primary/20">
+            <img
+              src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
+              alt="AfriEnergy Logo"
+              className="w-4 h-4 object-contain filter brightness-0"
+            />
           </div>
-          <span className="font-semibold text-white/60">AfriEnergy</span>
+          <span className="font-display font-semibold text-white/60">AfriEnergy</span>
         </div>
         Africa's Energy Investment Tracker · Data sourced from publicly disclosed transactions
       </footer>
