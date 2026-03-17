@@ -174,6 +174,85 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Data Section */}
+      <section id="data" className="py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-3">What's in the database</h2>
+          <p className="text-white/50 text-center mb-12 max-w-lg mx-auto">Publicly disclosed energy investment transactions sourced from project announcements, government records, and development finance reports.</p>
+          <div className="grid md:grid-cols-2 gap-6 mb-10">
+            <div className="bg-white/4 border border-white/8 rounded-2xl p-6 flex flex-col gap-4">
+              <h3 className="font-semibold text-lg text-[#00e676]">Coverage</h3>
+              <ul className="space-y-3 text-sm text-white/70">
+                {[
+                  "21 African countries across all major regions",
+                  "7 technology types: Solar, Wind, Hydro, Gas, Geothermal, Storage & Transmission",
+                  "Projects ranging from early development to fully operational",
+                  "Deal sizes from $10M to multi-billion dollar programmes",
+                ].map(item => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="text-[#00e676] mt-0.5">✓</span>{item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-white/4 border border-white/8 rounded-2xl p-6 flex flex-col gap-4">
+              <h3 className="font-semibold text-lg text-[#00e676]">Data Fields</h3>
+              <ul className="space-y-3 text-sm text-white/70">
+                {[
+                  "Project name, country, region & GPS coordinates",
+                  "Technology type and installed capacity (MW)",
+                  "Deal size in USD millions and announcement year",
+                  "Investor names, financing type & project status",
+                ].map(item => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="text-[#00e676] mt-0.5">✓</span>{item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <button
+              onClick={() => navigate("/deals")}
+              className="border border-[#00e676]/40 hover:border-[#00e676] text-[#00e676] font-semibold px-8 py-3.5 rounded-full transition-colors"
+            >
+              Browse the Deal Database →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section id="about" className="bg-white/3 border-t border-white/8 py-20 px-4">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">About AfriEnergy</h2>
+          <p className="text-white/60 text-lg leading-relaxed mb-8">
+            AfriEnergy is an open intelligence platform that aggregates and visualises publicly disclosed
+            energy investment data across the African continent. Built for analysts, investors, development
+            finance institutions, and policymakers who need fast, reliable access to deal-level data.
+          </p>
+          <p className="text-white/50 text-base leading-relaxed mb-10">
+            The platform tracks the full project lifecycle — from announcement through development,
+            construction, and into operation — giving users a clear picture of where capital is flowing
+            and which technologies are scaling fastest across the continent.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="bg-[#00e676] hover:bg-[#00c864] text-[#0b0f1a] font-semibold px-8 py-3.5 rounded-full transition-colors shadow-lg shadow-[#00e676]/20"
+            >
+              Explore the Tracker
+            </button>
+            <button
+              onClick={() => navigate("/studio")}
+              className="border border-white/20 hover:border-white/40 text-white/80 hover:text-white font-semibold px-8 py-3.5 rounded-full transition-colors"
+            >
+              Generate a Chart
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-white/8 py-8 px-8 text-center text-white/30 text-sm">
         <div className="flex items-center justify-center gap-2 mb-2">
