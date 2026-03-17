@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import {
   Download, RefreshCw, Layers, BarChart2, Globe, MapPin,
-  ChevronDown, TrendingUp, Zap, DollarSign,
+  ChevronDown, Zap, DollarSign,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 
@@ -142,10 +142,15 @@ export default function VizStudio() {
   const [grouping, setGrouping] = useState<Grouping>("technology");
   const [spotlightType, setSpotlightType] = useState<SpotlightType>("country");
   const [selectedSpotlight, setSelectedSpotlight] = useState<string>("");
+  const [spotlightChartType, setSpotlightChartType] = useState<ChartType>("horizontal-bar");
+  const [spotlightMetric, setSpotlightMetric] = useState<Metric>("totalInvestmentUsdMn");
+  const [spotlightGrouping, setSpotlightGrouping] = useState<string>("technology");
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingSpotlightChart, setIsExportingSpotlightChart] = useState(false);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
+  const spotlightChartRef = useRef<HTMLDivElement>(null);
 
   const { data: byCountry, isLoading: loadC } = useGetStatsByCountry();
   const { data: byTech, isLoading: loadT } = useGetStatsByTechnology();
@@ -210,9 +215,31 @@ export default function VizStudio() {
   const regionOptions = useMemo(() => [...(byRegion || [])].sort((a, b) => a.region.localeCompare(b.region)), [byRegion]);
   const spotlightOptions = spotlightType === "country" ? countryOptions.map(c => c.country) : regionOptions.map(r => r.region);
 
-  const exportChart = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+  const spotlightGroupByOptions = useMemo(() => {
+    const base = [
+      { value: "technology", label: "Technology" },
+      { value: "year", label: "Year" },
+    ];
+    if (spotlightType === "region") base.push({ value: "countries", label: "Countries in Region" });
+    return base;
+  }, [spotlightType]);
+
+  const spotlightActiveData = useMemo(() => {
+    if (spotlightGrouping === "technology") return spotlightTechData;
+    if (spotlightGrouping === "year") return spotlightYearData;
+    if (spotlightGrouping === "countries") return spotlightCountriesData;
+    return [];
+  }, [spotlightGrouping, spotlightTechData, spotlightYearData, spotlightCountriesData]);
+
+  const spotlightNameKey = spotlightGrouping === "year" ? "year" : spotlightGrouping === "countries" ? "country" : "technology";
+
+  const spotlightChartTitle = `${spotlightMetric === "totalInvestmentUsdMn" ? "Investment Volume" : "Number of Projects"} by ${
+    spotlightGrouping === "technology" ? "Technology" : spotlightGrouping === "year" ? "Year" : "Country"
+  } — ${selectedSpotlight}`;
+
+  const exportChart = async (ref: React.RefObject<HTMLDivElement | null>, filename: string, setLoading: (v: boolean) => void) => {
     if (!ref.current) return;
-    setIsExporting(true);
+    setLoading(true);
     try {
       const canvas = await html2canvas(ref.current, { backgroundColor: "#0B0F19", scale: 2, logging: false });
       const link = document.createElement("a");
@@ -220,7 +247,7 @@ export default function VizStudio() {
       link.href = canvas.toDataURL("image/png");
       link.click();
     } catch (err) { console.error("Export failed", err); }
-    finally { setIsExporting(false); }
+    finally { setLoading(false); }
   };
 
   const overviewTitle = `${metric === "totalInvestmentUsdMn" ? "Investment Volume" : "Number of Projects"} by ${grouping.charAt(0).toUpperCase() + grouping.slice(1)}`;
@@ -236,12 +263,15 @@ export default function VizStudio() {
             <p className="text-muted-foreground text-lg">Generate custom charts and download infographics.</p>
           </div>
           <button
-            onClick={() => exportChart(viewMode === "overview" ? chartRef : spotlightRef, `afrienergy-${viewMode === "overview" ? `${grouping}-${metric}` : selectedSpotlight}`)}
+            onClick={() => viewMode === "overview"
+              ? exportChart(chartRef, `afrienergy-${grouping}-${metric}`, setIsExporting)
+              : exportChart(spotlightRef, `afrienergy-spotlight-${selectedSpotlight}`, setIsExporting)
+            }
             disabled={isExporting || isLoading || (viewMode === "spotlight" && !selectedSpotlight)}
             className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
           >
             {isExporting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            Export as PNG
+            Export Full Profile
           </button>
         </header>
 
@@ -360,7 +390,7 @@ export default function VizStudio() {
                     { value: "country", label: "Country" },
                     { value: "region", label: "Region" },
                   ] as { value: SpotlightType; label: string }[]).map(t => (
-                    <button key={t.value} onClick={() => { setSpotlightType(t.value); setSelectedSpotlight(""); }}
+                    <button key={t.value} onClick={() => { setSpotlightType(t.value); setSelectedSpotlight(""); setSpotlightGrouping("technology"); }}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors border
                         ${spotlightType === t.value ? "bg-primary/20 border-primary/50 text-primary" : "bg-background border-border hover:bg-muted text-muted-foreground"}`}>
                       {t.label}
@@ -449,63 +479,93 @@ export default function VizStudio() {
                   ))}
                 </div>
 
-                {/* Technology Breakdown + Year Trend */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Chart Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-                  <div>
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-primary" /> Investment by Technology
-                    </h3>
-                    <div style={{ height: 280 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={spotlightTechData} layout="vertical" margin={{ top: 0, right: 20, left: 130, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                          <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickFormatter={v => formatValue(v, "totalInvestmentUsdMn")} fontSize={11} />
-                          <YAxis type="category" dataKey="technology" stroke="hsl(var(--muted-foreground))" width={120} fontSize={11} />
-                          <Tooltip content={<CustomTooltip metric="totalInvestmentUsdMn" />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                          <Bar dataKey="totalInvestmentUsdMn" radius={[0, 6, 6, 0]}>
-                            {spotlightTechData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                  <div className="bg-background border border-border rounded-xl p-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4" /> Chart Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={spotlightChartType}
+                        onChange={e => setSpotlightChartType(e.target.value as ChartType)}
+                        className="w-full bg-card border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none pr-10"
+                      >
+                        {CHART_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      {spotlightType === "region" ? "Countries in Region" : "Investment Timeline"}
-                    </h3>
-                    <div style={{ height: 280 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        {spotlightType === "region" ? (
-                          <BarChart data={spotlightCountriesData} layout="vertical" margin={{ top: 0, right: 20, left: 100, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                            <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickFormatter={v => formatValue(v, "totalInvestmentUsdMn")} fontSize={11} />
-                            <YAxis type="category" dataKey="country" stroke="hsl(var(--muted-foreground))" width={90} fontSize={11} />
-                            <Tooltip content={<CustomTooltip metric="totalInvestmentUsdMn" />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                            <Bar dataKey="totalInvestmentUsdMn" radius={[0, 6, 6, 0]}>
-                              {spotlightCountriesData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                            </Bar>
-                          </BarChart>
-                        ) : (
-                          <AreaChart data={spotlightYearData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                            <defs>
-                              <linearGradient id="spotlightGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="year" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                            <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={v => formatValue(v, "totalInvestmentUsdMn")} fontSize={11} />
-                            <Tooltip content={<CustomTooltip metric="totalInvestmentUsdMn" />} />
-                            <Area type="monotone" dataKey="totalInvestmentUsdMn" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#spotlightGrad)" />
-                          </AreaChart>
-                        )}
-                      </ResponsiveContainer>
+                  <div className="bg-background border border-border rounded-xl p-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Layers className="w-4 h-4" /> Metric
+                    </label>
+                    <div className="flex gap-2">
+                      {([
+                        { value: "totalInvestmentUsdMn", label: "Investment ($)" },
+                        { value: "projectCount", label: "Projects (#)" },
+                      ] as { value: Metric; label: string }[]).map(m => (
+                        <button key={m.value} onClick={() => setSpotlightMetric(m.value)}
+                          className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors border
+                            ${spotlightMetric === m.value ? "bg-primary/20 border-primary/50 text-primary" : "bg-card border-border hover:bg-muted text-muted-foreground"}`}>
+                          {m.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
+
+                  <div className="bg-background border border-border rounded-xl p-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4" /> Group By
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={spotlightGrouping}
+                        onChange={e => setSpotlightGrouping(e.target.value)}
+                        className="w-full bg-card border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none pr-10"
+                      >
+                        {spotlightGroupByOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Spotlight Chart Canvas */}
+                <div ref={spotlightChartRef} className="bg-background border border-border rounded-2xl p-6 relative overflow-hidden">
+                  <div className="absolute bottom-3 right-5 opacity-10 font-display font-bold text-xl pointer-events-none select-none">
+                    AfriEnergy Tracker
+                  </div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-lg">{spotlightChartTitle}</h3>
+                    <button
+                      onClick={() => exportChart(spotlightChartRef, `afrienergy-${selectedSpotlight}-${spotlightGrouping}-${spotlightMetric}`, setIsExportingSpotlightChart)}
+                      disabled={isExportingSpotlightChart || !spotlightActiveData.length}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {isExportingSpotlightChart ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      Download Chart
+                    </button>
+                  </div>
+                  {spotlightActiveData.length === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                      No data available for this selection
+                    </div>
+                  ) : (
+                    <ChartRenderer
+                      chartType={spotlightChartType}
+                      data={spotlightActiveData}
+                      nameKey={spotlightNameKey}
+                      metric={spotlightMetric}
+                      height={380}
+                    />
+                  )}
                 </div>
 
                 {/* Project List */}
