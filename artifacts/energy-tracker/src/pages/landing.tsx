@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useGetSummaryStats } from "@workspace/api-client-react";
 import { BarChart2, Globe, Layers, Cpu } from "lucide-react";
 
@@ -26,7 +26,7 @@ export default function Landing() {
     <div className="min-h-screen bg-[#0b0f1a] text-white flex flex-col">
       {/* Navbar */}
       <header className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 cursor-pointer hover:opacity-85 transition-opacity">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
             <img
               src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
@@ -35,7 +35,7 @@ export default function Landing() {
             />
           </div>
           <span className="font-display font-bold text-xl tracking-tight">AfriEnergy</span>
-        </div>
+        </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-sm text-white/70">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -255,7 +255,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-white/8 py-8 px-8 text-center text-white/30 text-sm">
-        <div className="flex items-center justify-center gap-2 mb-2">
+        <Link href="/" className="inline-flex items-center justify-center gap-2 mb-2 cursor-pointer hover:opacity-80 transition-opacity">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-primary/20">
             <img
               src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
@@ -264,7 +264,7 @@ export default function Landing() {
             />
           </div>
           <span className="font-display font-semibold text-white/60">AfriEnergy</span>
-        </div>
+        </Link>
         Africa's Energy Investment Tracker · Data sourced from publicly disclosed transactions
       </footer>
     </div>

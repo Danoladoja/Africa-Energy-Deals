@@ -71,7 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-72 flex-col bg-sidebar border-r border-sidebar-border relative z-20">
         <div className="h-20 flex items-center px-8 border-b border-sidebar-border">
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-3 group cursor-pointer">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
               <img 
                 src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
