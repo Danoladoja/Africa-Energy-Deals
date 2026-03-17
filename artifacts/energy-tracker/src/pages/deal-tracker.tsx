@@ -5,7 +5,7 @@ import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { 
   Search, Filter, ChevronLeft, ChevronRight, Eye, 
-  MapPin, Calendar, DollarSign, Zap, ExternalLink 
+  MapPin, Calendar, DollarSign, Zap, ExternalLink, Activity
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -159,15 +159,29 @@ export default function DealTracker() {
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right">
-                        <button 
-                          className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProject(project);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {project.sourceUrl && (
+                            <a
+                              href={project.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="View source"
+                              className="p-2 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors opacity-0 group-hover:opacity-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                          <button 
+                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProject(project);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -216,9 +230,10 @@ export default function DealTracker() {
                         href={selectedProject.sourceUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-primary hover:text-primary/80 flex items-center gap-1 text-sm font-medium"
+                        className="flex items-center gap-1.5 text-xs font-medium bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-3 py-1.5 rounded-full transition-colors"
                       >
-                        Source <ExternalLink className="w-3 h-3" />
+                        <ExternalLink className="w-3 h-3" />
+                        Verified Source
                       </a>
                     )}
                   </div>
