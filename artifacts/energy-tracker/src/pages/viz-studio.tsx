@@ -17,7 +17,7 @@ import {
   Download, RefreshCw, Layers, BarChart2, Globe, MapPin,
   ChevronDown, Zap, DollarSign,
 } from "lucide-react";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 const COLORS = [
   "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
@@ -241,13 +241,24 @@ export default function VizStudio() {
     if (!ref.current) return;
     setLoading(true);
     try {
-      const canvas = await html2canvas(ref.current, { backgroundColor: "#0B0F19", scale: 2, logging: false });
+      // Small delay to ensure recharts SVG is fully painted
+      await new Promise(r => setTimeout(r, 150));
+      const dataUrl = await toPng(ref.current, {
+        backgroundColor: "#0B0F19",
+        pixelRatio: 2,
+        cacheBust: true,
+        // Exclude UI controls (buttons with data-no-export) from the image
+        filter: (node: HTMLElement) => !node.dataset?.noExport,
+      });
       const link = document.createElement("a");
-      link.download = `${filename}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.download = `afrienergy-${filename}.png`;
+      link.href = dataUrl;
       link.click();
-    } catch (err) { console.error("Export failed", err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("Export failed", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const overviewTitle = `${metric === "totalInvestmentUsdMn" ? "Investment Volume" : "Number of Projects"} by ${grouping.charAt(0).toUpperCase() + grouping.slice(1)}`;
@@ -264,8 +275,8 @@ export default function VizStudio() {
           </div>
           <button
             onClick={() => viewMode === "overview"
-              ? exportChart(chartRef, `afrienergy-${grouping}-${metric}`, setIsExporting)
-              : exportChart(spotlightRef, `afrienergy-spotlight-${selectedSpotlight}`, setIsExporting)
+              ? exportChart(chartRef, `${grouping}-${metric}`, setIsExporting)
+              : exportChart(spotlightRef, `spotlight-${selectedSpotlight}`, setIsExporting)
             }
             disabled={isExporting || isLoading || (viewMode === "spotlight" && !selectedSpotlight)}
             className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
@@ -545,7 +556,8 @@ export default function VizStudio() {
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-bold text-lg">{spotlightChartTitle}</h3>
                     <button
-                      onClick={() => exportChart(spotlightChartRef, `afrienergy-${selectedSpotlight}-${spotlightGrouping}-${spotlightMetric}`, setIsExportingSpotlightChart)}
+                      data-no-export=""
+                      onClick={() => exportChart(spotlightChartRef, `${selectedSpotlight}-${spotlightGrouping}-${spotlightMetric}`, setIsExportingSpotlightChart)}
                       disabled={isExportingSpotlightChart || !spotlightActiveData.length}
                       className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                     >
