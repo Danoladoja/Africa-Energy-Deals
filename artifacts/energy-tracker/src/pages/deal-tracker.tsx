@@ -225,17 +225,30 @@ export default function DealTracker() {
                     <Badge variant="outline" className={getStatusColor(selectedProject.status)}>
                       {selectedProject.status}
                     </Badge>
-                    {selectedProject.sourceUrl && (
-                      <a 
-                        href={selectedProject.sourceUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs font-medium bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-3 py-1.5 rounded-full transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Verified Source
-                      </a>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {selectedProject.newsUrl && (
+                        <a 
+                          href={selectedProject.newsUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border px-3 py-1.5 rounded-full transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          News Coverage
+                        </a>
+                      )}
+                      {selectedProject.sourceUrl && (
+                        <a 
+                          href={selectedProject.sourceUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-medium bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-3 py-1.5 rounded-full transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Verified Source
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <DialogTitle className="text-2xl md:text-3xl font-bold font-display text-foreground mb-2">
                     {selectedProject.projectName}

@@ -96,33 +96,60 @@ export default function MapPage() {
                             {project.projectName}
                           </div>
                         </div>
-                        {project.sourceUrl && (
-                          <a
-                            href={project.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: techColors[project.technology] || defaultColor,
-                              background: `${techColors[project.technology] || defaultColor}18`,
-                              border: `1px solid ${techColors[project.technology] || defaultColor}40`,
-                              borderRadius: 20,
-                              padding: "4px 9px",
-                              whiteSpace: "nowrap",
-                              textDecoration: "none",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                            </svg>
-                            Source
-                          </a>
-                        )}
+                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                          {(project as any).newsUrl && (
+                            <a
+                              href={(project as any).newsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#94a3b8",
+                                background: "rgba(148,163,184,0.10)",
+                                border: "1px solid rgba(148,163,184,0.22)",
+                                borderRadius: 20,
+                                padding: "4px 9px",
+                                whiteSpace: "nowrap",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+                              </svg>
+                              News
+                            </a>
+                          )}
+                          {project.sourceUrl && (
+                            <a
+                              href={project.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: techColors[project.technology] || defaultColor,
+                                background: `${techColors[project.technology] || defaultColor}18`,
+                                border: `1px solid ${techColors[project.technology] || defaultColor}40`,
+                                borderRadius: 20,
+                                padding: "4px 9px",
+                                whiteSpace: "nowrap",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                              </svg>
+                              Source
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -201,34 +228,62 @@ export default function MapPage() {
                       )}
 
                       {/* Source footer */}
-                      {project.sourceUrl && (
-                        <a
-                          href={project.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: techColors[project.technology] || defaultColor,
-                            background: `${techColors[project.technology] || defaultColor}12`,
-                            border: `1px solid ${techColors[project.technology] || defaultColor}30`,
-                            borderRadius: 8,
-                            padding: "8px 12px",
-                            textDecoration: "none",
-                            marginTop: 2,
-                            transition: "background 0.15s",
-                          }}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                          </svg>
-                          View Verified Source
-                        </a>
-                      )}
+                      <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                        {(project as any).newsUrl && (
+                          <a
+                            href={(project as any).newsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 6,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: "#94a3b8",
+                              background: "rgba(148,163,184,0.08)",
+                              border: "1px solid rgba(148,163,184,0.20)",
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                              textDecoration: "none",
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+                            </svg>
+                            Read News
+                          </a>
+                        )}
+                        {project.sourceUrl && (
+                          <a
+                            href={project.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 6,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: techColors[project.technology] || defaultColor,
+                              background: `${techColors[project.technology] || defaultColor}12`,
+                              border: `1px solid ${techColors[project.technology] || defaultColor}30`,
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                              textDecoration: "none",
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                            </svg>
+                            View Source
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Popup>

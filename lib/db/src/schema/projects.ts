@@ -18,6 +18,7 @@ export const projectsTable = pgTable("energy_projects", {
   announcedYear: integer("announced_year"),
   closedYear: integer("closed_year"),
   sourceUrl: text("source_url"),
+  newsUrl: text("news_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
