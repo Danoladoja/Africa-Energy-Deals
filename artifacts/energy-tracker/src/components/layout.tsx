@@ -5,10 +5,13 @@ import {
   Map as MapIcon, 
   BarChart4,
   Menu,
-  X
+  X,
+  House,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+const homeItem = { name: "Home", href: "/", icon: House };
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -68,8 +71,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-72 flex-col bg-sidebar border-r border-sidebar-border relative z-20">
         <div className="h-20 flex items-center px-8 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
               <img 
                 src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
                 alt="AfriEnergy Logo" 
@@ -79,11 +82,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-display font-bold text-xl tracking-tight text-sidebar-foreground">
               AfriEnergy
             </span>
-          </div>
+          </Link>
         </div>
 
         <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-          <div className="px-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+          <NavItem item={homeItem} />
+          <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
             Analytics & Tools
           </div>
           {navItems.map((item) => (
@@ -101,7 +105,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border z-50 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <img 
               src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
@@ -110,7 +114,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             />
           </div>
           <span className="font-display font-bold text-lg">AfriEnergy</span>
-        </div>
+        </Link>
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 text-foreground/80 hover:text-foreground"
@@ -129,6 +133,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             className="md:hidden fixed inset-0 z-40 bg-background/98 backdrop-blur-xl pt-20 px-4"
           >
             <nav className="flex flex-col gap-2 mt-4">
+              <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
+              <div className="px-4 pt-2 pb-1 text-xs font-semibold text-foreground/40 uppercase tracking-wider">
+                Analytics & Tools
+              </div>
               {navItems.map((item) => (
                 <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
               ))}
