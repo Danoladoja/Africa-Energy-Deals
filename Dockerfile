@@ -10,8 +10,10 @@ RUN pnpm install --no-frozen-lockfile
 
 ENV PORT=3000
 ENV NODE_ENV=production
+ENV BASE_PATH=/
 
-RUN pnpm -r --if-present run build
+RUN pnpm --filter @workspace/energy-tracker run build
+RUN pnpm --filter @workspace/api-server run build
 
 EXPOSE 3000
 
