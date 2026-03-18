@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -179,16 +179,21 @@ async function extractProjectsFromBatch(
     )
     .join("\n\n---\n\n");
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: SYSTEM_PROMPT,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `Extract Africa energy investment projects from these articles:\n\n${articlesSummary}` },
+      {
+        role: "user",
+        content: `Extract Africa energy investment projects from these articles:\n\n${articlesSummary}`,
+      },
     ],
   });
 
-  const rawContent = response.choices[0]?.message?.content ?? "[]";
+  const block = message.content[0];
+  const rawContent = block.type === "text" ? block.text : "[]";
+
   try {
     const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
     if (jsonMatch) return JSON.parse(jsonMatch[0]) as Record<string, unknown>[];
@@ -303,7 +308,7 @@ export async function runScraper(
 
     onProgress?.({
       stage: "analyzing",
-      message: `Analysing ${relevantArticles.length} articles across ${batches.length} batch${batches.length !== 1 ? "es" : ""} with AI...`,
+      message: `Analysing ${relevantArticles.length} articles across ${batches.length} batch${batches.length !== 1 ? "es" : ""} with Claude Sonnet...`,
     });
 
     const allProjects: Record<string, unknown>[] = [];

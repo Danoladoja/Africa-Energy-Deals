@@ -334,7 +334,7 @@ export default function DiscoveryPage() {
               <h1 className="font-display font-bold text-2xl text-foreground">AI Discovery</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
-              The AI agent scans 45+ sources daily — national dailies, development banks (World Bank, AfDB, IFC), energy agencies (IEA, IRENA, SE4All), financial institutions (BII, Proparco, DFC, GCF), and sector publications — extracting new Africa energy investment deals automatically.
+              Claude Sonnet scans 45+ sources daily — national dailies, development banks (World Bank, AfDB, IFC), energy agencies (IEA, IRENA, SE4All), financial institutions (BII, Proparco, DFC, GCF), and sector publications — extracting new Africa energy investment deals automatically.
             </p>
           </div>
 
