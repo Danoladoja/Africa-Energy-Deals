@@ -8,7 +8,7 @@ COPY . .
 
 RUN pnpm install --no-frozen-lockfile
 
-RUN pnpm --filter @workspace/energy-tracker run build && pnpm --filter @workspace/api-server run build
+RUN pnpm -r --if-present run build
 
 EXPOSE 3000
 
