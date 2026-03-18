@@ -8,6 +8,9 @@ COPY . .
 
 RUN pnpm install --no-frozen-lockfile
 
+ENV PORT=3000
+ENV NODE_ENV=production
+
 RUN pnpm -r --if-present run build
 
 EXPOSE 3000
