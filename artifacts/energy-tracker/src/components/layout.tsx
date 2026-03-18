@@ -7,6 +7,7 @@ import {
   Menu,
   X,
   House,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +19,7 @@ const navItems = [
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
+  { name: "AI Discovery", href: "/discovery", icon: Sparkles },
 ];
 
 function NavItem({ item }: { item: typeof navItems[number] }) {

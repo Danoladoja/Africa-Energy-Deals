@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import DealTracker from "@/pages/deal-tracker";
 import MapPage from "@/pages/map";
 import VizStudio from "@/pages/viz-studio";
+import DiscoveryPage from "@/pages/discovery";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/deals" component={DealTracker} />
       <Route path="/map" component={MapPage} />
       <Route path="/studio" component={VizStudio} />
+      <Route path="/discovery" component={DiscoveryPage} />
       <Route component={NotFound} />
     </Switch>
   );

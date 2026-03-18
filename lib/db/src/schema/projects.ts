@@ -1,4 +1,4 @@
-import { pgTable, serial, text, doublePrecision, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, doublePrecision, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -19,6 +19,9 @@ export const projectsTable = pgTable("energy_projects", {
   closedYear: integer("closed_year"),
   sourceUrl: text("source_url"),
   newsUrl: text("news_url"),
+  isAutoDiscovered: boolean("is_auto_discovered").default(false).notNull(),
+  reviewStatus: text("review_status").default("approved").notNull(),
+  discoveredAt: timestamp("discovered_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
