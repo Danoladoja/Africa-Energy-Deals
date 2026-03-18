@@ -1,9 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { runScraper, getScraperStatus } from "../services/scraper.js";
+import { runScraper, getScraperStatus, getFeedList } from "../services/scraper.js";
 
 const router: IRouter = Router();
+
+router.get("/scraper/feeds", (_req, res) => {
+  res.json(getFeedList());
+});
 
 router.get("/scraper/status", async (_req, res) => {
   try {

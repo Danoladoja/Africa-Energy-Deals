@@ -15,6 +15,10 @@ import {
   AlertCircle,
   Check,
   X,
+  Newspaper,
+  Building2,
+  Landmark,
+  Wallet,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -46,6 +50,8 @@ interface ScraperStatus {
   lastResult: {
     processed: number;
     discovered: number;
+    feedsReached: number;
+    feedsFailed: number;
     errors: string[];
     runAt: string;
   } | null;
@@ -327,8 +333,8 @@ export default function DiscoveryPage() {
               </div>
               <h1 className="font-display font-bold text-2xl text-foreground">AI Discovery</h1>
             </div>
-            <p className="text-muted-foreground text-sm max-w-lg">
-              The AI agent scans ESI Africa, PV Magazine, Recharge News, The Africa Report, and more daily — extracting new energy investment deals automatically.
+            <p className="text-muted-foreground text-sm max-w-xl">
+              The AI agent scans 45+ sources daily — national dailies, development banks (World Bank, AfDB, IFC), energy agencies (IEA, IRENA, SE4All), financial institutions (BII, Proparco, DFC, GCF), and sector publications — extracting new Africa energy investment deals automatically.
             </p>
           </div>
 
@@ -361,6 +367,11 @@ export default function DiscoveryPage() {
             <p className="font-display font-semibold text-foreground">
               {formatRelativeTime(status?.lastRunAt ?? null)}
             </p>
+            {status?.lastResult && (
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                {status.lastResult.discovered} deals · {status.lastResult.feedsReached} sources reached
+              </p>
+            )}
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4">
@@ -369,6 +380,7 @@ export default function DiscoveryPage() {
               Pending Review
             </div>
             <p className="font-display font-semibold text-foreground">{pendingCount}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">deals awaiting approval</p>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4">
@@ -377,14 +389,43 @@ export default function DiscoveryPage() {
               Schedule
             </div>
             <p className="font-display font-semibold text-foreground">Daily 06:00 UTC</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">+ manual trigger anytime</p>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-2">
               <Globe className="w-3.5 h-3.5" />
-              Sources
+              Source Network
             </div>
-            <p className="font-display font-semibold text-foreground">6 RSS Feeds</p>
+            <p className="font-display font-semibold text-foreground">45+ Sources</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">7 categories monitored</p>
+          </div>
+        </div>
+
+        {/* Source category breakdown */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-display font-semibold text-sm text-foreground mb-4">Source Network Coverage</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Energy Media", count: 6, icon: Zap, desc: "ESI Africa, PV Mag, Recharge, Energy Monitor…" },
+              { label: "Dev. Banks & Agencies", count: 10, icon: Building2, desc: "World Bank, AfDB, IFC, IEA, IRENA, SE4All, Power Africa…" },
+              { label: "Financial Institutions", count: 4, icon: Wallet, desc: "BII, Proparco, DFC, Green Climate Fund…" },
+              { label: "National Dailies", count: 17, icon: Newspaper, desc: "Nigeria, Kenya, South Africa, Ghana, Ethiopia, Tanzania, Egypt, Morocco…" },
+              { label: "Pan-African News", count: 6, icon: Globe, desc: "AllAfrica, Africa Report, African Business, The East African…" },
+              { label: "Reuters", count: 1, icon: Landmark, desc: "Reuters Business wire for major deal coverage" },
+              { label: "MDA Feeds", count: 2, icon: Building2, desc: "MIGA, EBRD regional Africa coverage" },
+            ].map((cat) => (
+              <div key={cat.label} className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/20 border border-border/50">
+                <cat.icon className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-foreground">{cat.label}</span>
+                    <span className="text-xs text-primary font-bold">{cat.count}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 leading-snug">{cat.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
