@@ -16,4 +16,4 @@ RUN pnpm --filter @workspace/energy-tracker run build
 
 EXPOSE 3000
 
-CMD ["npx", "tsx", "artifacts/api-server/src/index.ts"]
+CMD ["npx", "tsx", "railway-server.mjs"]
