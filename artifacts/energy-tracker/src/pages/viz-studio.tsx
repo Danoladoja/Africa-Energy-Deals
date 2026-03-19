@@ -74,37 +74,40 @@ function ChartRenderer({
   return (
     <ResponsiveContainer width="100%" height={height}>
       {chartType === "bar" ? (
-        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 90 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} angle={-40} textAnchor="end" height={70} />
-          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)} width={80} />
+          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} angle={-35} textAnchor="end" height={90} interval={0} />
+          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)} width={80}
+            label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
           <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
           <Bar dataKey={metric} radius={[6, 6, 0, 0]}>
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
         </BarChart>
       ) : chartType === "horizontal-bar" ? (
-        <BarChart data={data} layout="vertical" margin={{ top: 10, right: 60, left: 130, bottom: 10 }}>
+        <BarChart data={data} layout="vertical" margin={{ top: 10, right: 60, left: 10, bottom: 40 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)} />
-          <YAxis type="category" dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} width={120} />
+          <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)}
+            label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", position: "insideBottom", offset: -5, style: { fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
+          <YAxis type="category" dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={160} />
           <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
           <Bar dataKey={metric} radius={[0, 6, 6, 0]}>
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
         </BarChart>
       ) : chartType === "line" ? (
-        <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 90 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" />
-          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)} />
+          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} angle={-35} textAnchor="end" height={90} interval={0} />
+          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)}
+            label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
           <Tooltip content={tooltipEl} />
           <Line type="monotone" dataKey={metric} stroke="hsl(var(--primary))" strokeWidth={3}
             dot={{ r: 5, fill: "hsl(var(--background))", strokeWidth: 2 }}
             activeDot={{ r: 7, stroke: "hsl(var(--accent))" }} />
         </LineChart>
       ) : chartType === "area" ? (
-        <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 90 }}>
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
@@ -112,8 +115,9 @@ function ChartRenderer({
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" />
-          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)} />
+          <XAxis dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} angle={-35} textAnchor="end" height={90} interval={0} />
+          <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)}
+            label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
           <Tooltip content={tooltipEl} />
           <Area type="monotone" dataKey={metric} stroke="hsl(var(--primary))" strokeWidth={3}
             fill="url(#areaGrad)" dot={{ r: 4, fill: "hsl(var(--primary))" }} />
