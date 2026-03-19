@@ -9,13 +9,14 @@ COPY . .
 RUN pnpm install --no-frozen-lockfile
 
 ENV PORT=3000
-ENV NODE_ENV=production
 ENV BASE_PATH=/
 
 RUN pnpm --filter @workspace/energy-tracker run build
 
+RUN pnpm add -w tsx express
+
 EXPOSE 3000
 
-RUN pnpm add -w tsx express
+ENV NODE_ENV=production
 
 CMD ["pnpm", "exec", "tsx", "railway-server.mjs"]
