@@ -19,7 +19,7 @@ try {
 }
 
 // Serve frontend static files
-const frontendDist = path.join(__dirname, "artifacts/energy-tracker/dist");
+const frontendDist = path.join(__dirname, "artifacts/energy-tracker/dist/public");
 app.use(express.static(frontendDist));
 
 // SPA fallback - serve index.html for all unmatched routes
