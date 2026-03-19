@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(frontendDist));
 
   // SPA catch-all — serve index.html for all non-API routes so client-side routing works
-  app.get("*", (req, res) => {
+  app.get("/{*path}", (req, res) => {
     if (req.path.startsWith("/api")) {
       res.status(404).json({ error: "Not found" });
     } else {
