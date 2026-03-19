@@ -52,7 +52,7 @@ export default function Dashboard() {
         </header>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
           <StatCard 
             title="Total Investment" 
             value={summary ? formatCurrency(summary.totalInvestmentUsdMn) : ""} 
@@ -103,7 +103,7 @@ export default function Dashboard() {
               <TrendingUp className="w-5 h-5 text-primary" />
               Investment Trajectory
             </h3>
-            <div className="h-[300px] w-full">
+            <div className="h-[220px] md:h-[300px] w-full">
               {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={yearStats}>
@@ -149,7 +149,7 @@ export default function Dashboard() {
               <Zap className="w-5 h-5 text-accent" />
               By Technology
             </h3>
-            <div className="h-[300px] w-full">
+            <div className="h-[220px] md:h-[300px] w-full">
               {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -187,10 +187,10 @@ export default function Dashboard() {
               <Globe className="w-5 h-5 text-chart-3" />
               Regional Distribution
             </h3>
-            <div className="h-[350px] w-full">
+            <div className="h-[260px] md:h-[350px] w-full">
               {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={regionStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <BarChart data={regionStats} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis 
                       dataKey="region" 
@@ -234,26 +234,26 @@ function StatCard({ title, value, icon: Icon, loading, trend, trendUp }: {
   title: string, value: string, icon: any, loading: boolean, trend?: string, trendUp?: boolean 
 }) {
   return (
-    <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group relative overflow-hidden">
+    <div className="bg-card border border-card-border rounded-2xl p-4 md:p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group relative overflow-hidden">
       <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        <Icon className="w-24 h-24 text-primary" />
+        <Icon className="w-16 h-16 md:w-24 md:h-24 text-primary" />
       </div>
-      <div className="flex items-center gap-4 mb-4 relative z-10">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-          <Icon className="w-6 h-6" />
+      <div className="flex items-center gap-2 md:gap-4 mb-3 md:mb-4 relative z-10">
+        <div className="w-9 h-9 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform shrink-0">
+          <Icon className="w-4 h-4 md:w-6 md:h-6" />
         </div>
-        <h3 className="font-semibold text-muted-foreground">{title}</h3>
+        <h3 className="font-semibold text-muted-foreground text-xs md:text-sm leading-tight">{title}</h3>
       </div>
       <div className="relative z-10">
         {loading ? (
-          <Skeleton className="h-10 w-24 mb-1" />
+          <Skeleton className="h-8 w-20 mb-1" />
         ) : (
-          <div className="text-3xl md:text-4xl font-bold font-display tracking-tight text-foreground">
+          <div className="text-2xl md:text-4xl font-bold font-display tracking-tight text-foreground">
             {value}
           </div>
         )}
         {trend && (
-          <div className={`text-sm mt-2 font-medium ${trendUp ? 'text-primary' : 'text-muted-foreground'}`}>
+          <div className={`text-xs md:text-sm mt-1 md:mt-2 font-medium ${trendUp ? 'text-primary' : 'text-muted-foreground'}`}>
             {trend}
           </div>
         )}

@@ -31,6 +31,7 @@ function getStatusColor(status: string) {
 
 export default function MapPage() {
   const [activeProject, setActiveProject] = useState<any>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const { data, isLoading } = useListProjects({ limit: 500 });
   const mapProjects = data?.projects.filter(p => p.latitude != null && p.longitude != null) || [];
@@ -40,7 +41,7 @@ export default function MapPage() {
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
         {/* Map Area */}
-        <div className="flex-1 h-[50vh] md:h-full relative z-0">
+        <div className="flex-1 h-[55vh] md:h-full relative z-0">
           <MapContainer
             center={[0, 20]}
             zoom={4}
@@ -291,16 +292,28 @@ export default function MapPage() {
             ))}
           </MapContainer>
 
-          {/* Legend */}
-          <div className="absolute bottom-6 left-6 z-[1000] bg-card/90 backdrop-blur-md border border-border p-4 rounded-xl shadow-xl">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Technologies</h4>
-            <div className="space-y-2">
-              {Object.entries(techColors).map(([tech, color]) => (
-                <div key={tech} className="flex items-center gap-2 text-xs">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                  <span>{tech}</span>
-                </div>
-              ))}
+          {/* Legend — collapsible on mobile, always open on desktop */}
+          <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 z-[1000]">
+            {/* Mobile toggle button */}
+            <button
+              onClick={() => setLegendOpen(v => !v)}
+              className="md:hidden flex items-center gap-2 bg-card/95 backdrop-blur-md border border-border px-3 py-2 rounded-xl shadow-xl text-xs font-semibold text-foreground"
+            >
+              <span className="w-2 h-2 rounded-full bg-primary" />
+              {legendOpen ? "Hide" : "Legend"}
+            </button>
+
+            {/* Legend panel */}
+            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-card/90 backdrop-blur-md border border-border p-4 rounded-xl shadow-xl mt-2 md:mt-0`}>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Technologies</h4>
+              <div className="space-y-2">
+                {Object.entries(techColors).map(([tech, color]) => (
+                  <div key={tech} className="flex items-center gap-2 text-xs">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span>{tech}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

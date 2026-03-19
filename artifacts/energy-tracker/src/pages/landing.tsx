@@ -53,7 +53,7 @@ export default function Landing() {
 
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center text-center px-4 pt-16 pb-24 max-w-4xl mx-auto w-full">
-        <h1 className="text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-8">
+        <h1 className="text-[2.6rem] sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-6 md:mb-8">
           <span className="text-white">Africa's Energy</span>
           <br />
           <span className="text-[#00e676]">Investment</span>
@@ -61,7 +61,7 @@ export default function Landing() {
           <span className="text-[#00e676]">Tracker.</span>
         </h1>
 
-        <p className="text-white/60 text-lg md:text-xl max-w-xl leading-relaxed mb-12">
+        <p className="text-white/60 text-base md:text-xl max-w-xl leading-relaxed mb-10 md:mb-12">
           Search, explore and visualise disclosed energy transactions across
           the continent. Track project financing, monitor deal pipelines, and
           generate data-driven insights.
@@ -70,7 +70,7 @@ export default function Landing() {
         {/* Search Bar */}
         <form
           onSubmit={handleExplore}
-          className="flex items-center w-full max-w-lg gap-3 mb-20"
+          className="flex flex-col sm:flex-row items-stretch sm:items-center w-full max-w-lg gap-3 mb-16 md:mb-20"
         >
           <div className="flex-1 flex items-center bg-white/8 border border-white/12 rounded-full px-5 py-3.5 gap-3 focus-within:border-[#00e676]/50 focus-within:bg-white/10 transition-all">
             <svg className="w-4 h-4 text-white/40 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -92,38 +92,34 @@ export default function Landing() {
           </button>
         </form>
 
-        {/* Stats */}
-        <div className="flex items-start justify-center gap-0 w-full max-w-2xl">
+        {/* Stats — 2×2 on mobile, single row on md+ */}
+        <div className="grid grid-cols-2 md:flex md:items-start md:justify-center w-full max-w-2xl gap-y-6 md:gap-0">
           {[
             {
               value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—",
               label: "Total Investment",
-              icon: <BarChart2 className="w-4 h-4" />,
             },
             {
               value: stats ? stats.totalProjects.toString() : "—",
               label: "Total Projects",
-              icon: <Layers className="w-4 h-4" />,
             },
             {
               value: stats ? stats.totalCountries.toString() : "—",
               label: "Countries",
-              icon: <Globe className="w-4 h-4" />,
             },
             {
               value: stats ? stats.totalTechnologies.toString() : "—",
               label: "Technologies",
-              icon: <Cpu className="w-4 h-4" />,
             },
           ].map((stat, i, arr) => (
             <div
               key={stat.label}
-              className={`flex-1 flex flex-col items-center gap-1 px-4 ${i < arr.length - 1 ? "border-r border-white/10" : ""}`}
+              className={`flex flex-col items-center gap-1 px-4 md:flex-1 ${i < arr.length - 1 ? "md:border-r md:border-white/10" : ""} ${i % 2 === 0 ? "border-r border-white/10 md:border-r-0" : ""}`}
             >
-              <span className="text-3xl md:text-4xl font-extrabold text-[#00e676] tracking-tight">
+              <span className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#00e676] tracking-tight">
                 {stat.value}
               </span>
-              <span className="text-white/50 text-xs uppercase tracking-widest mt-1">
+              <span className="text-white/50 text-xs uppercase tracking-widest mt-1 text-center">
                 {stat.label}
               </span>
             </div>

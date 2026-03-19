@@ -4,7 +4,7 @@ import { useListProjects } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { 
-  Search, Filter, ChevronLeft, ChevronRight, Eye, 
+  Search, ChevronLeft, ChevronRight, Eye,
   MapPin, Calendar, DollarSign, Zap, ExternalLink, Activity
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,10 +18,8 @@ export default function DealTracker() {
   const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState("");
   const [technology, setTechnology] = useState("");
-  
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
-  
-  // Simple debounce for search
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     setTimeout(() => setDebouncedSearch(e.target.value), 500);
@@ -50,30 +48,30 @@ export default function DealTracker() {
   return (
     <Layout>
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
-        
+
         <header className="mb-6">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Deal Tracker</h1>
-          <p className="text-muted-foreground text-lg">Search and filter through the complete database of energy transactions.</p>
+          <p className="text-muted-foreground text-base md:text-lg">Search and filter through the complete database of energy transactions.</p>
         </header>
 
-        {/* Filters Bar */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6 bg-card p-4 rounded-2xl border border-card-border shadow-sm">
-          <div className="relative flex-1">
+        {/* Filters */}
+        <div className="flex flex-col gap-3 mb-6 bg-card p-4 rounded-2xl border border-card-border shadow-sm">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="Search projects, investors..." 
+            <input
+              type="text"
+              placeholder="Search projects, investors..."
               value={search}
               onChange={handleSearchChange}
               className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
           </div>
-          
-          <div className="flex gap-4">
-            <select 
+
+          <div className="flex gap-3">
+            <select
               value={technology}
-              onChange={(e) => setTechnology(e.target.value)}
-              className="bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none min-w-[150px]"
+              onChange={(e) => { setTechnology(e.target.value); setPage(1); }}
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Technologies</option>
               <option value="Solar PV">Solar PV</option>
@@ -84,10 +82,10 @@ export default function DealTracker() {
               <option value="Green Hydrogen">Green Hydrogen</option>
             </select>
 
-            <select 
+            <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none min-w-[150px]"
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Statuses</option>
               <option value="Announced">Announced</option>
@@ -95,16 +93,87 @@ export default function DealTracker() {
               <option value="Construction">Construction</option>
               <option value="Operational">Operational</option>
             </select>
-            
-            <button className="bg-secondary text-secondary-foreground px-4 py-2.5 rounded-xl border border-border hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium">
-              <Filter className="w-4 h-4" />
-              More Filters
-            </button>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="flex-1 bg-card border border-card-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        {/* Mobile Card List */}
+        <div className="flex-1 flex flex-col md:hidden gap-3 overflow-y-auto">
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-card border border-card-border rounded-xl p-4 animate-pulse">
+                <div className="h-4 bg-muted rounded w-3/4 mb-3" />
+                <div className="h-3 bg-muted rounded w-1/2 mb-2" />
+                <div className="h-6 bg-muted rounded-full w-24" />
+              </div>
+            ))
+          ) : data?.projects.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
+              No projects found matching your criteria.
+            </div>
+          ) : (
+            data?.projects.map((project) => (
+              <div
+                key={project.id}
+                onClick={() => setSelectedProject(project)}
+                className="bg-card border border-card-border rounded-xl p-4 cursor-pointer hover:border-primary/40 transition-colors active:scale-[0.99]"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-semibold text-sm leading-tight flex-1">{project.projectName}</h3>
+                  <Badge variant="outline" className={`${getStatusColor(project.status)} text-xs shrink-0`}>
+                    {project.status}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3 flex-wrap">
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{project.country}</span>
+                  <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-accent" />{project.technology}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm font-semibold text-foreground">
+                    {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn >= 1000 ? `${(project.dealSizeUsdMn/1000).toFixed(1)}B` : `${project.dealSizeUsdMn}M`}` : "Undisclosed"}
+                  </span>
+                  {project.sourceUrl && (
+                    <a
+                      href={project.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-muted-foreground hover:text-accent p-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Mobile Pagination */}
+          <div className="bg-card border border-card-border rounded-xl p-3 flex items-center justify-between mt-1 shrink-0">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{data?.projects.length || 0}</span> of <span className="font-medium text-foreground">{data?.total || 0}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1 || isLoading}
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-medium px-2">Page {page} of {data?.totalPages || 1}</span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= (data?.totalPages || 1) || isLoading}
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Table */}
+        <div className="flex-1 bg-card border border-card-border rounded-2xl shadow-sm overflow-hidden flex-col hidden md:flex">
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -137,8 +206,8 @@ export default function DealTracker() {
                   </tr>
                 ) : (
                   data?.projects.map((project) => (
-                    <tr 
-                      key={project.id} 
+                    <tr
+                      key={project.id}
                       className="hover:bg-muted/30 transition-colors cursor-pointer group"
                       onClick={() => setSelectedProject(project)}
                     >
@@ -172,7 +241,7 @@ export default function DealTracker() {
                               <ExternalLink className="w-4 h-4" />
                             </a>
                           )}
-                          <button 
+                          <button
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -189,14 +258,13 @@ export default function DealTracker() {
               </tbody>
             </table>
           </div>
-          
-          {/* Pagination */}
+
           <div className="bg-background/50 border-t border-border p-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Showing <span className="font-medium text-foreground">{data?.projects.length || 0}</span> of <span className="font-medium text-foreground">{data?.total || 0}</span> projects
             </p>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1 || isLoading}
                 className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -204,7 +272,7 @@ export default function DealTracker() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm font-medium px-4">Page {page} of {data?.totalPages || 1}</span>
-              <button 
+              <button
                 onClick={() => setPage(p => p + 1)}
                 disabled={page >= (data?.totalPages || 1) || isLoading}
                 className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -217,72 +285,72 @@ export default function DealTracker() {
 
         {/* Project Details Modal */}
         <Dialog open={!!selectedProject} onOpenChange={(open) => !open && setSelectedProject(null)}>
-          <DialogContent className="max-w-2xl bg-card border-card-border p-0 overflow-hidden">
+          <DialogContent className="max-w-2xl bg-card border-card-border p-0 overflow-hidden mx-4 md:mx-auto">
             {selectedProject && (
               <>
-                <div className="bg-gradient-to-r from-primary/20 to-background p-6 border-b border-border">
-                  <div className="flex justify-between items-start mb-4">
+                <div className="bg-gradient-to-r from-primary/20 to-background p-5 md:p-6 border-b border-border">
+                  <div className="flex justify-between items-start mb-4 flex-wrap gap-2">
                     <Badge variant="outline" className={getStatusColor(selectedProject.status)}>
                       {selectedProject.status}
                     </Badge>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {selectedProject.newsUrl && (
-                        <a 
-                          href={selectedProject.newsUrl} 
-                          target="_blank" 
+                        <a
+                          href={selectedProject.newsUrl}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 text-xs font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border px-3 py-1.5 rounded-full transition-colors"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          News Coverage
+                          News
                         </a>
                       )}
                       {selectedProject.sourceUrl && (
-                        <a 
-                          href={selectedProject.sourceUrl} 
-                          target="_blank" 
+                        <a
+                          href={selectedProject.sourceUrl}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 text-xs font-medium bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-3 py-1.5 rounded-full transition-colors"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          Verified Source
+                          Source
                         </a>
                       )}
                     </div>
                   </div>
-                  <DialogTitle className="text-2xl md:text-3xl font-bold font-display text-foreground mb-2">
+                  <DialogTitle className="text-xl md:text-3xl font-bold font-display text-foreground mb-2">
                     {selectedProject.projectName}
                   </DialogTitle>
-                  <p className="text-muted-foreground flex items-center gap-2">
-                    <MapPin className="w-4 h-4" /> {selectedProject.country}, {selectedProject.region}
+                  <p className="text-muted-foreground flex items-center gap-2 text-sm md:text-base">
+                    <MapPin className="w-4 h-4 shrink-0" /> {selectedProject.country}, {selectedProject.region}
                   </p>
                 </div>
-                
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                <div className="p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 overflow-y-auto max-h-[60vh]">
                   <div className="space-y-6">
                     <div>
                       <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Key Details</h4>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                          <span className="text-muted-foreground flex items-center gap-2"><Zap className="w-4 h-4"/> Technology</span>
-                          <span className="font-medium">{selectedProject.technology}</span>
+                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><Zap className="w-4 h-4"/> Technology</span>
+                          <span className="font-medium text-sm">{selectedProject.technology}</span>
                         </div>
                         <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                          <span className="text-muted-foreground flex items-center gap-2"><DollarSign className="w-4 h-4"/> Deal Size</span>
-                          <span className="font-medium font-mono">{selectedProject.dealSizeUsdMn ? `$${selectedProject.dealSizeUsdMn}M` : 'Undisclosed'}</span>
+                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><DollarSign className="w-4 h-4"/> Deal Size</span>
+                          <span className="font-medium font-mono text-sm">{selectedProject.dealSizeUsdMn ? `$${selectedProject.dealSizeUsdMn}M` : 'Undisclosed'}</span>
                         </div>
                         <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                          <span className="text-muted-foreground flex items-center gap-2"><Activity className="w-4 h-4"/> Capacity</span>
-                          <span className="font-medium">{selectedProject.capacityMw ? `${selectedProject.capacityMw} MW` : 'N/A'}</span>
+                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><Activity className="w-4 h-4"/> Capacity</span>
+                          <span className="font-medium text-sm">{selectedProject.capacityMw ? `${selectedProject.capacityMw} MW` : 'N/A'}</span>
                         </div>
                         <div className="flex items-center justify-between pb-2">
-                          <span className="text-muted-foreground flex items-center gap-2"><Calendar className="w-4 h-4"/> Announced</span>
-                          <span className="font-medium">{selectedProject.announcedYear || 'Unknown'}</span>
+                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><Calendar className="w-4 h-4"/> Announced</span>
+                          <span className="font-medium text-sm">{selectedProject.announcedYear || 'Unknown'}</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-6">
                     <div>
                       <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Investors & Partners</h4>
@@ -294,7 +362,7 @@ export default function DealTracker() {
                         )}
                       </div>
                     </div>
-                    
+
                     {selectedProject.description && (
                       <div>
                         <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h4>
