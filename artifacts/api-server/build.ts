@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 // packages that are not bundle compatible
 const allowlist = [
   "@google/generative-ai",
+  "@anthropic-ai/sdk",
   "axios",
   "connect-pg-simple",
   "cors",
@@ -24,11 +25,13 @@ const allowlist = [
   "memorystore",
   "multer",
   "nanoid",
+  "node-cron",
   "nodemailer",
   "openai",
   "passport",
   "passport-local",
   "pg",
+  "rss-parser",
   "stripe",
   "uuid",
   "ws",
