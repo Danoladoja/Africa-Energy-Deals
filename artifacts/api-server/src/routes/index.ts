@@ -3,9 +3,11 @@ import healthRouter from "./health";
 import projectsRouter from "./projects";
 import statsRouter from "./stats";
 import scraperRouter from "./scraper.js";
+import adminRouter from "./admin.js";
 
 const router: IRouter = Router();
 
+router.use(adminRouter);
 router.use(healthRouter);
 router.use(projectsRouter);
 router.use(statsRouter);

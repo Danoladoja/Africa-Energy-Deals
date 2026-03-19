@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
+import { getAdminToken } from "@/contexts/admin-auth";
 import {
   Sparkles,
   Play,
@@ -22,6 +23,11 @@ import {
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getAdminToken();
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
+}
 
 type ReviewStatus = "pending" | "approved" | "rejected";
 
@@ -229,7 +235,7 @@ export default function DiscoveryPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/api/scraper/status`);
+      const r = await fetch(`${BASE}/api/scraper/status`, { headers: authHeaders() });
       const data = await r.json() as ScraperStatus;
       setStatus(data);
     } catch {}
@@ -237,7 +243,7 @@ export default function DiscoveryPage() {
 
   const fetchQueue = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/api/scraper/${tab === "pending" ? "queue" : "reviewed"}`);
+      const r = await fetch(`${BASE}/api/scraper/${tab === "pending" ? "queue" : "reviewed"}`, { headers: authHeaders() });
       const data = await r.json() as Project[];
       setQueue(data);
     } catch {}
@@ -259,7 +265,7 @@ export default function DiscoveryPage() {
     setLogs([]);
 
     try {
-      const response = await fetch(`${BASE}/api/scraper/run`, { method: "POST" });
+      const response = await fetch(`${BASE}/api/scraper/run`, { method: "POST", headers: authHeaders() });
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -295,7 +301,7 @@ export default function DiscoveryPage() {
     try {
       await fetch(`${BASE}/api/scraper/review/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ action }),
       });
       setQueue((prev) =>
@@ -310,7 +316,7 @@ export default function DiscoveryPage() {
     try {
       await fetch(`${BASE}/api/scraper/review-all`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ action }),
       });
       await fetchQueue();

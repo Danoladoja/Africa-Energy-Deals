@@ -2,6 +2,9 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth";
+import { AdminLockScreen } from "@/components/admin-lock-screen";
+import { Layout } from "@/components/layout";
 
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
@@ -20,6 +23,19 @@ const queryClient = new QueryClient({
   }
 });
 
+function AdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAdmin, isLoading } = useAdminAuth();
+  if (isLoading) return null;
+  if (!isAdmin) {
+    return (
+      <Layout>
+        <AdminLockScreen />
+      </Layout>
+    );
+  }
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -28,7 +44,9 @@ function Router() {
       <Route path="/deals" component={DealTracker} />
       <Route path="/map" component={MapPage} />
       <Route path="/studio" component={VizStudio} />
-      <Route path="/discovery" component={DiscoveryPage} />
+      <Route path="/discovery">
+        {() => <AdminRoute component={DiscoveryPage} />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -38,9 +56,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <AdminAuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </AdminAuthProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

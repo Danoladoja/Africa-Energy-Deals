@@ -8,21 +8,24 @@ import {
   X,
   House,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAdminAuth } from "@/contexts/admin-auth";
 
 const homeItem = { name: "Home", href: "/", icon: House };
 
-const navItems = [
+const publicNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
-  { name: "AI Discovery", href: "/discovery", icon: Sparkles },
 ];
 
-function NavItem({ item }: { item: typeof navItems[number] }) {
+const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles };
+
+function NavItem({ item }: { item: typeof publicNavItems[number] }) {
   const [isActive] = useRoute(item.href);
   return (
     <Link key={item.href} href={item.href} className="block">
@@ -50,7 +53,7 @@ function NavItem({ item }: { item: typeof navItems[number] }) {
   );
 }
 
-function MobileNavItem({ item, onClose }: { item: typeof navItems[number]; onClose: () => void }) {
+function MobileNavItem({ item, onClose }: { item: typeof publicNavItems[number]; onClose: () => void }) {
   const [isActive] = useRoute(item.href);
   return (
     <Link href={item.href} onClick={onClose}>
@@ -67,6 +70,11 @@ function MobileNavItem({ item, onClose }: { item: typeof navItems[number]; onClo
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAdmin, logout } = useAdminAuth();
+
+  const navItems = isAdmin
+    ? [...publicNavItems, adminNavItem]
+    : publicNavItems;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden selection:bg-primary/30">
@@ -97,11 +105,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         
-        <div className="p-6 border-t border-sidebar-border">
+        <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
           <div className="bg-sidebar-accent/50 rounded-2xl p-4 border border-sidebar-border/50">
             <h4 className="font-display font-semibold text-sm mb-1 text-sidebar-foreground">Data Update</h4>
             <p className="text-xs text-sidebar-foreground/60">Last synced: Today, 08:30 GMT</p>
           </div>
+          {isAdmin && (
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out of admin
+            </button>
+          )}
         </div>
       </aside>
 
@@ -142,6 +159,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {navItems.map((item) => (
                 <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
               ))}
+              {isAdmin && (
+                <button
+                  onClick={() => { logout(); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg text-foreground/50"
+                >
+                  <LogOut className="w-6 h-6" />
+                  Sign out of admin
+                </button>
+              )}
             </nav>
           </motion.div>
         )}

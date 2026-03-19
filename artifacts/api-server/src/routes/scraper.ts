@@ -2,8 +2,11 @@ import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { runScraper, getScraperStatus, getFeedList } from "../services/scraper.js";
+import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 const router: IRouter = Router();
+
+router.use("/scraper", adminAuthMiddleware);
 
 router.get("/scraper/feeds", (_req, res) => {
   res.json(getFeedList());
