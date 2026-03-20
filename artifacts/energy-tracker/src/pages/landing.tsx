@@ -262,7 +262,7 @@ export default function Landing() {
           <span className="font-display font-semibold text-white/60">AfriEnergy Tracker</span>
         </Link>
         <div className="mt-1">Africa's Energy Investment Tracker · Data sourced from publicly disclosed transactions</div>
-        <div className="mt-2 text-white/20">A product of <span className="text-white/40 font-medium">Africa Energy Pulse</span></div>
+        <div className="mt-2 text-white/20">A product of <a href="https://africaenergypulse.com" target="_blank" rel="noopener noreferrer" className="text-white/40 font-medium hover:text-white/70 transition-colors">Africa Energy Pulse</a></div>
       </footer>
     </div>
   );
