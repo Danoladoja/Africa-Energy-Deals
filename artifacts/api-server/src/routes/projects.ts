@@ -23,7 +23,7 @@ router.get("/projects", async (req, res) => {
       db.select({ count: sql`count(*)` }).from(projectsTable).where(whereClause),
     ]);
     const total = Number(countResult[0].count);
-    res.json({ data: projects, pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) } });
+    res.json({ projects, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch projects" });
