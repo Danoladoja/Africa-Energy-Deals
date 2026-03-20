@@ -221,9 +221,9 @@ export default function Landing() {
       {/* About Section */}
       <section id="about" className="bg-white/3 border-t border-white/8 py-20 px-4">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-4">About AfriEnergy</h2>
+          <h2 className="text-3xl font-bold mb-4">About AfriEnergy Tracker</h2>
           <p className="text-white/60 text-lg leading-relaxed mb-8">
-            AfriEnergy is an open intelligence platform that aggregates and visualises publicly disclosed
+            AfriEnergy Tracker is an open intelligence platform that aggregates and visualises publicly disclosed
             energy investment data across the African continent. Built for analysts, investors, development
             finance institutions, and policymakers who need fast, reliable access to deal-level data.
           </p>
@@ -259,9 +259,10 @@ export default function Landing() {
               className="w-4 h-4 object-contain filter brightness-0"
             />
           </div>
-          <span className="font-display font-semibold text-white/60">AfriEnergy</span>
+          <span className="font-display font-semibold text-white/60">AfriEnergy Tracker</span>
         </Link>
-        Africa's Energy Investment Tracker · Data sourced from publicly disclosed transactions
+        <div className="mt-1">Africa's Energy Investment Tracker · Data sourced from publicly disclosed transactions</div>
+        <div className="mt-2 text-white/20">A product of <span className="text-white/40 font-medium">Africa Energy Pulse</span></div>
       </footer>
     </div>
   );
