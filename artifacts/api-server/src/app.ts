@@ -1,6 +1,5 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
-import path from "path";
 import router from "./routes";
 
 const app: Express = express();
@@ -65,21 +64,7 @@ app.use(rateLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Mount API routes
 app.use("/api", router);
-
-// Serve frontend in production
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-const frontendDist = path.resolve(__dirname, "../../energy-tracker/dist");
-
-app.use(express.static(frontendDist));
-
-const indexHtml = path.resolve(__dirname, "../../energy-tracker/dist/index.html");
-app.get("*", (_req, res) => {
-  try {
-    res.sendFile(indexHtml);
-  } catch {
-    res.json({ message: "API is running" });
-  }
-});
 
 export default app;
