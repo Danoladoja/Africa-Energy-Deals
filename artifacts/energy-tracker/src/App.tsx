@@ -1,8 +1,10 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth";
+import { AuthProvider, useAuth } from "@/contexts/auth";
 import { AdminLockScreen } from "@/components/admin-lock-screen";
 import { Layout } from "@/components/layout";
 
@@ -36,14 +38,64 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   return <Component />;
 }
 
+function AuthRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, navigate]);
+
+  if (!isAuthenticated) return null;
+  return <Component />;
+}
+
+function GA4() {
+  const measurementId = import.meta.env.VITE_GA4_MEASUREMENT_ID;
+  useEffect(() => {
+    if (!measurementId) return;
+
+    const script1 = document.createElement("script");
+    script1.async = true;
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
+    document.head.appendChild(script1);
+
+    const script2 = document.createElement("script");
+    script2.innerHTML = `
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${measurementId}');
+    `;
+    document.head.appendChild(script2);
+
+    return () => {
+      document.head.removeChild(script1);
+      document.head.removeChild(script2);
+    };
+  }, [measurementId]);
+
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/deals" component={DealTracker} />
-      <Route path="/map" component={MapPage} />
-      <Route path="/studio" component={VizStudio} />
+      <Route path="/dashboard">
+        {() => <AuthRoute component={Dashboard} />}
+      </Route>
+      <Route path="/deals">
+        {() => <AuthRoute component={DealTracker} />}
+      </Route>
+      <Route path="/map">
+        {() => <AuthRoute component={MapPage} />}
+      </Route>
+      <Route path="/studio">
+        {() => <AuthRoute component={VizStudio} />}
+      </Route>
       <Route path="/discovery">
         {() => <AdminRoute component={DiscoveryPage} />}
       </Route>
@@ -56,11 +108,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AdminAuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-        </AdminAuthProvider>
+        <AuthProvider>
+          <AdminAuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <GA4 />
+              <Router />
+            </WouterRouter>
+          </AdminAuthProvider>
+        </AuthProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

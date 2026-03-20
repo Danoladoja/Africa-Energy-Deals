@@ -12,17 +12,24 @@ const allowedOrigins = [
   "http://localhost:5000",
 ];
 
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow all Replit dev/preview domains
+  if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (server-to-server, curl, mobile apps)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "X-API-Key"],
+  allowedHeaders: ["Content-Type", "X-API-Key", "Authorization"],
 }));
 
 // Rate limiter (in-memory, no external deps)

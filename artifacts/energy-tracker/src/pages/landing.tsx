@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useGetSummaryStats } from "@workspace/api-client-react";
 import { BarChart2, Globe, Layers, Cpu } from "lucide-react";
+import { useAuth } from "@/contexts/auth";
+import { EmailGateModal } from "@/components/email-gate-modal";
 
 function formatBillions(mn: number) {
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
@@ -12,18 +14,41 @@ export default function Landing() {
   const [search, setSearch] = useState("");
   const [, navigate] = useLocation();
   const { data: stats } = useGetSummaryStats();
+  const { isAuthenticated } = useAuth();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string>("/dashboard");
+
+  function gatedNavigate(path: string) {
+    if (isAuthenticated) {
+      navigate(path);
+    } else {
+      setPendingPath(path);
+      setModalOpen(true);
+    }
+  }
 
   function handleExplore(e: React.FormEvent) {
     e.preventDefault();
-    if (search.trim()) {
-      navigate(`/deals?search=${encodeURIComponent(search.trim())}`);
-    } else {
-      navigate("/deals");
-    }
+    const path = search.trim()
+      ? `/deals?search=${encodeURIComponent(search.trim())}`
+      : "/deals";
+    gatedNavigate(path);
+  }
+
+  function handleModalSuccess() {
+    setModalOpen(false);
+    navigate(pendingPath);
   }
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white flex flex-col">
+      <EmailGateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={handleModalSuccess}
+      />
+
       {/* Navbar */}
       <header className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-3 cursor-pointer hover:opacity-85 transition-opacity">
@@ -44,7 +69,7 @@ export default function Landing() {
         </nav>
 
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => gatedNavigate("/dashboard")}
           className="bg-[#00e676] hover:bg-[#00c864] text-[#0b0f1a] font-semibold text-sm px-5 py-2.5 rounded-full transition-colors shadow-lg shadow-[#00e676]/20"
         >
           Launch Tracker
@@ -161,7 +186,7 @@ export default function Landing() {
           </div>
           <div className="flex justify-center mt-10">
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => gatedNavigate("/dashboard")}
               className="bg-[#00e676] hover:bg-[#00c864] text-[#0b0f1a] font-semibold px-8 py-3.5 rounded-full transition-colors shadow-lg shadow-[#00e676]/20"
             >
               Launch Tracker →
@@ -209,7 +234,7 @@ export default function Landing() {
           </div>
           <div className="flex justify-center">
             <button
-              onClick={() => navigate("/deals")}
+              onClick={() => gatedNavigate("/deals")}
               className="border border-[#00e676]/40 hover:border-[#00e676] text-[#00e676] font-semibold px-8 py-3.5 rounded-full transition-colors"
             >
               Browse the Deal Database →
@@ -234,13 +259,13 @@ export default function Landing() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => gatedNavigate("/dashboard")}
               className="bg-[#00e676] hover:bg-[#00c864] text-[#0b0f1a] font-semibold px-8 py-3.5 rounded-full transition-colors shadow-lg shadow-[#00e676]/20"
             >
               Explore the Tracker
             </button>
             <button
-              onClick={() => navigate("/studio")}
+              onClick={() => gatedNavigate("/studio")}
               className="border border-white/20 hover:border-white/40 text-white/80 hover:text-white font-semibold px-8 py-3.5 rounded-full transition-colors"
             >
               Generate a Chart

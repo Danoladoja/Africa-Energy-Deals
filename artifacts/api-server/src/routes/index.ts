@@ -4,9 +4,11 @@ import projectsRouter from "./projects";
 import statsRouter from "./stats";
 import scraperRouter from "./scraper.js";
 import adminRouter from "./admin.js";
+import authRouter from "./auth.js";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(adminRouter);
 router.use(healthRouter);
 router.use(projectsRouter);
