@@ -1,8 +1,27 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, projectsTable, insertProjectSchema } from "@workspace/db";
 import { ilike, and, gte, lte, eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+// API Key authentication middleware for write operations
+const requireApiKey = (req: Request, res: Response, next: NextFunction): void => {
+  const apiKey = req.headers["x-api-key"];
+  const expectedKey = process.env.API_KEY;
+
+  if (!expectedKey) {
+    // If no API_KEY is configured, block all write operations for safety
+    res.status(503).json({ error: "Write operations are not configured. Set API_KEY environment variable." });
+    return;
+  }
+
+  if (!apiKey || apiKey !== expectedKey) {
+    res.status(401).json({ error: "Unauthorized. Valid API key required." });
+    return;
+  }
+
+  next();
+};
 
 // GET all projects with optional filters
 router.get("/projects", async (req, res) => {
@@ -44,8 +63,8 @@ router.get("/projects/:id", async (req, res) => {
   }
 });
 
-// POST create a new project
-router.post("/projects", async (req, res) => {
+// POST create a new project (requires API key)
+router.post("/projects", requireApiKey, async (req, res) => {
   try {
     const parsed = insertProjectSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid project data", details: parsed.error.issues });
@@ -57,8 +76,8 @@ router.post("/projects", async (req, res) => {
   }
 });
 
-// DELETE a project by ID
-router.delete("/projects/:id", async (req, res) => {
+// DELETE a project by ID (requires API key)
+router.delete("/projects/:id", requireApiKey, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -75,8 +94,8 @@ router.delete("/projects/:id", async (req, res) => {
   }
 });
 
-// PATCH (update) a project by ID
-router.patch("/projects/:id", async (req, res) => {
+// PATCH (update) a project by ID (requires API key)
+router.patch("/projects/:id", requireApiKey, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
