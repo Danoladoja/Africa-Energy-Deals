@@ -4,13 +4,22 @@ import { ilike, and, gte, lte, eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+// Valid technology categories
+const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Geothermal", "Oil", "Natural Gas", "EV"];
+
+// Allowed fields for PATCH updates (whitelist to prevent overwriting id, etc.)
+const ALLOWED_UPDATE_FIELDS = [
+  "projectName", "country", "region", "technology", "status",
+  "dealSizeUsdMn", "capacityMw", "yearAnnounced", "latitude", "longitude",
+  "description", "newsUrl", "sourceUrl",
+];
+
 // API Key authentication middleware for write operations
 const requireApiKey = (req: Request, res: Response, next: NextFunction): void => {
   const apiKey = req.headers["x-api-key"];
   const expectedKey = process.env.API_KEY;
 
   if (!expectedKey) {
-    // If no API_KEY is configured, block all write operations for safety
     res.status(503).json({ error: "Write operations are not configured. Set API_KEY environment variable." });
     return;
   }
@@ -63,6 +72,16 @@ router.get("/projects/:id", async (req, res) => {
   }
 });
 
+// GET valid technology categories
+router.get("/technologies", (_req, res) => {
+  res.json({ technologies: VALID_TECHNOLOGIES });
+});
+
+// Health check
+router.get("/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // POST create a new project (requires API key)
 router.post("/projects", requireApiKey, async (req, res) => {
   try {
@@ -101,9 +120,19 @@ router.patch("/projects/:id", requireApiKey, async (req, res) => {
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid project ID" });
     }
-    const updates = req.body;
-    if (!updates || Object.keys(updates).length === 0) {
+    const rawUpdates = req.body;
+    if (!rawUpdates || Object.keys(rawUpdates).length === 0) {
       return res.status(400).json({ error: "No update fields provided" });
+    }
+    // Whitelist fields to prevent overwriting id or other protected fields
+    const updates: Record<string, unknown> = {};
+    for (const key of Object.keys(rawUpdates)) {
+      if (ALLOWED_UPDATE_FIELDS.includes(key)) {
+        updates[key] = rawUpdates[key];
+      }
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid update fields provided", allowedFields: ALLOWED_UPDATE_FIELDS });
     }
     const [updated] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, id)).returning();
     if (!updated) {
