@@ -200,7 +200,7 @@ Return a JSON array where each object has:
 - projectName: string Ã¢ÂÂ specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
 - country: string Ã¢ÂÂ African country name only
 - region: string Ã¢ÂÂ one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string Ã¢ÂÂ one of: "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "EV", "Battery Storage", "Transmission", "Mini-Grid", "Other Renewables"
+- technology: string Ã¢ÂÂ one of: "Solar", "Wind", "Hydro", "Geothermal", "Natural Gas", "Oil", "EV", "Battery Storage", "Transmission", "Mini-Grid", "Other Renewables"
 - dealSizeUsdMn: number | null Ã¢ÂÂ deal/investment value in USD millions; null if not stated
 - investors: string | null Ã¢ÂÂ comma-separated lenders, equity investors, donors, or development banks
 - status: string Ã¢ÂÂ one of: "announced", "under construction", "financing closed", "operational", "tender"

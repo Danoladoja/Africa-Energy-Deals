@@ -11,7 +11,8 @@ const techColors: Record<string, string> = {
   "Wind": "hsl(189, 94%, 43%)",
   "Hydro": "hsl(217, 91%, 60%)",
   "Geothermal": "hsl(280, 65%, 60%)",
-  "Oil & Gas": "hsl(10, 80%, 55%)",
+  "Natural Gas": "hsl(215, 20%, 65%)",
+  "Oil": "hsl(25, 90%, 50%)",
   "EV": "hsl(145, 100%, 42%)",
 };
 

@@ -86,7 +86,8 @@ export default function DealTracker() {
               <option value="Wind">Wind</option>
               <option value="Hydro">Hydro</option>
               <option value="Geothermal">Geothermal</option>
-              <option value="Oil & Gas">Oil &amp; Gas</option>
+              <option value="Natural Gas">Natural Gas</option>
+              <option value="Oil">Oil</option>
               <option value="EV">EV</option>
             </select>
 
