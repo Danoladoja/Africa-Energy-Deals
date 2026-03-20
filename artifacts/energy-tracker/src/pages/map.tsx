@@ -7,14 +7,12 @@ import { Zap, ExternalLink, MapPin, DollarSign, Calendar, Users, Activity } from
 import { Badge } from "@/components/ui/badge";
 
 const techColors: Record<string, string> = {
-  "Solar PV": "hsl(160, 84%, 39%)",
+  "Solar": "hsl(45, 95%, 55%)",
   "Wind": "hsl(189, 94%, 43%)",
   "Hydro": "hsl(217, 91%, 60%)",
   "Geothermal": "hsl(280, 65%, 60%)",
-  "Biomass": "hsl(35, 91%, 55%)",
-  "Concentrating Solar Power": "hsl(45, 95%, 55%)",
-  "Natural Gas": "hsl(215, 20%, 65%)",
   "Oil & Gas": "hsl(10, 80%, 55%)",
+  "EV": "hsl(145, 100%, 42%)",
 };
 
 const defaultColor = "hsl(215, 20%, 65%)";

@@ -119,6 +119,13 @@ const RSS_FEEDS: FeedConfig[] = [
   { name: "Egypt Independent", url: "https://egyptindependent.com/feed/", category: "Egypt", skipCountryFilter: true },
   { name: "Morocco World News", url: "https://www.moroccoworldnews.com/feed/", category: "Morocco", skipCountryFilter: true },
   { name: "Eye of Ethiopia", url: "https://borkena.com/feed/", category: "Ethiopia", skipCountryFilter: true },
+
+  // ── EV & CLEAN MOBILITY ─────────────────────────────────────────────────────
+  { name: "EV Africa (Google News)", url: "https://news.google.com/rss/search?q=electric+vehicle+africa+investment&hl=en-US&gl=US&ceid=US:en", category: "EV & Mobility" },
+  { name: "E-Mobility Africa News", url: "https://news.google.com/rss/search?q=electric+mobility+africa+funding&hl=en-US&gl=US&ceid=US:en", category: "EV & Mobility" },
+  { name: "Electric Bus Africa", url: "https://news.google.com/rss/search?q=electric+bus+africa+deal&hl=en-US&gl=US&ceid=US:en", category: "EV & Mobility" },
+  { name: "TechCabal", url: "https://techcabal.com/feed/", category: "EV & Mobility", skipCountryFilter: true },
+  { name: "Disrupt Africa", url: "https://disrupt-africa.com/feed/", category: "EV & Mobility", skipCountryFilter: true },
 ];
 
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ RELEVANCE FILTERS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -139,6 +146,9 @@ const ENERGY_KEYWORDS = [
   "coal", "oil", "petroleum", "minigrids", "mini-grid", "off-grid",
   "battery", "storage", "transmission", "distribution", "electrification",
   "clean energy", "climate finance", "carbon", "emissions",
+  "electric vehicle", "electric bus", "electric motorcycle", "e-mobility",
+  "e-moto", "ev charging", "electric mobility", "emobility", "bev", "e-bus",
+  "electric fleet", "ev infrastructure", "charging station", "battery swap",
 ];
 
 const EXCLUDE_KEYWORDS = [
@@ -190,7 +200,7 @@ Return a JSON array where each object has:
 - projectName: string Ã¢ÂÂ specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
 - country: string Ã¢ÂÂ African country name only
 - region: string Ã¢ÂÂ one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string Ã¢ÂÂ one of: "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas", "Battery Storage", "Transmission", "Mini-Grid", "Other Renewables"
+- technology: string Ã¢ÂÂ one of: "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "EV", "Battery Storage", "Transmission", "Mini-Grid", "Other Renewables"
 - dealSizeUsdMn: number | null Ã¢ÂÂ deal/investment value in USD millions; null if not stated
 - investors: string | null Ã¢ÂÂ comma-separated lenders, equity investors, donors, or development banks
 - status: string Ã¢ÂÂ one of: "announced", "under construction", "financing closed", "operational", "tender"

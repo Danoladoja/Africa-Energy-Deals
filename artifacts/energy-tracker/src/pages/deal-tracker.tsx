@@ -82,12 +82,12 @@ export default function DealTracker() {
               className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Technologies</option>
-              <option value="Solar PV">Solar PV</option>
+              <option value="Solar">Solar</option>
               <option value="Wind">Wind</option>
               <option value="Hydro">Hydro</option>
               <option value="Geothermal">Geothermal</option>
-              <option value="Biomass">Biomass</option>
-              <option value="Green Hydrogen">Green Hydrogen</option>
+              <option value="Oil & Gas">Oil &amp; Gas</option>
+              <option value="EV">EV</option>
             </select>
 
             <select
