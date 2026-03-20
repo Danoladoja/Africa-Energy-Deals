@@ -9,6 +9,14 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ShareButton } from "@/components/share-button";
+
+function dealShareText(project: any) {
+  const size = project.dealSizeUsdMn
+    ? (project.dealSizeUsdMn >= 1000 ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B` : `$${project.dealSizeUsdMn}M`)
+    : "undisclosed investment";
+  return `🌍 ${project.projectName} — ${size} ${project.technology} project in ${project.country} (${project.status}) | Africa Energy Investment Tracker`;
+}
 
 export default function DealTracker() {
   const rawSearch = useSearch();
@@ -131,17 +139,24 @@ export default function DealTracker() {
                   <span className="font-mono text-sm font-semibold text-foreground">
                     {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn >= 1000 ? `${(project.dealSizeUsdMn/1000).toFixed(1)}B` : `${project.dealSizeUsdMn}M`}` : "Undisclosed"}
                   </span>
-                  {project.sourceUrl && (
-                    <a
-                      href={project.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-muted-foreground hover:text-accent p-1"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  )}
+                  <div className="flex items-center gap-0.5">
+                    <ShareButton
+                      text={dealShareText(project)}
+                      stopPropagation
+                      className="p-1"
+                    />
+                    {project.sourceUrl && (
+                      <a
+                        href={project.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-muted-foreground hover:text-accent p-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -241,6 +256,11 @@ export default function DealTracker() {
                               <ExternalLink className="w-4 h-4" />
                             </a>
                           )}
+                          <ShareButton
+                            text={dealShareText(project)}
+                            stopPropagation
+                            className="opacity-0 group-hover:opacity-100"
+                          />
                           <button
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
                             onClick={(e) => {
@@ -316,6 +336,11 @@ export default function DealTracker() {
                           Source
                         </a>
                       )}
+                      <ShareButton
+                        text={dealShareText(selectedProject)}
+                        variant="icon-label"
+                        className="text-xs border border-border px-1 py-0.5 rounded-full bg-muted/40 hover:bg-muted"
+                      />
                     </div>
                   </div>
                   <DialogTitle className="text-xl md:text-3xl font-bold font-display text-foreground mb-2">

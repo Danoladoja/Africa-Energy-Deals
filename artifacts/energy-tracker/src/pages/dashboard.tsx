@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { Activity, Globe, Zap, DollarSign, TrendingUp, Briefcase } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ShareButton } from "@/components/share-button";
 
 function formatCurrency(value: number) {
   if (value >= 1000) return `$${(value / 1000).toFixed(1)}B`;
@@ -46,9 +47,18 @@ export default function Dashboard() {
     <Layout>
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
         
-        <header className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">Market Overview</h1>
-          <p className="text-muted-foreground text-lg">Comprehensive insights into Africa's energy transition investments.</p>
+        <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">Market Overview</h1>
+            <p className="text-muted-foreground text-lg">Comprehensive insights into Africa's energy transition investments.</p>
+          </div>
+          <ShareButton
+            text={summary
+              ? `🌍 Africa Energy Investment Tracker: ${formatCurrency(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries. Track Africa's energy transition.`
+              : "🌍 Africa Energy Investment Tracker — tracking energy investment across the continent."}
+            variant="icon-label"
+            className="border border-border rounded-xl px-3 py-2 bg-card hover:bg-muted self-start sm:self-auto"
+          />
         </header>
 
         {/* Stats Grid */}

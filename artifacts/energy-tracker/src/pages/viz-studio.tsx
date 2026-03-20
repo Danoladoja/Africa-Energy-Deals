@@ -18,6 +18,7 @@ import {
   ChevronDown, Zap, DollarSign,
 } from "lucide-react";
 import { toPng } from "html-to-image";
+import { ShareButton } from "@/components/share-button";
 
 const COLORS = [
   "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
@@ -277,17 +278,27 @@ export default function VizStudio() {
             <h1 className="text-3xl md:text-4xl font-bold mb-2">Visualization Studio</h1>
             <p className="text-muted-foreground text-lg">Generate custom charts and download infographics.</p>
           </div>
-          <button
-            onClick={() => viewMode === "overview"
-              ? exportChart(chartRef, `${grouping}-${metric}`, setIsExporting)
-              : exportChart(spotlightRef, `spotlight-${selectedSpotlight}`, setIsExporting)
-            }
-            disabled={isExporting || isLoading || (viewMode === "spotlight" && !selectedSpotlight)}
-            className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
-          >
-            {isExporting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            {viewMode === "overview" ? "Download Chart" : "Export Full Profile"}
-          </button>
+          <div className="flex items-center gap-2">
+            <ShareButton
+              text={viewMode === "overview"
+                ? `📊 ${overviewTitle} | Africa Energy Investment Tracker`
+                : `📊 ${spotlightChartTitle} | Africa Energy Investment Tracker`}
+              chartRef={viewMode === "overview" ? chartRef : spotlightRef}
+              variant="icon-label"
+              className="border border-border rounded-xl px-3 py-3 bg-card hover:bg-muted"
+            />
+            <button
+              onClick={() => viewMode === "overview"
+                ? exportChart(chartRef, `${grouping}-${metric}`, setIsExporting)
+                : exportChart(spotlightRef, `spotlight-${selectedSpotlight}`, setIsExporting)
+              }
+              disabled={isExporting || isLoading || (viewMode === "spotlight" && !selectedSpotlight)}
+              className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
+            >
+              {isExporting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+              {viewMode === "overview" ? "Download Chart" : "Export Full Profile"}
+            </button>
+          </div>
         </header>
 
         {/* View Mode Tabs */}
