@@ -81,7 +81,7 @@ export default function DealTracker() {
               onChange={(e) => { setTechnology(e.target.value); setPage(1); }}
               className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
-              <option value="">All Technologies</option>
+              <option value="">All Sectors</option>
               <option value="Solar">Solar</option>
               <option value="Wind">Wind</option>
               <option value="Hydro">Hydro</option>
@@ -196,7 +196,7 @@ export default function DealTracker() {
                 <tr className="bg-background/50 border-b border-border text-muted-foreground text-sm">
                   <th className="font-semibold py-4 px-6">Project Name</th>
                   <th className="font-semibold py-4 px-6">Country</th>
-                  <th className="font-semibold py-4 px-6">Technology</th>
+                  <th className="font-semibold py-4 px-6">Sector</th>
                   <th className="font-semibold py-4 px-6">Deal Size</th>
                   <th className="font-semibold py-4 px-6">Status</th>
                   <th className="font-semibold py-4 px-6 text-right">Actions</th>
@@ -358,7 +358,7 @@ export default function DealTracker() {
                       <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Key Details</h4>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><Zap className="w-4 h-4"/> Technology</span>
+                          <span className="text-muted-foreground flex items-center gap-2 text-sm"><Zap className="w-4 h-4"/> Sector</span>
                           <span className="font-medium text-sm">{selectedProject.technology}</span>
                         </div>
                         <div className="flex items-center justify-between border-b border-border/50 pb-2">

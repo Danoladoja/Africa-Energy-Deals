@@ -247,7 +247,7 @@ export default function VizStudio() {
 
   const spotlightGroupByOptions = useMemo(() => {
     const base = [
-      { value: "technology", label: "Technology" },
+      { value: "technology", label: "Sector" },
       { value: "year", label: "Year" },
     ];
     if (spotlightType === "region") base.push({ value: "countries", label: "Countries in Region" });
@@ -264,7 +264,7 @@ export default function VizStudio() {
   const spotlightNameKey = spotlightGrouping === "year" ? "year" : spotlightGrouping === "countries" ? "country" : "technology";
 
   const spotlightChartTitle = `${spotlightMetric === "totalInvestmentUsdMn" ? "Investment Volume" : "Number of Projects"} by ${
-    spotlightGrouping === "technology" ? "Technology" : spotlightGrouping === "year" ? "Year" : "Country"
+    spotlightGrouping === "technology" ? "Sector" : spotlightGrouping === "year" ? "Year" : "Country"
   } — ${selectedSpotlight}`;
 
   const exportChart = async (ref: React.RefObject<HTMLDivElement | null>, filename: string, setLoading: (v: boolean) => void) => {
@@ -398,7 +398,7 @@ export default function VizStudio() {
                     onChange={e => setGrouping(e.target.value as Grouping)}
                     className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none pr-10"
                   >
-                    <option value="technology">Technology</option>
+                    <option value="technology">Sector</option>
                     <option value="region">Region</option>
                     <option value="country">Country</option>
                     <option value="year">Year</option>
@@ -512,7 +512,7 @@ export default function VizStudio() {
                   {[
                     { label: "Total Investment", value: formatValue(spotlightTotalInvestment, "totalInvestmentUsdMn"), icon: <DollarSign className="w-5 h-5" />, color: "text-primary" },
                     { label: "Projects", value: spotlightProjectCount.toString(), icon: <Layers className="w-5 h-5" />, color: "text-blue-400" },
-                    { label: "Top Technology", value: spotlightTopTech, icon: <Zap className="w-5 h-5" />, color: "text-amber-400" },
+                    { label: "Top Sector", value: spotlightTopTech, icon: <Zap className="w-5 h-5" />, color: "text-amber-400" },
                     {
                       label: spotlightType === "country" ? "Region" : "Countries",
                       value: spotlightType === "country"
@@ -632,7 +632,7 @@ export default function VizStudio() {
                           <tr className="border-b border-border bg-muted/30">
                             <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Project</th>
                             {spotlightType === "region" && <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Country</th>}
-                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Technology</th>
+                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Sector</th>
                             <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Deal Size</th>
                             <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
                           </tr>

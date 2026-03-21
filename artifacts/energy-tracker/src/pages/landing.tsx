@@ -162,17 +162,17 @@ export default function Landing() {
               {
                 icon: <Layers className="w-6 h-6 text-[#00e676]" />,
                 title: "Deal Database",
-                desc: "Search and filter 50+ disclosed energy transactions across 21 African countries by technology, status, deal size, and investors.",
+                desc: "Search and filter 50+ disclosed energy transactions across 21 African countries by sector, status, deal size, and investors.",
               },
               {
                 icon: <Globe className="w-6 h-6 text-[#00e676]" />,
                 title: "Interactive Map",
-                desc: "Visualise project locations on a full-screen Africa map with color-coded markers by technology type and clickable detail popups.",
+                desc: "Visualise project locations on a full-screen Africa map with color-coded markers by sector type and clickable detail popups.",
               },
               {
                 icon: <BarChart2 className="w-6 h-6 text-[#00e676]" />,
                 title: "Visualization Studio",
-                desc: "Generate custom bar, line, and pie charts by country, region, technology, or year — and download them as ready-to-use infographics.",
+                desc: "Generate custom bar, line, and pie charts by country, region, sector, or year — and download them as ready-to-use infographics.",
               },
             ].map((f) => (
               <div key={f.title} className="bg-white/4 border border-white/8 rounded-2xl p-6 hover:border-[#00e676]/30 transition-colors">
@@ -206,7 +206,7 @@ export default function Landing() {
               <ul className="space-y-3 text-sm text-white/70">
                 {[
                   "21 African countries across all major regions",
-                  "7 technology types: Solar, Wind, Hydro, Gas, Geothermal, Storage & Transmission",
+                  "7 sector types: Solar, Wind, Hydro, Gas, Geothermal, Storage & Transmission",
                   "Projects ranging from early development to fully operational",
                   "Deal sizes from $10M to multi-billion dollar programmes",
                 ].map(item => (
@@ -221,7 +221,7 @@ export default function Landing() {
               <ul className="space-y-3 text-sm text-white/70">
                 {[
                   "Project name, country, region & GPS coordinates",
-                  "Technology type and installed capacity (MW)",
+                  "Sector type and installed capacity (MW)",
                   "Deal size in USD millions and announcement year",
                   "Investor names, financing type & project status",
                 ].map(item => (

@@ -176,7 +176,7 @@ export default function Dashboard() {
           <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col">
             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
               <Zap className="w-5 h-5 text-accent" />
-              By Technology
+              By Sector
             </h3>
 
             {/* Donut chart — fixed height, no built-in legend */}
