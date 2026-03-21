@@ -126,6 +126,51 @@ const RSS_FEEDS: FeedConfig[] = [
   { name: "Electric Bus Africa", url: "https://news.google.com/rss/search?q=electric+bus+africa+deal&hl=en-US&gl=US&ceid=US:en", category: "EV & Mobility" },
   { name: "TechCabal", url: "https://techcabal.com/feed/", category: "EV & Mobility", skipCountryFilter: true },
   { name: "Disrupt Africa", url: "https://disrupt-africa.com/feed/", category: "EV & Mobility", skipCountryFilter: true },
+
+  // ── GOVERNMENT & REGULATOR SOURCES (via targeted search) ────────────────────
+  { name: "Africa Energy Ministry Announcements", url: "https://news.google.com/rss/search?q=africa+energy+ministry+announcement+project&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "REIPPPP South Africa", url: "https://news.google.com/rss/search?q=REIPPPP+south+africa+renewable+energy+bid+award&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Nigeria NERC Energy", url: "https://news.google.com/rss/search?q=NERC+nigeria+electricity+license+project+approval&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Kenya REREC / KETRACO", url: "https://news.google.com/rss/search?q=REREC+OR+KETRACO+kenya+energy+project+2024&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Ghana Energy Commission", url: "https://news.google.com/rss/search?q=ghana+energy+commission+renewable+project+license&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Rwanda REG Energy", url: "https://news.google.com/rss/search?q=rwanda+energy+group+REG+solar+project+investment&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Ethiopia EEP Power", url: "https://news.google.com/rss/search?q=ethiopia+electric+power+hydropower+solar+project&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Egypt NREA Renewable", url: "https://news.google.com/rss/search?q=NREA+egypt+renewable+energy+project+tender+2024&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Morocco MASEN Projects", url: "https://news.google.com/rss/search?q=MASEN+morocco+solar+wind+energy+project&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Senegal CRSE Energy", url: "https://news.google.com/rss/search?q=senegal+energy+project+solar+oil+gas+investment+2024&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Tanzania TANESCO REA", url: "https://news.google.com/rss/search?q=TANESCO+OR+REA+tanzania+energy+project+solar&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Zambia ERB Energy", url: "https://news.google.com/rss/search?q=zambia+energy+regulation+board+power+project+solar&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+  { name: "Uganda ERA Electricity", url: "https://news.google.com/rss/search?q=uganda+electricity+regulatory+authority+project+solar&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
+
+  // ── TARGETED 2023–2026 DEAL SEARCHES ────────────────────────────────────────
+  { name: "Africa Solar Deals 2024", url: "https://news.google.com/rss/search?q=africa+solar+energy+deal+investment+2024&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Solar Deals 2025", url: "https://news.google.com/rss/search?q=africa+solar+energy+deal+investment+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Solar Deals 2026", url: "https://news.google.com/rss/search?q=africa+solar+energy+deal+investment+2026&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Wind Energy 2024-25", url: "https://news.google.com/rss/search?q=africa+wind+farm+energy+project+financing+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Hydro Projects 2024", url: "https://news.google.com/rss/search?q=africa+hydropower+dam+project+financing+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Gas LNG 2024-25", url: "https://news.google.com/rss/search?q=africa+gas+LNG+energy+project+investment+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Energy Finance 2024", url: "https://news.google.com/rss/search?q=africa+energy+project+finance+loan+IFC+2024&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Energy Finance 2025", url: "https://news.google.com/rss/search?q=africa+energy+project+finance+loan+AfDB+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Renewable IPP 2024", url: "https://news.google.com/rss/search?q=africa+independent+power+producer+IPP+2024+megawatt&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Mini-Grid Off-Grid 2024", url: "https://news.google.com/rss/search?q=africa+mini-grid+off-grid+electrification+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "COP28 COP29 Africa Energy", url: "https://news.google.com/rss/search?q=COP28+COP29+africa+energy+climate+fund+project&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Just Energy Transition Africa", url: "https://news.google.com/rss/search?q=just+energy+transition+africa+JET-P+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+
+  // ── MORE LOCAL NEWS OUTLETS ──────────────────────────────────────────────────
+  { name: "Premium Times Nigeria", url: "https://www.premiumtimesng.com/feed/", category: "Nigeria", skipCountryFilter: true },
+  { name: "The Guardian Nigeria", url: "https://guardian.ng/feed/", category: "Nigeria", skipCountryFilter: true },
+  { name: "Nairametrics Energy", url: "https://nairametrics.com/feed/", category: "Nigeria", skipCountryFilter: true },
+  { name: "New Telegraph Nigeria", url: "https://www.newtelegraphng.com/feed/", category: "Nigeria", skipCountryFilter: true },
+  { name: "The Herald Zimbabwe", url: "https://www.herald.co.zw/feed/", category: "Zimbabwe", skipCountryFilter: true },
+  { name: "Zambia Daily Mail", url: "https://www.daily-mail.co.zm/feed/", category: "Zambia", skipCountryFilter: true },
+  { name: "New Era Namibia", url: "https://neweralive.na/feed/", category: "Namibia", skipCountryFilter: true },
+  { name: "Addis Fortune Ethiopia", url: "https://addisfortune.net/feed/", category: "Ethiopia", skipCountryFilter: true },
+  { name: "The Independent Uganda", url: "https://www.independent.co.ug/feed/", category: "Uganda", skipCountryFilter: true },
+  { name: "Rwanda New Times", url: "https://www.newtimes.co.rw/feed/", category: "Rwanda", skipCountryFilter: true },
+  { name: "Senegal Tribune", url: "https://news.google.com/rss/search?q=senegal+energie+solaire+investissement+projet&hl=fr&gl=SN&ceid=SN:fr", category: "Senegal", skipCountryFilter: true },
+  { name: "L'Usine Nouvelle Afrique", url: "https://news.google.com/rss/search?q=afrique+energie+solaire+investissement+projet&hl=fr&gl=FR&ceid=FR:fr", category: "Francophone Africa", skipCountryFilter: true },
+  { name: "Jeune Afrique Energie", url: "https://www.jeuneafrique.com/feed/", category: "Francophone Africa", skipCountryFilter: true },
+  { name: "Cameroon Tribune", url: "https://news.google.com/rss/search?q=cameroun+energie+solaire+projet+investissement&hl=fr&gl=CM&ceid=CM:fr", category: "Cameroon", skipCountryFilter: true },
 ];
 
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ RELEVANCE FILTERS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -188,13 +233,17 @@ function inferRegion(country: string): string {
 const SYSTEM_PROMPT = `You are an expert analyst specialising in Africa energy investment and project finance.
 Extract structured investment deal data from news article summaries.
 
-Only extract articles that describe:
-- Specific energy project announcements (solar farms, wind parks, hydro, gas plants, etc.)
-- Investment / financing / lending deals (loans, equity, grants, PPAs)
-- Government energy procurement or MDA award announcements
-- Development bank / fund disbursements or approvals for African energy projects
+PRIORITY: Articles from 2023, 2024, 2025, and 2026 are especially valuable — extract all qualifying deals from these years thoroughly.
 
-Skip: opinion pieces, general policy commentary, energy price news, fuel subsidies unless linked to a specific project.
+Only extract articles that describe:
+- Specific energy project announcements (solar farms, wind parks, hydro, gas plants, battery storage, mini-grids, etc.)
+- Investment / financing / lending deals (loans, equity, grants, PPAs, bond issuances)
+- Government energy procurement, tender awards, or regulatory approvals for African energy projects
+- Development bank / fund disbursements or approvals for African energy projects (AfDB, IFC, World Bank, DFC, Proparco, BII, etc.)
+- COP28/COP29 climate finance commitments linked to specific African energy projects
+- Just Energy Transition Partnership (JET-P) funded projects in African countries
+
+Skip: opinion pieces, general policy commentary, energy price news, fuel subsidies unless linked to a specific named project, duplicate projects already in the batch.
 
 Return a JSON array where each object has:
 - projectName: string Ã¢ÂÂ specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
