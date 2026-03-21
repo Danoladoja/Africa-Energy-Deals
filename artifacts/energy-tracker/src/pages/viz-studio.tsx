@@ -86,13 +86,27 @@ function ChartRenderer({
           </Bar>
         </BarChart>
       ) : chartType === "horizontal-bar" ? (
-        <BarChart data={data} layout="vertical" margin={{ top: 10, right: 60, left: 10, bottom: 40 }}>
+        <BarChart data={data} layout="vertical" margin={{ top: 10, right: 80, left: 10, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatValue(v, metric)}
-            label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", position: "insideBottom", offset: -5, style: { fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
-          <YAxis type="category" dataKey={nameKey} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={160} />
-          <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-          <Bar dataKey={metric} radius={[0, 6, 6, 0]}>
+          <XAxis
+            type="number"
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => formatValue(v, metric)}
+          />
+          <YAxis
+            type="category"
+            dataKey={nameKey}
+            stroke="hsl(var(--muted-foreground))"
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            width={150}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.15)" }} />
+          <Bar dataKey={metric} radius={[0, 6, 6, 0]} maxBarSize={28}>
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
         </BarChart>
@@ -125,15 +139,26 @@ function ChartRenderer({
         </AreaChart>
       ) : (
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" outerRadius={Math.min(height / 2 - 40, 160)} innerRadius={chartType === "donut" ? 80 : 0}
-            dataKey={metric} nameKey={nameKey}
-            label={({ name, percent }) => percent > 0.04 ? `${name} ${(percent * 100).toFixed(0)}%` : ""}
-            labelLine={{ stroke: "hsl(var(--muted-foreground))" }}
-            stroke="hsl(var(--background))" strokeWidth={2}>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="44%"
+            outerRadius={Math.min(height / 2 - 70, 120)}
+            innerRadius={chartType === "donut" ? Math.min(height / 4 - 20, 65) : 0}
+            dataKey={metric}
+            nameKey={nameKey}
+            paddingAngle={3}
+            stroke="hsl(var(--background))"
+            strokeWidth={2}
+          >
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Pie>
           <Tooltip content={tooltipEl} />
-          <Legend />
+          <Legend
+            iconType="circle"
+            iconSize={9}
+            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+          />
         </PieChart>
       )}
     </ResponsiveContainer>

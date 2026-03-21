@@ -4,8 +4,6 @@ import { sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Geothermal", "Oil", "Natural Gas", "EV"];
-
 router.get("/stats/summary", async (_req, res) => {
   try {
     const [result] = await db
@@ -13,9 +11,9 @@ router.get("/stats/summary", async (_req, res) => {
         totalProjects: sql<number>`count(*)::int`,
         totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
         totalCountries: sql<number>`count(distinct country)::int`,
-        totalTechnologies: sql<number>`${VALID_TECHNOLOGIES.length}`,
-        activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'financial close', 'development', 'operational') then 1 else 0 end)::int`,
-        completedProjects: sql<number>`sum(case when lower(status) in ('completed', 'commissioned', 'operational') then 1 else 0 end)::int`,
+        totalTechnologies: sql<number>`count(distinct technology)::int`,
+        activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end)::int`,
+        completedProjects: sql<number>`sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end)::int`,
       })
       .from(projectsTable);
 

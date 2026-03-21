@@ -14,7 +14,15 @@ function formatCurrency(value: number) {
   return `$${value.toFixed(0)}M`;
 }
 
-const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+const TECH_COLORS = [
+  "#f59e0b", // Solar - amber
+  "#06b6d4", // Wind - cyan
+  "#3b82f6", // Hydro - blue
+  "#a855f7", // Geothermal - purple
+  "#6b7280", // Natural Gas - gray
+  "#f97316", // Oil - orange
+  "#22c55e", // EV - green
+];
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetSummaryStats();
@@ -24,7 +32,7 @@ export default function Dashboard() {
 
   const isLoading = loadingSummary || loadingYears || loadingTech || loadingRegion;
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const BarTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card/90 backdrop-blur-sm border border-border p-3 rounded-lg shadow-xl">
@@ -37,6 +45,19 @@ export default function Dashboard() {
               {payload[1].value} Projects
             </p>
           )}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const PieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-card/90 backdrop-blur-sm border border-border p-3 rounded-lg shadow-xl">
+          <p className="font-medium text-foreground mb-1">{payload[0].name}</p>
+          <p className="text-primary font-bold">{formatCurrency(payload[0].value)}</p>
+          <p className="text-muted-foreground text-xs">{payload[0].payload.projectCount} projects</p>
         </div>
       );
     }
@@ -68,15 +89,12 @@ export default function Dashboard() {
             value={summary ? formatCurrency(summary.totalInvestmentUsdMn) : ""} 
             icon={DollarSign} 
             loading={isLoading} 
-            trend="+12% YoY"
-            trendUp={true}
           />
           <StatCard 
-            title="Active Projects" 
+            title="In Development" 
             value={summary?.activeProjects.toString() || ""} 
             icon={Activity} 
             loading={isLoading}
-            trend="43 New this quarter"
           />
           <StatCard 
             title="Total Projects" 
@@ -97,7 +115,7 @@ export default function Dashboard() {
             loading={isLoading}
           />
           <StatCard 
-            title="Completed Projects" 
+            title="Operational" 
             value={summary?.completedProjects.toString() || ""} 
             icon={TrendingUp} 
             loading={isLoading}
@@ -136,9 +154,10 @@ export default function Dashboard() {
                       fontSize={12}
                       tickLine={false} 
                       axisLine={false}
-                      tickFormatter={(val) => `$${val}M`}
+                      tickFormatter={formatCurrency}
+                      width={65}
                     />
-                    <RechartsTooltip content={<CustomTooltip />} />
+                    <RechartsTooltip content={<BarTooltip />} />
                     <Area 
                       type="monotone" 
                       dataKey="totalInvestmentUsdMn" 
@@ -155,35 +174,35 @@ export default function Dashboard() {
 
           {/* Technology Distribution */}
           <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
               <Zap className="w-5 h-5 text-accent" />
               By Technology
             </h3>
-            <div className="h-[220px] md:h-[300px] w-full">
+            <div className="h-[260px] md:h-[320px] w-full">
               {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={techStats}
                       cx="50%"
-                      cy="50%"
-                      innerRadius={80}
-                      outerRadius={110}
-                      paddingAngle={5}
+                      cy="42%"
+                      innerRadius={52}
+                      outerRadius={82}
+                      paddingAngle={4}
                       dataKey="totalInvestmentUsdMn"
                       nameKey="technology"
                       stroke="none"
                     >
                       {techStats?.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={TECH_COLORS[index % TECH_COLORS.length]} />
                       ))}
                     </Pie>
-                    <RechartsTooltip content={<CustomTooltip />} />
+                    <RechartsTooltip content={<PieTooltip />} />
                     <Legend 
                       verticalAlign="bottom" 
-                      height={36} 
                       iconType="circle"
-                      wrapperStyle={{ fontSize: '12px', color: 'hsl(var(--foreground))' }}
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: '11px', color: 'hsl(var(--foreground))', paddingTop: '4px' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -205,29 +224,32 @@ export default function Dashboard() {
                     <XAxis 
                       dataKey="region" 
                       stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
+                      fontSize={11}
                       tickLine={false} 
                       axisLine={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                     />
                     <YAxis 
                       yAxisId="left"
                       stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12}
+                      fontSize={11}
                       tickLine={false} 
                       axisLine={false}
-                      tickFormatter={(val) => `$${val}M`}
+                      tickFormatter={formatCurrency}
+                      width={65}
                     />
                     <YAxis 
                       yAxisId="right"
                       orientation="right"
                       stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12}
+                      fontSize={11}
                       tickLine={false} 
                       axisLine={false}
+                      width={30}
                     />
-                    <RechartsTooltip content={<CustomTooltip />} cursor={{fill: 'hsl(var(--muted)/0.3)'}} />
-                    <Bar yAxisId="left" dataKey="totalInvestmentUsdMn" name="Investment (USD)" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} barSize={40} />
-                    <Bar yAxisId="right" dataKey="projectCount" name="Projects" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} barSize={40} />
+                    <RechartsTooltip content={<BarTooltip />} cursor={{fill: 'hsl(var(--muted)/0.3)'}} />
+                    <Bar yAxisId="left" dataKey="totalInvestmentUsdMn" name="Investment (USD)" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} barSize={36} />
+                    <Bar yAxisId="right" dataKey="projectCount" name="Projects" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} barSize={36} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
