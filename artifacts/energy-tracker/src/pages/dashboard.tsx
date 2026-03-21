@@ -14,15 +14,16 @@ function formatCurrency(value: number) {
   return `$${value.toFixed(0)}M`;
 }
 
-const TECH_COLORS = [
-  "#f59e0b", // Solar - amber
-  "#06b6d4", // Wind - cyan
-  "#3b82f6", // Hydro - blue
-  "#a855f7", // Geothermal - purple
-  "#6b7280", // Natural Gas - gray
-  "#f97316", // Oil - orange
-  "#22c55e", // EV - green
-];
+const SECTOR_COLORS: Record<string, string> = {
+  "Solar":         "#f59e0b",
+  "Wind":          "#06b6d4",
+  "Hydro":         "#3b82f6",
+  "Geothermal":    "#a855f7",
+  "Natural Gas":   "#6b7280",
+  "Oil":           "#f97316",
+  "Green Hydrogen":"#22c55e",
+};
+const FALLBACK_COLOR = "#94a3b8";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetSummaryStats();
@@ -195,8 +196,8 @@ export default function Dashboard() {
                       nameKey="technology"
                       stroke="none"
                     >
-                      {techStats?.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={TECH_COLORS[index % TECH_COLORS.length]} />
+                      {techStats?.map((entry) => (
+                        <Cell key={`cell-${entry.technology}`} fill={SECTOR_COLORS[entry.technology] ?? FALLBACK_COLOR} />
                       ))}
                     </Pie>
                     <RechartsTooltip content={<PieTooltip />} />
@@ -212,11 +213,11 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 justify-center">
-                {techStats?.map((stat, index) => (
+                {techStats?.map((stat) => (
                   <div key={stat.technology} className="flex items-center gap-1.5 min-w-0">
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: TECH_COLORS[index % TECH_COLORS.length] }}
+                      style={{ backgroundColor: SECTOR_COLORS[stat.technology] ?? FALLBACK_COLOR }}
                     />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">{stat.technology}</span>
                   </div>
