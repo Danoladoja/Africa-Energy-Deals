@@ -210,7 +210,7 @@ export default function Dashboard() {
             {/* Custom legend — renders below, wraps naturally on any screen */}
             {isLoading ? (
               <div className="flex flex-wrap gap-2 mt-3">
-                {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-4 w-16 rounded" />)}
+                {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-4 w-16 rounded" />)}
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 justify-center">

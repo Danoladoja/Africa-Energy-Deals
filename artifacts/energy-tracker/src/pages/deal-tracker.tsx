@@ -11,6 +11,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
 
+const SECTOR_COLORS: Record<string, string> = {
+  "Solar":          "#f59e0b",
+  "Wind":           "#06b6d4",
+  "Hydro":          "#3b82f6",
+  "Grid & Storage": "#14b8a6",
+  "Oil & Gas":      "#f97316",
+  "Coal":           "#78716c",
+  "Nuclear":        "#a855f7",
+  "Bioenergy":      "#22c55e",
+};
+const FALLBACK_SECTOR_COLOR = "#94a3b8";
+
 function dealShareText(project: any) {
   const size = project.dealSizeUsdMn
     ? (project.dealSizeUsdMn >= 1000 ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B` : `$${project.dealSizeUsdMn}M`)
@@ -135,7 +147,10 @@ export default function DealTracker() {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3 flex-wrap">
                   <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{project.country}</span>
-                  <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-accent" />{project.technology}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_SECTOR_COLOR }} />
+                    {project.technology}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-sm font-semibold text-foreground">
@@ -232,7 +247,10 @@ export default function DealTracker() {
                       <td className="py-4 px-6 text-muted-foreground">{project.country}</td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2 text-sm">
-                          <Zap className="w-4 h-4 text-accent" />
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_SECTOR_COLOR }}
+                          />
                           {project.technology}
                         </div>
                       </td>

@@ -26,6 +26,17 @@ const COLORS = [
   "#00e676", "#00bcd4", "#ff9800", "#e91e63", "#9c27b0",
 ];
 
+const SECTOR_COLORS: Record<string, string> = {
+  "Solar":          "#f59e0b",
+  "Wind":           "#06b6d4",
+  "Hydro":          "#3b82f6",
+  "Grid & Storage": "#14b8a6",
+  "Oil & Gas":      "#f97316",
+  "Coal":           "#78716c",
+  "Nuclear":        "#a855f7",
+  "Bioenergy":      "#22c55e",
+};
+
 type ChartType = "bar" | "horizontal-bar" | "line" | "area" | "pie" | "donut";
 type Metric = "totalInvestmentUsdMn" | "projectCount";
 type Grouping = "country" | "technology" | "region" | "year";
@@ -61,14 +72,23 @@ function CustomTooltip({ active, payload, label, metric }: any) {
   return null;
 }
 
+function getCellColor(item: any, nameKey: string, index: number, colorMap?: Record<string, string>) {
+  if (colorMap) {
+    const name = item[nameKey];
+    if (name && colorMap[name]) return colorMap[name];
+  }
+  return COLORS[index % COLORS.length];
+}
+
 function ChartRenderer({
-  chartType, data, nameKey, metric, height = 420,
+  chartType, data, nameKey, metric, height = 420, colorMap,
 }: {
   chartType: ChartType;
   data: any[];
   nameKey: string;
   metric: Metric;
   height?: number;
+  colorMap?: Record<string, string>;
 }) {
   const tooltipEl = <CustomTooltip metric={metric} />;
 
@@ -82,7 +102,7 @@ function ChartRenderer({
             label={{ value: metric === "totalInvestmentUsdMn" ? "Investment (USD)" : "Number of Projects", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "hsl(var(--muted-foreground))", fontSize: 12 } }} />
           <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
           <Bar dataKey={metric} radius={[6, 6, 0, 0]}>
-            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            {data.map((entry, i) => <Cell key={i} fill={getCellColor(entry, nameKey, i, colorMap)} />)}
           </Bar>
         </BarChart>
       ) : chartType === "horizontal-bar" ? (
@@ -107,7 +127,7 @@ function ChartRenderer({
           />
           <Tooltip content={tooltipEl} cursor={{ fill: "hsl(var(--muted)/0.15)" }} />
           <Bar dataKey={metric} radius={[0, 6, 6, 0]} maxBarSize={28}>
-            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            {data.map((entry, i) => <Cell key={i} fill={getCellColor(entry, nameKey, i, colorMap)} />)}
           </Bar>
         </BarChart>
       ) : chartType === "line" ? (
@@ -151,7 +171,7 @@ function ChartRenderer({
             stroke="hsl(var(--background))"
             strokeWidth={2}
           >
-            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            {data.map((entry, i) => <Cell key={i} fill={getCellColor(entry, nameKey, i, colorMap)} />)}
           </Pie>
           <Tooltip content={tooltipEl} />
           <Legend
@@ -419,7 +439,7 @@ export default function VizStudio() {
                   <RefreshCw className="w-8 h-8 text-primary animate-spin" />
                 </div>
               ) : (
-                <ChartRenderer chartType={chartType} data={activeData} nameKey={nameKey} metric={metric} height={420} />
+                <ChartRenderer chartType={chartType} data={activeData} nameKey={nameKey} metric={metric} height={420} colorMap={nameKey === "technology" ? SECTOR_COLORS : undefined} />
               )}
             </div>
           </>
@@ -616,6 +636,7 @@ export default function VizStudio() {
                       nameKey={spotlightNameKey}
                       metric={spotlightMetric}
                       height={380}
+                      colorMap={spotlightNameKey === "technology" ? SECTOR_COLORS : undefined}
                     />
                   )}
                 </div>
