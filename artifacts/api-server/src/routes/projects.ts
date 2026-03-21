@@ -8,15 +8,17 @@ const router: IRouter = Router();
 const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];
 
 // Allowed fields for PATCH updates (whitelist to prevent overwriting id, etc.)
+// Use camelCase JS property names that match projectsTable column definitions exactly.
 const ALLOWED_UPDATE_FIELDS = [
   "projectName", "country", "region", "technology", "status",
-  "dealSizeUsdMn", "capacityMw", "announcedYear", "yearAnnounced", "latitude", "longitude",
+  "dealSizeUsdMn", "capacityMw", "yearAnnounced", "latitude", "longitude",
   "description", "newsUrl", "sourceUrl",
 ];
 
-// Map legacy/frontend field names to Drizzle column property names
+// Map incoming field aliases to the exact Drizzle column property names on projectsTable.
+// Keys: accepted request field names. Values: projectsTable JS property names.
 const FIELD_NAME_MAP: Record<string, string> = {
-  yearAnnounced: "announcedYear",
+  yearAnnounced: "announcedYear", // schema: announcedYear: integer("announced_year")
 };
 
 // API Key authentication middleware for write operations
