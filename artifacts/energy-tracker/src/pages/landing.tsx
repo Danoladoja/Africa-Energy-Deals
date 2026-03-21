@@ -134,7 +134,7 @@ export default function Landing() {
             },
             {
               value: stats ? stats.totalTechnologies.toString() : "—",
-              label: "Technologies",
+              label: "Sectors",
             },
           ].map((stat, i, arr) => (
             <div
@@ -255,7 +255,7 @@ export default function Landing() {
           <p className="text-white/50 text-base leading-relaxed mb-10">
             The platform tracks the full project lifecycle — from announcement through development,
             construction, and into operation — giving users a clear picture of where capital is flowing
-            and which technologies are scaling fastest across the continent.
+            and which sectors are scaling fastest across the continent.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
