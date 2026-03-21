@@ -10,7 +10,7 @@ export interface SummaryStats {
   totalProjects: number;
   totalInvestmentUsdMn: number;
   totalCountries: number;
-  totalTechnologies: number;
+  totalSectors: number;
   activeProjects: number;
   completedProjects: number;
 }

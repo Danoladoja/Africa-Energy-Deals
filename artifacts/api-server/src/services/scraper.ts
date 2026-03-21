@@ -214,6 +214,57 @@ function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
   return AFRICA_TERMS.some((t) => text.includes(t));
 }
 
+function normalizeSector(rawSector: string): string {
+  const sectorMap: Record<string, string> = {
+    'solar': 'Solar',
+    'wind': 'Wind',
+    'hydro': 'Hydro',
+    'hydroelectric': 'Hydro',
+    'natural gas': 'Natural Gas',
+    'gas': 'Natural Gas',
+    'lng': 'Natural Gas',
+    'lpg': 'Natural Gas',
+    'oil': 'Oil',
+    'petroleum': 'Oil',
+    'geothermal': 'Geothermal',
+    'green hydrogen': 'Green Hydrogen',
+    'hydrogen': 'Green Hydrogen',
+    'battery storage': 'Solar',
+    'battery': 'Solar',
+    'storage': 'Solar',
+    'ev': 'Solar',
+    'electric vehicle': 'Solar',
+    'mini-grid': 'Solar',
+    'mini grid': 'Solar',
+    'minigrid': 'Solar',
+    'transmission': 'Natural Gas',
+    'grid': 'Natural Gas',
+    'other renewables': 'Solar',
+    'biomass': 'Geothermal',
+    'biogas': 'Natural Gas',
+    'nuclear': 'Natural Gas',
+    'coal': 'Oil',
+    'tidal': 'Hydro',
+    'wave': 'Hydro',
+  };
+
+  const normalized = sectorMap[rawSector.toLowerCase().trim()];
+  if (normalized) return normalized;
+
+  const lower = rawSector.toLowerCase();
+  if (lower.includes('solar') || lower.includes('pv')) return 'Solar';
+  if (lower.includes('wind')) return 'Wind';
+  if (lower.includes('hydro') || lower.includes('dam')) return 'Hydro';
+  if (lower.includes('gas') || lower.includes('lng')) return 'Natural Gas';
+  if (lower.includes('oil') || lower.includes('petro') || lower.includes('refin')) return 'Oil';
+  if (lower.includes('geotherm')) return 'Geothermal';
+  if (lower.includes('hydrogen') || lower.includes('ammonia') || lower.includes('electroly') || lower.includes('h2')) return 'Green Hydrogen';
+  if (lower.includes('battery') || lower.includes('storage') || lower.includes('mini-grid') || lower.includes('ev ') || lower.includes('electric vehicle')) return 'Solar';
+
+  console.warn(`[Scraper] Unknown sector "${rawSector}" — defaulting to Solar`);
+  return 'Solar';
+}
+
 function inferRegion(country: string): string {
   const regions: Record<string, string[]> = {
     "East Africa": ["kenya", "tanzania", "uganda", "rwanda", "ethiopia", "somalia", "mozambique", "madagascar", "malawi", "zambia", "zimbabwe", "burundi", "djibouti", "eritrea"],
@@ -249,7 +300,7 @@ Return a JSON array where each object has:
 - projectName: string Ã¢ÂÂ specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
 - country: string Ã¢ÂÂ African country name only
 - region: string Ã¢ÂÂ one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string Ã¢ÂÂ one of: "Solar", "Wind", "Hydro", "Geothermal", "Natural Gas", "Oil", "EV", "Battery Storage", "Transmission", "Mini-Grid", "Other Renewables"
+- technology: string — one of exactly these 7 canonical sectors: "Solar", "Wind", "Hydro", "Geothermal", "Natural Gas", "Oil", "Green Hydrogen". Use "Solar" for battery storage, mini-grids, EVs, and other renewables. Use "Natural Gas" for transmission/grid projects. Use "Hydro" for tidal/wave energy.
 - dealSizeUsdMn: number | null Ã¢ÂÂ deal/investment value in USD millions; null if not stated
 - investors: string | null Ã¢ÂÂ comma-separated lenders, equity investors, donors, or development banks
 - status: string Ã¢ÂÂ one of: "announced", "under construction", "financing closed", "operational", "tender"
@@ -416,17 +467,7 @@ export async function runScraper(
       message: `Analysing ${relevantArticles.length} articles across ${batches.length} batch${batches.length !== 1 ? "es" : ""} with Claude Sonnet...`,
     });
 
-    const allProjects: Record<string, unknown>[] = [  // ââ AGGREGATOR FALLBACKS (always available) ââââââââââââââââââââââââââââââ
-  { name: "Google News - Africa Energy", url: "https://news.google.com/rss/search?q=africa+energy+investment+renewable&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Solar Wind", url: "https://news.google.com/rss/search?q=africa+solar+OR+wind+power+project&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - AfDB IFC Energy", url: "https://news.google.com/rss/search?q=AfDB+OR+IFC+OR+%22World+Bank%22+africa+energy&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Energy Deals", url: "https://news.google.com/rss/search?q=%22energy+deal%22+OR+%22power+project%22+OR+%22solar+farm%22+africa&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Renewable Finance", url: "https://news.google.com/rss/search?q=africa+%22renewable+energy%22+%22financing%22+OR+%22investment%22+OR+%22funding%22&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Wind Solar Hydro", url: "https://news.google.com/rss/search?q=africa+%22wind+farm%22+OR+%22solar+plant%22+OR+%22hydropower%22+OR+%22battery+storage%22&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Oil Gas LNG", url: "https://news.google.com/rss/search?q=africa+%22oil+and+gas%22+OR+%22LNG%22+OR+%22pipeline%22+investment+OR+deal&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - DFI Africa Energy", url: "https://news.google.com/rss/search?q=%22IFC%22+OR+%22AfDB%22+OR+%22World+Bank%22+OR+%22EBRD%22+africa+energy+project&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-  { name: "Google News - Africa Green Hydrogen", url: "https://news.google.com/rss/search?q=africa+%22green+hydrogen%22+OR+%22hydrogen+project%22+OR+%22ammonia+plant%22&hl=en-US&gl=US&ceid=US:en", category: "News Aggregator", skipCountryFilter: true },
-];
+    const allProjects: Record<string, unknown>[] = [];
     for (let b = 0; b < batches.length; b++) {
       onProgress?.({
         stage: "analyzing",
@@ -456,7 +497,7 @@ export async function runScraper(
           projectName: name,
           country,
           region: String(project.region ?? inferRegion(country)),
-          technology: String(project.technology ?? "Other Renewables"),
+          technology: normalizeSector(String(project.technology ?? "Solar")),
           dealSizeUsdMn: typeof project.dealSizeUsdMn === "number" ? project.dealSizeUsdMn : null,
           investors: typeof project.investors === "string" ? project.investors : null,
           status: String(project.status ?? "announced"),

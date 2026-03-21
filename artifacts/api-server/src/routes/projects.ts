@@ -4,15 +4,20 @@ import { ilike, and, gte, lte, eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-// Valid technology categories
-const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Geothermal", "Oil", "Natural Gas", "EV"];
+// Valid technology categories (canonical sectors)
+const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Geothermal", "Oil", "Natural Gas", "Green Hydrogen"];
 
 // Allowed fields for PATCH updates (whitelist to prevent overwriting id, etc.)
 const ALLOWED_UPDATE_FIELDS = [
   "projectName", "country", "region", "technology", "status",
-  "dealSizeUsdMn", "capacityMw", "yearAnnounced", "latitude", "longitude",
+  "dealSizeUsdMn", "capacityMw", "announcedYear", "yearAnnounced", "latitude", "longitude",
   "description", "newsUrl", "sourceUrl",
 ];
+
+// Map legacy/frontend field names to Drizzle column property names
+const FIELD_NAME_MAP: Record<string, string> = {
+  yearAnnounced: "announcedYear",
+};
 
 // API Key authentication middleware for write operations
 const requireApiKey = (req: Request, res: Response, next: NextFunction): void => {
@@ -124,11 +129,12 @@ router.patch("/projects/:id", requireApiKey, async (req, res) => {
     if (!rawUpdates || Object.keys(rawUpdates).length === 0) {
       return res.status(400).json({ error: "No update fields provided" });
     }
-    // Whitelist fields to prevent overwriting id or other protected fields
+    // Whitelist fields and remap legacy names to Drizzle property names
     const updates: Record<string, unknown> = {};
     for (const key of Object.keys(rawUpdates)) {
       if (ALLOWED_UPDATE_FIELDS.includes(key)) {
-        updates[key] = rawUpdates[key];
+        const mappedKey = FIELD_NAME_MAP[key] ?? key;
+        updates[mappedKey] = rawUpdates[key];
       }
     }
     if (Object.keys(updates).length === 0) {

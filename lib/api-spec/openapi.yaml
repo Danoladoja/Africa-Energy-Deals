@@ -352,7 +352,7 @@ components:
           type: number
         totalCountries:
           type: integer
-        totalTechnologies:
+        totalSectors:
           type: integer
         activeProjects:
           type: integer
@@ -362,7 +362,7 @@ components:
         - totalProjects
         - totalInvestmentUsdMn
         - totalCountries
-        - totalTechnologies
+        - totalSectors
         - activeProjects
         - completedProjects
 

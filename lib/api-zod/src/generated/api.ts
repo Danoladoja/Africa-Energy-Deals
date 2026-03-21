@@ -122,7 +122,7 @@ export const GetSummaryStatsResponse = zod.object({
   totalProjects: zod.number(),
   totalInvestmentUsdMn: zod.number(),
   totalCountries: zod.number(),
-  totalTechnologies: zod.number(),
+  totalSectors: zod.number(),
   activeProjects: zod.number(),
   completedProjects: zod.number(),
 });

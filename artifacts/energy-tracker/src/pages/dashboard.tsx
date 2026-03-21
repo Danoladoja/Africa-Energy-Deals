@@ -109,8 +109,8 @@ export default function Dashboard() {
             loading={isLoading}
           />
           <StatCard 
-            title="Technologies" 
-            value={summary?.totalTechnologies.toString() || ""} 
+            title="Sectors" 
+            value={summary?.totalSectors.toString() || ""} 
             icon={Zap} 
             loading={isLoading}
           />

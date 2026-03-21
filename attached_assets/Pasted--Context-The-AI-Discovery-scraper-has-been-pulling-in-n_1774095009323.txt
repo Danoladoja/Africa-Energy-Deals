@@ -1,0 +1,161 @@
+## Context
+
+The AI Discovery scraper has been pulling in new energy projects for 2023–2026. It's working well, but it's creating new sector/technology categories instead of mapping scraped projects into the 7 canonical sector buckets that the platform uses. This creates inconsistency between the Replit dev data and the Railway production data.
+
+## The 7 Canonical Sectors
+
+All projects in the database MUST be classified into exactly one of these 7 sectors:
+
+1. **Solar** — solar PV, concentrated solar power (CSP), solar thermal, solar mini-grids, solar home systems, solar-battery hybrid projects
+2. **Wind** — onshore wind, offshore wind, wind farms
+3. **Hydro** — hydroelectric dams, run-of-river hydro, pumped-storage hydro, small hydro
+4. **Natural Gas** — natural gas power plants, LNG terminals, gas pipelines, gas-to-power, gas processing
+5. **Oil** — oil refineries, oil pipelines, oil-fired power, upstream oil exploration/production
+6. **Geothermal** — geothermal power plants, geothermal exploration
+7. **Green Hydrogen** — green hydrogen production, green ammonia, hydrogen fuel cells, electrolyzers, power-to-X projects
+
+## Task 1: Fix the Scraper to Use Canonical Sectors
+
+Find the AI Discovery scraper code (likely in `artifacts/energy-tracker/src/` or `artifacts/api-server/src/` — search for files related to "discovery", "scraper", "auto-discover", or "AI Discovery").
+
+Modify the scraper's sector classification logic so that when it categorizes a newly scraped project, it ONLY assigns one of the 7 canonical sector values listed above. Add a mapping/normalization function like this:
+
+```typescript
+function normalizeSector(rawSector: string): string {
+  const sectorMap: Record<string, string> = {
+    // Direct matches
+    'solar': 'Solar',
+    'wind': 'Wind',
+    'hydro': 'Hydro',
+    'hydroelectric': 'Hydro',
+    'natural gas': 'Natural Gas',
+    'gas': 'Natural Gas',
+    'lng': 'Natural Gas',
+    'oil': 'Oil',
+    'petroleum': 'Oil',
+    'geothermal': 'Geothermal',
+    'green hydrogen': 'Green Hydrogen',
+    'hydrogen': 'Green Hydrogen',
+
+    // Remap non-canonical categories
+    'battery storage': 'Solar',        // Battery storage in Africa is predominantly solar+storage
+    'battery': 'Solar',
+    'storage': 'Solar',
+    'ev': 'Solar',                     // EV charging infrastructure in Africa is solar-powered
+    'electric vehicle': 'Solar',
+    'mini-grid': 'Solar',             // Mini-grids in Africa are predominantly solar mini-grids
+    'mini grid': 'Solar',
+    'minigrid': 'Solar',
+    'transmission': 'Natural Gas',    // Transmission/grid infrastructure — classify under the dominant fuel
+    'grid': 'Natural Gas',
+    'other renewables': 'Solar',      // Default: most "other renewables" in Africa are solar variants
+    'biomass': 'Geothermal',          // Biomass/biogas → closest canonical fit
+    'biogas': 'Natural Gas',
+    'nuclear': 'Natural Gas',         // Nuclear → baseload like gas
+    'coal': 'Oil',                    // Coal → fossil fuel bucket with oil
+    'tidal': 'Hydro',                // Tidal/wave → water-based like hydro
+    'wave': 'Hydro',
+  };
+
+  const normalized = sectorMap[rawSector.toLowerCase().trim()];
+  if (normalized) return normalized;
+
+  // Fuzzy matching fallback
+  const lower = rawSector.toLowerCase();
+  if (lower.includes('solar') || lower.includes('pv')) return 'Solar';
+  if (lower.includes('wind')) return 'Wind';
+  if (lower.includes('hydro') || lower.includes('dam')) return 'Hydro';
+  if (lower.includes('gas') || lower.includes('lng')) return 'Natural Gas';
+  if (lower.includes('oil') || lower.includes('petro') || lower.includes('refin')) return 'Oil';
+  if (lower.includes('geotherm')) return 'Geothermal';
+  if (lower.includes('hydrogen') || lower.includes('ammonia') || lower.includes('electroly') || lower.includes('h2')) return 'Green Hydrogen';
+  if (lower.includes('battery') || lower.includes('storage') || lower.includes('mini-grid') || lower.includes('ev ') || lower.includes('electric vehicle')) return 'Solar';
+
+  // If all else fails, default to Solar (most common in Africa)
+  console.warn(`Unknown sector "${rawSector}" — defaulting to Solar`);
+  return 'Solar';
+}
+```
+
+Apply this `normalizeSector()` function wherever the scraper sets the `technology` field before inserting into the database.
+
+## Task 2: Reclassify Existing Scraped Projects
+
+The scraper has already inserted projects with non-canonical sector values. Run a database migration/update to reclassify them. Create and run a script (or add it to a migration) that does:
+
+```typescript
+// Reclassify existing non-canonical sectors in the database
+import { db } from '@workspace/db';
+import { projectsTable } from '@workspace/db';
+import { eq } from 'drizzle-orm';
+
+const reclassifications: Record<string, string> = {
+  'Battery Storage': 'Solar',
+  'EV': 'Solar',
+  'Mini-Grid': 'Solar',
+  'Transmission': 'Natural Gas',
+  'Other Renewables': 'Solar',  // Review these individually if possible
+};
+
+for (const [oldSector, newSector] of Object.entries(reclassifications)) {
+  await db.update(projectsTable)
+    .set({ technology: newSector })
+    .where(eq(projectsTable.technology, oldSector));
+  console.log(`Reclassified "${oldSector}" → "${newSector}"`);
+}
+```
+
+**IMPORTANT — Before running the bulk reclassification:**
+
+1. First, list all projects in each non-canonical sector so you can review them:
+```sql
+SELECT id, "project_name", technology, country FROM projects
+WHERE technology IN ('Battery Storage', 'EV', 'Mini-Grid', 'Transmission', 'Other Renewables')
+ORDER BY technology, "project_name";
+```
+
+2. Check if any "Other Renewables" projects are actually Green Hydrogen — if so, reclassify those as 'Green Hydrogen' instead of 'Solar'. Look for keywords like "hydrogen", "ammonia", "electrolyzer", "H2", "power-to-X" in the project name or description.
+
+3. Check if any "Transmission" projects are actually grid connections for wind or hydro — if so, you may want to classify them under the generation source rather than Natural Gas.
+
+## Task 3: Fix the Stats Endpoint
+
+**File: `artifacts/api-server/src/routes/stats.ts`**
+
+The `totalTechnologies` value is currently hardcoded to `7`. Make it dynamic:
+
+```typescript
+// Replace the hardcoded value with a dynamic count
+const techResult = await db.selectDistinct({ technology: projectsTable.technology }).from(projectsTable);
+const totalTechnologies = techResult.length;
+```
+
+After the reclassification in Task 2, this should return 7 (matching the canonical sectors).
+
+Also rename the response field from `totalTechnologies` to `totalSectors` and update any frontend code that reads this field.
+
+## Task 4: Fix Landing Page Hardcoded Text
+
+**File: `artifacts/energy-tracker/src/pages/landing.tsx`**
+
+### 4a. Update project and country counts
+Find: `50+ disclosed energy transactions across 21 African countries`
+Replace with the actual counts from the database (after reclassification). Use dynamic values if possible, or update to match current totals.
+
+### 4b. Fix sector names in coverage section
+Find: `7 technology types: Solar, Wind, Hydro, Gas, Geothermal, Storage & Transmission`
+Replace with: `7 sector types: Solar, Wind, Hydro, Natural Gas, Geothermal, Green Hydrogen & Oil`
+
+### 4c. Replace "technology" with "sector" across all UI
+Do a project-wide find-and-replace in `artifacts/energy-tracker/src/` for user-facing text:
+- "technology" → "sector" (in labels, descriptions, card text)
+- "Technologies" → "Sectors" (in stat cards, headings)
+- Do NOT change the database column name `technology` in the schema or API routes — only UI-facing text
+
+## Task 5: Fix PATCH Endpoint Bug for yearAnnounced
+
+**File: `artifacts/api-server/src/routes/projects.ts`**
+
+The PATCH endpoint accepts `yearAnnounced` as a valid field but fails with a 500 error when updating. The field mapping to the Drizzle column is incorrect. Check `projectsTable` in `lib/db/src/schema/projects.ts` for the actual column property name (likely `announcedYear`) and fix the mapping in the PATCH handler.
+
+## Task 6: Push to GitHub

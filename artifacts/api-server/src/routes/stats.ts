@@ -6,18 +6,22 @@ const router: IRouter = Router();
 
 router.get("/stats/summary", async (_req, res) => {
   try {
-    const [result] = await db
-      .select({
-        totalProjects: sql<number>`count(*)::int`,
-        totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
-        totalCountries: sql<number>`count(distinct country)::int`,
-        totalTechnologies: sql<number>`7`,
-        activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end)::int`,
-        completedProjects: sql<number>`sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end)::int`,
-      })
-      .from(projectsTable);
+    const [[result], techResult] = await Promise.all([
+      db
+        .select({
+          totalProjects: sql<number>`count(*)::int`,
+          totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
+          totalCountries: sql<number>`count(distinct country)::int`,
+          activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end)::int`,
+          completedProjects: sql<number>`sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end)::int`,
+        })
+        .from(projectsTable),
+      db.selectDistinct({ technology: projectsTable.technology }).from(projectsTable),
+    ]);
 
-    res.json(result);
+    const totalSectors = techResult.length;
+
+    res.json({ ...result, totalSectors });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

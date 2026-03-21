@@ -133,7 +133,7 @@ export default function Landing() {
               label: "Countries",
             },
             {
-              value: stats ? stats.totalTechnologies.toString() : "—",
+              value: stats ? stats.totalSectors.toString() : "—",
               label: "Sectors",
             },
           ].map((stat, i, arr) => (
@@ -162,7 +162,7 @@ export default function Landing() {
               {
                 icon: <Layers className="w-6 h-6 text-[#00e676]" />,
                 title: "Deal Database",
-                desc: "Search and filter 50+ disclosed energy transactions across 21 African countries by sector, status, deal size, and investors.",
+                desc: "Search and filter 90+ disclosed energy transactions across 20+ African countries by sector, status, deal size, and investors.",
               },
               {
                 icon: <Globe className="w-6 h-6 text-[#00e676]" />,
@@ -206,7 +206,7 @@ export default function Landing() {
               <ul className="space-y-3 text-sm text-white/70">
                 {[
                   "21 African countries across all major regions",
-                  "7 sector types: Solar, Wind, Hydro, Gas, Geothermal, Storage & Transmission",
+                  "7 sector types: Solar, Wind, Hydro, Natural Gas, Geothermal, Green Hydrogen & Oil",
                   "Projects ranging from early development to fully operational",
                   "Deal sizes from $10M to multi-billion dollar programmes",
                 ].map(item => (
