@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Mail, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = "/api";
 
 interface EmailGateModalProps {
   isOpen: boolean;
@@ -31,7 +31,7 @@ export function EmailGateModal({ isOpen, onClose, onSuccess }: EmailGateModalPro
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/auth/email`, {
+      const res = await fetch(`${API}/auth/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),

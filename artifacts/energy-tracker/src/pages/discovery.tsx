@@ -22,7 +22,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = "/api";
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = getAdminToken();
@@ -234,7 +234,7 @@ export default function DiscoveryPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/api/scraper/status`, { headers: authHeaders() });
+      const r = await fetch(`${API}/scraper/status`, { headers: authHeaders() });
       const data = await r.json() as ScraperStatus;
       setStatus(data);
     } catch {}
@@ -242,7 +242,7 @@ export default function DiscoveryPage() {
 
   const fetchQueue = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/api/scraper/${tab === "pending" ? "queue" : "reviewed"}`, { headers: authHeaders() });
+      const r = await fetch(`${API}/scraper/${tab === "pending" ? "queue" : "reviewed"}`, { headers: authHeaders() });
       const data = await r.json() as Project[];
       setQueue(data);
     } catch {}
@@ -264,7 +264,7 @@ export default function DiscoveryPage() {
     setLogs([]);
 
     try {
-      const response = await fetch(`${BASE}/api/scraper/run`, { method: "POST", headers: authHeaders() });
+      const response = await fetch(`${API}/scraper/run`, { method: "POST", headers: authHeaders() });
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -298,7 +298,7 @@ export default function DiscoveryPage() {
   const handleReview = async (id: number, action: "approve" | "reject") => {
     setReviewing((prev) => ({ ...prev, [id]: true }));
     try {
-      await fetch(`${BASE}/api/scraper/review/${id}`, {
+      await fetch(`${API}/scraper/review/${id}`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ action }),
@@ -313,7 +313,7 @@ export default function DiscoveryPage() {
 
   const handleReviewAll = async (action: "approve" | "reject") => {
     try {
-      await fetch(`${BASE}/api/scraper/review-all`, {
+      await fetch(`${API}/scraper/review-all`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ action }),

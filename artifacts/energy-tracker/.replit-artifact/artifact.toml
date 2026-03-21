@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/energy-tracker/"
 title = "Africa Energy Investment Tracker"
 version = "1.0.0"
 id = "artifacts/energy-tracker"
@@ -12,14 +12,14 @@ version = "1.0.0"
 [[services]]
 localPort = 22663
 name = "web"
-paths = ["/"]
+paths = ["/energy-tracker/"]
 
 [services.development]
 run = "pnpm --filter @workspace/energy-tracker run dev"
 
 [services.env]
 PORT = "22663"
-BASE_PATH = "/"
+BASE_PATH = "/energy-tracker/"
 
 [services.production]
 build = ["pnpm", "--filter", "@workspace/energy-tracker", "run", "build"]
@@ -27,5 +27,5 @@ publicDir = "artifacts/energy-tracker/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
-from = "/*"
+from = "/energy-tracker/*"
 to = "/index.html"
