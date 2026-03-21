@@ -110,7 +110,7 @@ export default function Dashboard() {
           />
           <StatCard 
             title="Sectors" 
-            value={summary?.totalSectors.toString() || ""} 
+            value={summary?.totalSectors?.toString() ?? ""} 
             icon={Zap} 
             loading={isLoading}
           />

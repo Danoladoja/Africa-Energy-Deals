@@ -133,7 +133,7 @@ export default function Landing() {
               label: "Countries",
             },
             {
-              value: stats ? stats.totalSectors.toString() : "—",
+              value: stats?.totalSectors != null ? stats.totalSectors.toString() : "—",
               label: "Sectors",
             },
           ].map((stat, i, arr) => (
