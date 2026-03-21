@@ -1,6 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, inArray } from "drizzle-orm";
+
+const CANONICAL_REGIONS = [
+  "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa",
+];
 
 const router: IRouter = Router();
 
@@ -79,6 +83,7 @@ router.get("/stats/by-region", async (_req, res) => {
         countries: sql<number>`count(distinct country)::int`,
       })
       .from(projectsTable)
+      .where(inArray(projectsTable.region, CANONICAL_REGIONS))
       .groupBy(projectsTable.region)
       .orderBy(sql`sum(deal_size_usd_mn) desc nulls last`);
 

@@ -142,6 +142,15 @@ const RSS_FEEDS: FeedConfig[] = [
   { name: "Zambia ERB Energy", url: "https://news.google.com/rss/search?q=zambia+energy+regulation+board+power+project+solar&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
   { name: "Uganda ERA Electricity", url: "https://news.google.com/rss/search?q=uganda+electricity+regulatory+authority+project+solar&hl=en-US&gl=US&ceid=US:en", category: "Government", skipCountryFilter: true },
 
+  // ── TARGETED: NUCLEAR, COAL & GRID/STORAGE ──────────────────────────────────
+  { name: "Africa Nuclear Energy 2024-26", url: "https://news.google.com/rss/search?q=africa+nuclear+energy+power+plant+investment+2024+2025+2026&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Nuclear SMR 2024-26", url: "https://news.google.com/rss/search?q=africa+small+modular+reactor+SMR+nuclear+power&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Coal Mining Power 2024-26", url: "https://news.google.com/rss/search?q=africa+coal+power+plant+mine+investment+financing+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Battery Storage 2024-26", url: "https://news.google.com/rss/search?q=africa+battery+storage+BESS+energy+storage+investment+2024+2025+2026&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Green Hydrogen 2024-26", url: "https://news.google.com/rss/search?q=africa+green+hydrogen+electrolysis+investment+project+2024+2025+2026&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Grid Transmission 2024-26", url: "https://news.google.com/rss/search?q=africa+electricity+grid+transmission+interconnection+investment+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+  { name: "Africa Mini-Grid Storage 2024-26", url: "https://news.google.com/rss/search?q=africa+mini-grid+energy+storage+off-grid+investment+2024+2025+2026&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
+
   // ── TARGETED 2023–2026 DEAL SEARCHES ────────────────────────────────────────
   { name: "Africa Solar Deals 2024", url: "https://news.google.com/rss/search?q=africa+solar+energy+deal+investment+2024&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
   { name: "Africa Solar Deals 2025", url: "https://news.google.com/rss/search?q=africa+solar+energy+deal+investment+2025&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
