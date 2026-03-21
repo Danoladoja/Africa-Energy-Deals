@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell, Legend
+  AreaChart, Area, PieChart, Pie, Cell
 } from "recharts";
 import { Activity, Globe, Zap, DollarSign, TrendingUp, Briefcase } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -173,21 +173,23 @@ export default function Dashboard() {
           </div>
 
           {/* Technology Distribution */}
-          <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+          <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
               <Zap className="w-5 h-5 text-accent" />
               By Technology
             </h3>
-            <div className="h-[260px] md:h-[320px] w-full">
+
+            {/* Donut chart — fixed height, no built-in legend */}
+            <div className="h-[190px] w-full flex-shrink-0">
               {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={techStats}
                       cx="50%"
-                      cy="42%"
+                      cy="50%"
                       innerRadius={52}
-                      outerRadius={82}
+                      outerRadius={78}
                       paddingAngle={4}
                       dataKey="totalInvestmentUsdMn"
                       nameKey="technology"
@@ -198,16 +200,29 @@ export default function Dashboard() {
                       ))}
                     </Pie>
                     <RechartsTooltip content={<PieTooltip />} />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: '11px', color: 'hsl(var(--foreground))', paddingTop: '4px' }}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
               )}
             </div>
+
+            {/* Custom legend — renders below, wraps naturally on any screen */}
+            {isLoading ? (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-4 w-16 rounded" />)}
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 justify-center">
+                {techStats?.map((stat, index) => (
+                  <div key={stat.technology} className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: TECH_COLORS[index % TECH_COLORS.length] }}
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{stat.technology}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Regional Distribution */}
