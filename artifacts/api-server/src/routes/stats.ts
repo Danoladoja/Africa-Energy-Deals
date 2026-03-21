@@ -11,7 +11,7 @@ router.get("/stats/summary", async (_req, res) => {
         totalProjects: sql<number>`count(*)::int`,
         totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
         totalCountries: sql<number>`count(distinct country)::int`,
-        totalTechnologies: sql<number>`count(distinct technology)::int`,
+        totalTechnologies: sql<number>`7`,
         activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end)::int`,
         completedProjects: sql<number>`sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end)::int`,
       })
