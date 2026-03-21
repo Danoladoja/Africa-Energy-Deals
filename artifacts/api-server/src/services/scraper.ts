@@ -216,50 +216,86 @@ function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
 
 function normalizeSector(rawSector: string): string {
   const sectorMap: Record<string, string> = {
+    // Solar
     'solar': 'Solar',
+    'photovoltaic': 'Solar',
+    'pv': 'Solar',
+    'concentrated solar': 'Solar',
+    'csp': 'Solar',
+    // Wind
     'wind': 'Wind',
+    'offshore wind': 'Wind',
+    'onshore wind': 'Wind',
+    // Hydro
     'hydro': 'Hydro',
     'hydroelectric': 'Hydro',
-    'natural gas': 'Natural Gas',
-    'gas': 'Natural Gas',
-    'lng': 'Natural Gas',
-    'lpg': 'Natural Gas',
-    'oil': 'Oil',
-    'petroleum': 'Oil',
-    'geothermal': 'Geothermal',
-    'green hydrogen': 'Green Hydrogen',
-    'hydrogen': 'Green Hydrogen',
-    'battery storage': 'Solar',
-    'battery': 'Solar',
-    'storage': 'Solar',
-    'ev': 'Solar',
-    'electric vehicle': 'Solar',
-    'mini-grid': 'Solar',
-    'mini grid': 'Solar',
-    'minigrid': 'Solar',
-    'transmission': 'Natural Gas',
-    'grid': 'Natural Gas',
-    'other renewables': 'Solar',
-    'biomass': 'Geothermal',
-    'biogas': 'Natural Gas',
-    'nuclear': 'Natural Gas',
-    'coal': 'Oil',
+    'hydropower': 'Hydro',
+    'dam': 'Hydro',
     'tidal': 'Hydro',
     'wave': 'Hydro',
+    // Grid & Storage
+    'grid & storage': 'Grid & Storage',
+    'grid and storage': 'Grid & Storage',
+    'battery storage': 'Grid & Storage',
+    'battery': 'Grid & Storage',
+    'storage': 'Grid & Storage',
+    'green hydrogen': 'Grid & Storage',
+    'hydrogen': 'Grid & Storage',
+    'green h2': 'Grid & Storage',
+    'electrolyser': 'Grid & Storage',
+    'electrolysis': 'Grid & Storage',
+    'ammonia': 'Grid & Storage',
+    'mini-grid': 'Grid & Storage',
+    'mini grid': 'Grid & Storage',
+    'minigrid': 'Grid & Storage',
+    'transmission': 'Grid & Storage',
+    'grid': 'Grid & Storage',
+    'smart grid': 'Grid & Storage',
+    'ev': 'Grid & Storage',
+    'electric vehicle': 'Grid & Storage',
+    'e-mobility': 'Grid & Storage',
+    // Oil & Gas
+    'oil & gas': 'Oil & Gas',
+    'oil and gas': 'Oil & Gas',
+    'natural gas': 'Oil & Gas',
+    'gas': 'Oil & Gas',
+    'lng': 'Oil & Gas',
+    'lpg': 'Oil & Gas',
+    'oil': 'Oil & Gas',
+    'petroleum': 'Oil & Gas',
+    'refinery': 'Oil & Gas',
+    'upstream': 'Oil & Gas',
+    'downstream': 'Oil & Gas',
+    'pipeline': 'Oil & Gas',
+    'biogas': 'Oil & Gas',
+    // Coal
+    'coal': 'Coal',
+    'thermal power': 'Coal',
+    // Nuclear
+    'nuclear': 'Nuclear',
+    'atomic': 'Nuclear',
+    'uranium': 'Nuclear',
+    // Bioenergy
+    'bioenergy': 'Bioenergy',
+    'biomass': 'Bioenergy',
+    'geothermal': 'Bioenergy',
+    'other renewables': 'Bioenergy',
+    'waste-to-energy': 'Bioenergy',
+    'waste to energy': 'Bioenergy',
   };
 
   const normalized = sectorMap[rawSector.toLowerCase().trim()];
   if (normalized) return normalized;
 
   const lower = rawSector.toLowerCase();
-  if (lower.includes('solar') || lower.includes('pv')) return 'Solar';
+  if (lower.includes('solar') || lower.includes('pv') || lower.includes('photovoltaic')) return 'Solar';
   if (lower.includes('wind')) return 'Wind';
   if (lower.includes('hydro') || lower.includes('dam')) return 'Hydro';
-  if (lower.includes('gas') || lower.includes('lng')) return 'Natural Gas';
-  if (lower.includes('oil') || lower.includes('petro') || lower.includes('refin')) return 'Oil';
-  if (lower.includes('geotherm')) return 'Geothermal';
-  if (lower.includes('hydrogen') || lower.includes('ammonia') || lower.includes('electroly') || lower.includes('h2')) return 'Green Hydrogen';
-  if (lower.includes('battery') || lower.includes('storage') || lower.includes('mini-grid') || lower.includes('ev ') || lower.includes('electric vehicle')) return 'Solar';
+  if (lower.includes('battery') || lower.includes('storage') || lower.includes('grid') || lower.includes('hydrogen') || lower.includes('ammonia') || lower.includes('electroly') || lower.includes('mini-grid') || lower.includes('minigrid') || lower.includes('ev ') || lower.includes('electric vehicle')) return 'Grid & Storage';
+  if (lower.includes('oil') || lower.includes('gas') || lower.includes('lng') || lower.includes('petro') || lower.includes('refin') || lower.includes('pipeline')) return 'Oil & Gas';
+  if (lower.includes('coal') || lower.includes('thermal')) return 'Coal';
+  if (lower.includes('nuclear') || lower.includes('uranium')) return 'Nuclear';
+  if (lower.includes('bio') || lower.includes('geotherm') || lower.includes('waste')) return 'Bioenergy';
 
   console.warn(`[Scraper] Unknown sector "${rawSector}" — defaulting to Solar`);
   return 'Solar';
@@ -300,7 +336,7 @@ Return a JSON array where each object has:
 - projectName: string Ã¢ÂÂ specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
 - country: string Ã¢ÂÂ African country name only
 - region: string Ã¢ÂÂ one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string — one of exactly these 7 canonical sectors: "Solar", "Wind", "Hydro", "Geothermal", "Natural Gas", "Oil", "Green Hydrogen". Use "Solar" for battery storage, mini-grids, EVs, and other renewables. Use "Natural Gas" for transmission/grid projects. Use "Hydro" for tidal/wave energy.
+- technology: string — one of exactly these 8 canonical sectors: "Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy". Use "Grid & Storage" for battery storage, transmission/grid projects, green hydrogen, EVs, and mini-grids. Use "Bioenergy" for biomass, geothermal, and waste-to-energy. Use "Oil & Gas" for all oil, gas, LNG, and petroleum projects. Use "Hydro" for tidal/wave energy.
 - dealSizeUsdMn: number | null Ã¢ÂÂ deal/investment value in USD millions; null if not stated
 - investors: string | null Ã¢ÂÂ comma-separated lenders, equity investors, donors, or development banks
 - status: string Ã¢ÂÂ one of: "announced", "under construction", "financing closed", "operational", "tender"

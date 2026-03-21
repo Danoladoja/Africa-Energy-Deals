@@ -206,7 +206,7 @@ export default function Landing() {
               <ul className="space-y-3 text-sm text-white/70">
                 {[
                   "21 African countries across all major regions",
-                  "7 sector types: Solar, Wind, Hydro, Natural Gas, Geothermal, Green Hydrogen & Oil",
+                  "8 sector types: Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear & Bioenergy",
                   "Projects ranging from early development to fully operational",
                   "Deal sizes from $10M to multi-billion dollar programmes",
                 ].map(item => (

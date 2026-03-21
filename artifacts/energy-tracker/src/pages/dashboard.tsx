@@ -15,13 +15,14 @@ function formatCurrency(value: number) {
 }
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Solar":         "#f59e0b",
-  "Wind":          "#06b6d4",
-  "Hydro":         "#3b82f6",
-  "Geothermal":    "#a855f7",
-  "Natural Gas":   "#6b7280",
-  "Oil":           "#f97316",
-  "Green Hydrogen":"#22c55e",
+  "Solar":          "#f59e0b",
+  "Wind":           "#06b6d4",
+  "Hydro":          "#3b82f6",
+  "Grid & Storage": "#14b8a6",
+  "Oil & Gas":      "#f97316",
+  "Coal":           "#78716c",
+  "Nuclear":        "#a855f7",
+  "Bioenergy":      "#22c55e",
 };
 const FALLBACK_COLOR = "#94a3b8";
 

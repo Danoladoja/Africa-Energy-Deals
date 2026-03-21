@@ -71,13 +71,14 @@ interface LogLine {
 }
 
 const TECH_COLORS: Record<string, string> = {
-  Solar:           "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  Wind:            "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  Hydro:           "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  Geothermal:      "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  "Natural Gas":   "bg-slate-500/15 text-slate-400 border-slate-500/30",
-  Oil:             "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  "Green Hydrogen":"bg-green-500/15 text-green-400 border-green-500/30",
+  Solar:            "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  Wind:             "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  Hydro:            "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "Grid & Storage": "bg-teal-500/15 text-teal-400 border-teal-500/30",
+  "Oil & Gas":      "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  Coal:             "bg-stone-500/15 text-stone-400 border-stone-500/30",
+  Nuclear:          "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  Bioenergy:        "bg-green-500/15 text-green-400 border-green-500/30",
 };
 
 function formatRelativeTime(iso: string | null) {

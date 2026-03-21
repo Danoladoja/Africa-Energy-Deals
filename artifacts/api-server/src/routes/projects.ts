@@ -5,7 +5,7 @@ import { ilike, and, gte, lte, eq, sql } from "drizzle-orm";
 const router: IRouter = Router();
 
 // Valid technology categories (canonical sectors)
-const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Geothermal", "Oil", "Natural Gas", "Green Hydrogen"];
+const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];
 
 // Allowed fields for PATCH updates (whitelist to prevent overwriting id, etc.)
 const ALLOWED_UPDATE_FIELDS = [
