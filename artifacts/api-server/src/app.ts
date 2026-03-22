@@ -10,6 +10,8 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:5000",
+  "https://afrienergytracker.io",
+  "https://www.afrienergytracker.io",
 ];
 
 function isAllowedOrigin(origin: string): boolean {
