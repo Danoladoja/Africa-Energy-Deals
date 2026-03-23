@@ -14,6 +14,8 @@ import DealTracker from "@/pages/deal-tracker";
 import DealDetail from "@/pages/deal-detail";
 import CountriesIndex from "@/pages/countries";
 import CountryProfile from "@/pages/country-profile";
+import DevelopersIndex from "@/pages/developers";
+import DeveloperProfile from "@/pages/developer-profile";
 import MapPage from "@/pages/map";
 import VizStudio from "@/pages/viz-studio";
 import DiscoveryPage from "@/pages/discovery";
@@ -101,6 +103,12 @@ function Router() {
       </Route>
       <Route path="/countries/:countryName">
         {() => <AuthRoute component={CountryProfile} />}
+      </Route>
+      <Route path="/developers">
+        {() => <AuthRoute component={DevelopersIndex} />}
+      </Route>
+      <Route path="/developers/:entityName">
+        {() => <AuthRoute component={DeveloperProfile} />}
       </Route>
       <Route path="/map">
         {() => <AuthRoute component={MapPage} />}
