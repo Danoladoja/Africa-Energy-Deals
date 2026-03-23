@@ -9,6 +9,7 @@ import {
   House,
   Sparkles,
   LogOut,
+  Globe,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,6 +21,7 @@ const publicNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
+  { name: "Countries", href: "/countries", icon: Globe },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
 ];
 

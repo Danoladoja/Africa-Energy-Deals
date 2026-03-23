@@ -12,6 +12,8 @@ import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import DealTracker from "@/pages/deal-tracker";
 import DealDetail from "@/pages/deal-detail";
+import CountriesIndex from "@/pages/countries";
+import CountryProfile from "@/pages/country-profile";
 import MapPage from "@/pages/map";
 import VizStudio from "@/pages/viz-studio";
 import DiscoveryPage from "@/pages/discovery";
@@ -93,6 +95,12 @@ function Router() {
       </Route>
       <Route path="/deals/:id">
         {() => <AuthRoute component={DealDetail} />}
+      </Route>
+      <Route path="/countries">
+        {() => <AuthRoute component={CountriesIndex} />}
+      </Route>
+      <Route path="/countries/:countryName">
+        {() => <AuthRoute component={CountryProfile} />}
       </Route>
       <Route path="/map">
         {() => <AuthRoute component={MapPage} />}
