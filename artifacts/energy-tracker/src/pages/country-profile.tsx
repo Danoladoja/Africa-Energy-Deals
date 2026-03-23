@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { WatchButton } from "@/components/watch-button";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Shield,
   TrendingUp, Building2, DollarSign, Layers, Activity,
@@ -204,10 +205,13 @@ export default function CountryProfile() {
 
         {/* ── Header ── */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-start gap-3 mb-2">
             <span className="text-5xl">{flag}</span>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">{name}</h1>
+            <div className="flex-1">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">{name}</h1>
+                <WatchButton watchType="country" watchValue={name} label={`Watch ${name}`} size="sm" />
+              </div>
               {countryStat && (
                 <p className="text-slate-400 text-sm mt-0.5">{countryStat.region}</p>
               )}

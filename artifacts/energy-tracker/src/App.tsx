@@ -19,6 +19,8 @@ import DeveloperProfile from "@/pages/developer-profile";
 import MapPage from "@/pages/map";
 import VizStudio from "@/pages/viz-studio";
 import DiscoveryPage from "@/pages/discovery";
+import WatchesPage from "@/pages/watches";
+import AuthVerify from "@/pages/auth-verify";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -119,6 +121,10 @@ function Router() {
       <Route path="/discovery">
         {() => <AdminRoute component={DiscoveryPage} />}
       </Route>
+      <Route path="/watches">
+        {() => <AuthRoute component={WatchesPage} />}
+      </Route>
+      <Route path="/auth/verify" component={AuthVerify} />
       <Route component={NotFound} />
     </Switch>
   );

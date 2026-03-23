@@ -3,6 +3,7 @@ import { db, projectsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { runScraper, getScraperStatus, getFeedList } from "../services/scraper.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
+import { checkWatchesAndNotify } from "../services/notifications.js";
 
 const router: IRouter = Router();
 
@@ -90,10 +91,24 @@ router.post("/scraper/review/:id", async (req, res) => {
       return;
     }
 
-    await db
+    const updated = await db
       .update(projectsTable)
       .set({ reviewStatus: action === "approve" ? "approved" : "rejected" })
-      .where(eq(projectsTable.id, id));
+      .where(eq(projectsTable.id, id))
+      .returning();
+
+    if (action === "approve" && updated.length > 0) {
+      const p = updated[0];
+      checkWatchesAndNotify({
+        id: p.id,
+        projectName: p.projectName,
+        country: p.country,
+        technology: p.technology,
+        dealSizeUsdMn: p.dealSizeUsdMn ?? null,
+        developer: p.developer,
+        dealStage: p.dealStage,
+      }).catch(() => {});
+    }
 
     res.json({ ok: true });
   } catch (err) {

@@ -176,17 +176,12 @@ export default function Landing() {
     }
   }
 
-  function handleModalSuccess() {
-    setModalOpen(false);
-    navigate(pendingPath);
-  }
-
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white flex flex-col">
       <EmailGateModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSuccess={handleModalSuccess}
+        pendingRedirect={pendingPath}
       />
 
       {/* Navbar */}

@@ -16,6 +16,8 @@ function isAllowedOrigin(origin: string): boolean {
   if (allowedOrigins.includes(origin)) return true;
   // Allow all Replit dev/preview domains
   if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
+  // Allow any localhost origin (dev environment — port may vary)
+  if (origin.startsWith("http://localhost:") || origin === "http://localhost") return true;
   return false;
 }
 

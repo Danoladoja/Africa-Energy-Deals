@@ -56,7 +56,21 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - Seed: `pnpm --filter @workspace/scripts run seed-energy`
 - DB push: `pnpm --filter @workspace/db run push-force`
 
-### API Endpoints
+### Features
+8. **Alert & Watch System** — Magic-link email auth (no password). Users enter email → receive sign-in link → click to verify. Authenticated users can "watch" countries, sectors, investors, or deal stages. When a new approved deal matches a watch, an email notification is sent. My Watches page at `/watches` shows all watches grouped by type with delete functionality. Bell icon in sidebar shows unread count.
+
+### Auth & Watch DB Tables
+- `user_emails` — tracks registered emails
+- `magic_link_tokens` — one-time sign-in tokens (1h expiry)
+- `sessions` — session tokens (30d expiry), stored in localStorage
+- `watches` — user watches (`watchType`: country | technology | developer | dealStage, `watchValue`: string)
+
+### Auth Flow
+- Session token stored in `localStorage` as `afrienergy_session_token`
+- All authed API calls: `Authorization: Bearer <token>`
+- Dev mode: POST `/api/auth/email` returns `devLink` for instant sign-in without email
+
+### API Endpoints (existing)
 - `GET /api/projects` — list/search/filter projects
 - `GET /api/projects/:id` — single project
 - `POST /api/projects` — create project
@@ -71,6 +85,17 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - `POST /api/scraper/run` — trigger a manual scrape (SSE streaming progress)
 - `POST /api/scraper/review/:id` — approve or reject a project (`{action: "approve"|"reject"}`)
 - `POST /api/scraper/review-all` — bulk approve or reject all pending
+
+### API Endpoints (auth + watches)
+- `POST /api/auth/email` — send magic link (returns `devLink` in dev mode)
+- `GET /api/auth/verify?token=` — verify magic link token → `{sessionToken, email}`
+- `GET /api/auth/me` — check current session
+- `POST /api/auth/logout` — invalidate session
+- `GET /api/watches` — list user's watches (auth required)
+- `POST /api/watches` — create watch `{watchType, watchValue}` (auth required)
+- `DELETE /api/watches/:id` — delete watch (auth required)
+- `GET /api/watches/bell-count` — count unseen new-deal matches (auth required)
+- `POST /api/watches/mark-seen` — reset bell count (auth required)
 
 ### Frontend Libraries
 - recharts (charts), react-leaflet + leaflet (map), html2canvas (PNG export), lucide-react (icons), framer-motion (animations), date-fns (date formatting)

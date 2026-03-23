@@ -9,6 +9,7 @@ import {
   GitBranch, Gift, Map,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { WatchButton } from "@/components/watch-button";
 
 const SECTOR_COLORS: Record<string, string> = {
   "Solar":          "#f59e0b",
@@ -224,6 +225,15 @@ export default function DealDetail() {
                 </span>
                 <span className="text-slate-600 text-sm">·</span>
                 <span className="text-sm text-slate-400">{project.region}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <WatchButton watchType="country" watchValue={project.country} label={`Watch ${project.country}`} size="sm" />
+                {project.technology && (
+                  <WatchButton watchType="technology" watchValue={project.technology} label={`Watch ${project.technology}`} size="sm" />
+                )}
+                {project.developer && (
+                  <WatchButton watchType="developer" watchValue={project.developer} label={`Watch ${project.developer}`} size="sm" />
+                )}
               </div>
             </div>
 

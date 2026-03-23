@@ -7,6 +7,7 @@ import adminRouter from "./admin.js";
 import authRouter from "./auth.js";
 import exportRouter from "./export.js";
 import nlqRouter from "./nlq.js";
+import watchesRouter from "./watches.js";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(statsRouter);
 router.use(scraperRouter);
 router.use(exportRouter);
 router.use(nlqRouter);
+router.use(watchesRouter);
 
 export default router;

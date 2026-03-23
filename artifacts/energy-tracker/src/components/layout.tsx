@@ -1,4 +1,4 @@
-import { Link, useRoute } from "wouter";
+import { Link, useRoute, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
   TableProperties, 
@@ -11,10 +11,14 @@ import {
   LogOut,
   Globe,
   Users,
+  Bell,
+  UserCircle2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
+import { useAuth, authedFetch } from "@/contexts/auth";
+import { EmailGateModal } from "./email-gate-modal";
 
 const homeItem = { name: "Home", href: "/", icon: House };
 
@@ -27,6 +31,7 @@ const publicNavItems = [
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
 ];
 
+const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
 const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles };
 
 function NavItem({ item }: { item: typeof publicNavItems[number] }) {
@@ -75,11 +80,28 @@ function MobileNavItem({ item, onClose }: { item: typeof publicNavItems[number];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAdmin, logout } = useAdminAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [bellCount, setBellCount] = useState(0);
+  const { isAdmin, logout: adminLogout } = useAdminAuth();
+  const { isAuthenticated, email, logout: userLogout } = useAuth();
+  const [, navigate] = useLocation();
 
   const navItems = isAdmin
     ? [...publicNavItems, adminNavItem]
     : publicNavItems;
+
+  useEffect(() => {
+    if (!isAuthenticated) { setBellCount(0); return; }
+    authedFetch("/api/watches/bell-count")
+      .then((r) => r.json())
+      .then((d: { count?: number }) => setBellCount(d.count ?? 0))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  async function handleUserLogout() {
+    await userLogout();
+    navigate("/");
+  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden selection:bg-primary/30">
@@ -108,6 +130,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => (
             <NavItem key={item.href} item={item} />
           ))}
+          {isAuthenticated && (
+            <>
+              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                My Account
+              </div>
+              <Link href="/watches" className="block">
+                <div className="flex items-center justify-between px-4 py-3.5 rounded-xl transition-all text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground group">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5" />
+                    <span>My Watches</span>
+                  </div>
+                  {bellCount > 0 && (
+                    <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                      {bellCount > 99 ? "99+" : bellCount}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </>
+          )}
         </nav>
         
         <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
@@ -115,9 +157,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <h4 className="font-display font-semibold text-sm mb-1 text-sidebar-foreground">Data Update</h4>
             <p className="text-xs text-sidebar-foreground/60">Last synced: Today, 08:30 GMT</p>
           </div>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <UserCircle2 className="w-4 h-4 text-slate-500 shrink-0" />
+              <span className="text-xs text-slate-500 truncate flex-1">{email}</span>
+              <button
+                onClick={handleUserLogout}
+                title="Sign out"
+                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#00e676]/10 border border-[#00e676]/25 text-[#00e676] hover:bg-[#00e676]/15 transition-colors w-full"
+            >
+              <Bell className="w-4 h-4" />
+              Sign In for Alerts
+            </button>
+          )}
           {isAdmin && (
             <button
-              onClick={logout}
+              onClick={adminLogout}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full"
             >
               <LogOut className="w-4 h-4" />
@@ -139,20 +202,41 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <span className="font-display font-bold text-base">AfriEnergy</span>
         </Link>
-        <button 
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-xl text-foreground/70 hover:text-foreground hover:bg-white/8 transition-colors"
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          {isAuthenticated ? (
+            <Link href="/watches">
+              <button className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8 transition-colors">
+                <Bell className="w-5 h-5" />
+                {bellCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-[#00e676] text-[#0b0f1a] text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {bellCount > 9 ? "9+" : bellCount}
+                  </span>
+                )}
+              </button>
+            </Link>
+          ) : (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="p-2 rounded-xl text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
+              title="Sign In"
+            >
+              <Bell className="w-5 h-5" />
+            </button>
+          )}
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-xl text-foreground/70 hover:text-foreground hover:bg-white/8 transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Slide-out Drawer + Backdrop */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               key="backdrop"
               initial={{ opacity: 0 }}
@@ -162,8 +246,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
               onClick={() => setMobileMenuOpen(false)}
             />
-
-            {/* Drawer panel */}
             <motion.div
               key="drawer"
               initial={{ x: "-100%" }}
@@ -172,7 +254,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               transition={{ type: "spring", stiffness: 320, damping: 35 }}
               className="md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col"
             >
-              {/* Drawer header */}
               <div className="h-14 flex items-center justify-between px-5 border-b border-sidebar-border shrink-0">
                 <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -185,7 +266,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
 
-              {/* Nav items */}
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
                 <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
                 <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
@@ -194,9 +274,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {navItems.map((item) => (
                   <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                 ))}
+                {isAuthenticated && (
+                  <>
+                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
+                      My Account
+                    </div>
+                    <Link href="/watches" onClick={() => setMobileMenuOpen(false)}>
+                      <div className="flex items-center justify-between px-4 py-3.5 rounded-xl text-foreground/70 hover:bg-white/5 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <Bell className="w-5 h-5 shrink-0" />
+                          <span className="text-base font-medium">My Watches</span>
+                        </div>
+                        {bellCount > 0 && (
+                          <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full">
+                            {bellCount > 99 ? "99+" : bellCount}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }}
+                      className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      Sign Out
+                    </button>
+                  </>
+                )}
+                {!isAuthenticated && (
+                  <button
+                    onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }}
+                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
+                  >
+                    <Bell className="w-5 h-5" />
+                    Sign In for Alerts
+                  </button>
+                )}
                 {isAdmin && (
                   <button
-                    onClick={() => { logout(); setMobileMenuOpen(false); }}
+                    onClick={() => { adminLogout(); setMobileMenuOpen(false); }}
                     className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors"
                   >
                     <LogOut className="w-5 h-5" />
@@ -205,7 +321,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </nav>
 
-              {/* Drawer footer */}
               <div className="p-4 border-t border-sidebar-border shrink-0">
                 <div className="bg-sidebar-accent/50 rounded-xl p-3 border border-sidebar-border/50">
                   <p className="text-xs font-semibold text-sidebar-foreground/80">Data Update</p>
@@ -216,6 +331,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </>
         )}
       </AnimatePresence>
+
+      {/* Auth Modal */}
+      <EmailGateModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative pt-14 md:pt-0">
