@@ -21,14 +21,14 @@ const API = "/api";
 
 // ── Color constants ───────────────────────────────────────────────────────────
 const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#f59e0b",
-  "Wind":           "#06b6d4",
-  "Hydro":          "#3b82f6",
-  "Grid & Storage": "#14b8a6",
-  "Oil & Gas":      "#f97316",
-  "Coal":           "#78716c",
-  "Nuclear":        "#a855f7",
-  "Bioenergy":      "#22c55e",
+  "Solar":          "#facc15",
+  "Wind":           "#38bdf8",
+  "Hydro":          "#22d3ee",
+  "Grid & Storage": "#a78bfa",
+  "Oil & Gas":      "#f87171",
+  "Coal":           "#6b7280",
+  "Nuclear":        "#fb923c",
+  "Bioenergy":      "#4ade80",
 };
 const ENERGY_GROUPS = {
   Renewable:      { sectors: ["Solar", "Wind", "Hydro", "Bioenergy"],   color: "#00e676" },
@@ -36,7 +36,7 @@ const ENERGY_GROUPS = {
   Infrastructure: { sectors: ["Grid & Storage", "Nuclear"],              color: "#38bdf8" },
 } as const;
 const FUNNEL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned"];
-const FUNNEL_COLORS = ["#94a3b8", "#f59e0b", "#3b82f6", "#06b6d4", "#00e676"];
+const FUNNEL_COLORS = ["#94a3b8", "#facc15", "#22d3ee", "#38bdf8", "#00e676"];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Project {
@@ -681,7 +681,7 @@ export default function Dashboard() {
             title="Deals by Technology"
             subtitle="Count of deals per sector, sorted descending"
             icon={Zap}
-            iconColor="#f59e0b"
+            iconColor="#facc15"
           >
             {isLoading ? (
               <Skeleton className="h-48 w-full rounded-xl" />
@@ -722,7 +722,7 @@ export default function Dashboard() {
             title="Top 10 Investors by Volume"
             subtitle="Total deal size attributed per investor / developer"
             icon={Briefcase}
-            iconColor="#a855f7"
+            iconColor="#fb923c"
           >
             {isLoading ? (
               <Skeleton className="h-48 w-full rounded-xl" />
@@ -757,7 +757,7 @@ export default function Dashboard() {
                       }}
                       cursor={{ fill: "rgba(255,255,255,0.03)" }}
                     />
-                    <Bar dataKey="investment" name="Volume" fill="#a855f7" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
+                    <Bar dataKey="investment" name="Volume" fill="#fb923c" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -770,7 +770,7 @@ export default function Dashboard() {
           title="Deal Pipeline Funnel"
           subtitle="Announced → Mandated → Financial Close → Construction → Commissioned"
           icon={Activity}
-          iconColor="#06b6d4"
+          iconColor="#38bdf8"
         >
           {isLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />

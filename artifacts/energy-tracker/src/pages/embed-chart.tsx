@@ -13,19 +13,19 @@ import {
 import { ExternalLink } from "lucide-react";
 
 const COLORS = [
-  "#00e676", "#00bcd4", "#f59e0b", "#06b6d4", "#3b82f6",
-  "#a855f7", "#f97316", "#22c55e", "#e91e63", "#14b8a6",
+  "#00e676", "#00bcd4", "#facc15", "#38bdf8", "#22d3ee",
+  "#fb923c", "#f87171", "#4ade80", "#e91e63", "#a78bfa",
 ];
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#f59e0b",
-  "Wind":           "#06b6d4",
-  "Hydro":          "#3b82f6",
-  "Grid & Storage": "#14b8a6",
-  "Oil & Gas":      "#f97316",
-  "Coal":           "#78716c",
-  "Nuclear":        "#a855f7",
-  "Bioenergy":      "#22c55e",
+  "Solar":          "#facc15",
+  "Wind":           "#38bdf8",
+  "Hydro":          "#22d3ee",
+  "Grid & Storage": "#a78bfa",
+  "Oil & Gas":      "#f87171",
+  "Coal":           "#6b7280",
+  "Nuclear":        "#fb923c",
+  "Bioenergy":      "#4ade80",
 };
 
 type ChartType = "bar" | "horizontal-bar" | "line" | "area" | "pie" | "donut";

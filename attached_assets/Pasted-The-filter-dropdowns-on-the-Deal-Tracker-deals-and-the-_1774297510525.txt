@@ -1,0 +1,49 @@
+The filter dropdowns on the Deal Tracker (/deals) and the Interactive Map (/map) use hardcoded technology and status values that don't match the production database. Fix them to match production.
+
+TECHNOLOGY/SECTOR FILTER — change the hardcoded options:
+
+CURRENT (wrong):          → REPLACE WITH:
+- Solar PV                → Solar
+- Wind                    → Wind
+- Hydro                   → Hydro
+- Geothermal              → Grid & Storage
+- Biomass                 → Oil & Gas
+- Green Hydrogen          → Coal
+- (CSP if present)        → Nuclear
+- (Natural Gas if present)→ Bioenergy
+
+Search ALL files for arrays or lists containing "Solar PV", "Geothermal", "Biomass", "Green Hydrogen", "Concentrating Solar Power", "CSP", or "Natural Gas" used as filter options or legend items. Replace every occurrence with the production list: ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"]
+
+Files likely affected:
+- The Deal Tracker page/component (filter dropdowns)
+- The Interactive Map page/component (legend and filter)
+- Any shared constants file for technology types
+- The Visualization Studio if it has technology selectors
+
+STATUS FILTER — change the hardcoded options:
+
+CURRENT (wrong):          → REPLACE WITH:
+- Announced               → Active
+- Financed                → Completed
+- Construction            → Development
+- Operational             → Operational
+                          → Proposed
+                          → Suspended
+                          → Under Construction
+
+Search ALL files for arrays containing "Announced", "Financed", "Construction" used as status filter values. Replace with: ["Active", "Completed", "Development", "Operational", "Proposed", "Suspended", "Under Construction"]
+
+COLUMN HEADER — In the Deal Tracker table:
+- If any column header says "Technology", change it to "Sector"
+
+COLOR MAPPING — If there's a color map for technologies (e.g., mapping Solar PV → a color), update the keys to match the new values. Use these colors:
+- Solar: #facc15 (yellow)
+- Wind: #38bdf8 (blue)
+- Hydro: #22d3ee (cyan)
+- Grid & Storage: #a78bfa (purple)
+- Oil & Gas: #f87171 (red)
+- Coal: #6b7280 (gray)
+- Nuclear: #fb923c (orange)
+- Bioenergy: #4ade80 (green)
+
+Do NOT change the visual design or layout — only update the category values and colors.

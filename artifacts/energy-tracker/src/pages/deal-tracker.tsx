@@ -14,14 +14,14 @@ import { ShareButton } from "@/components/share-button";
 import { NlqSearchBar, type NlqResult } from "@/components/nlq-search-bar";
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#f59e0b",
-  "Wind":           "#06b6d4",
-  "Hydro":          "#3b82f6",
-  "Grid & Storage": "#14b8a6",
-  "Oil & Gas":      "#f97316",
-  "Coal":           "#78716c",
-  "Nuclear":        "#a855f7",
-  "Bioenergy":      "#22c55e",
+  "Solar":          "#facc15",
+  "Wind":           "#38bdf8",
+  "Hydro":          "#22d3ee",
+  "Grid & Storage": "#a78bfa",
+  "Oil & Gas":      "#f87171",
+  "Coal":           "#6b7280",
+  "Nuclear":        "#fb923c",
+  "Bioenergy":      "#4ade80",
 };
 const FALLBACK_SECTOR_COLOR = "#94a3b8";
 
@@ -549,10 +549,13 @@ export default function DealTracker() {
               className="flex-1 min-w-32 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Statuses</option>
-              <option value="Announced">Announced</option>
-              <option value="Financed">Financed</option>
-              <option value="Construction">Construction</option>
+              <option value="Active">Active</option>
+              <option value="Completed">Completed</option>
+              <option value="Development">Development</option>
               <option value="Operational">Operational</option>
+              <option value="Proposed">Proposed</option>
+              <option value="Suspended">Suspended</option>
+              <option value="Under Construction">Under Construction</option>
             </select>
 
             {/* Export on mobile — inline with filters */}

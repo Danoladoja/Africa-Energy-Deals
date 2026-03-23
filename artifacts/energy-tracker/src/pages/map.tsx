@@ -15,14 +15,14 @@ const AFRICA_GEOJSON_URL =
   "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#f59e0b",
-  "Wind":           "#06b6d4",
-  "Hydro":          "#3b82f6",
-  "Grid & Storage": "#14b8a6",
-  "Oil & Gas":      "#f97316",
-  "Coal":           "#78716c",
-  "Nuclear":        "#a855f7",
-  "Bioenergy":      "#22c55e",
+  "Solar":          "#facc15",
+  "Wind":           "#38bdf8",
+  "Hydro":          "#22d3ee",
+  "Grid & Storage": "#a78bfa",
+  "Oil & Gas":      "#f87171",
+  "Coal":           "#6b7280",
+  "Nuclear":        "#fb923c",
+  "Bioenergy":      "#4ade80",
 };
 const DEFAULT_COLOR = "#94a3b8";
 
