@@ -7,12 +7,19 @@ const router: IRouter = Router();
 // Valid technology categories (canonical sectors)
 const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];
 
+// Valid deal stages
+const VALID_DEAL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned", "Suspended"];
+
 // Allowed fields for PATCH updates (whitelist to prevent overwriting id, etc.)
 // Use camelCase JS property names that match projectsTable column definitions exactly.
 const ALLOWED_UPDATE_FIELDS = [
   "projectName", "country", "region", "technology", "status",
   "dealSizeUsdMn", "capacityMw", "yearAnnounced", "latitude", "longitude",
   "description", "newsUrl", "sourceUrl",
+  // Deal lifecycle & enriched fields
+  "dealStage", "developer", "financiers", "dfiInvolvement", "offtaker",
+  "financialCloseDate", "commissioningDate", "announcementDate",
+  "debtEquitySplit", "grantComponent",
 ];
 
 // Map incoming field aliases to the exact Drizzle column property names on projectsTable.
@@ -42,7 +49,13 @@ const requireApiKey = (req: Request, res: Response, next: NextFunction): void =>
 // GET all projects with optional filters
 router.get("/projects", async (req, res) => {
   try {
-    const { country, region, technology, status, minDealSize, maxDealSize, search, page = "1", limit = "50" } = req.query;
+    const {
+      country, region, technology, status,
+      minDealSize, maxDealSize, search,
+      developer, dealStage, dfiInvolvement,
+      page = "1", limit = "50",
+    } = req.query;
+
     const conditions = [];
     if (country) conditions.push(ilike(projectsTable.country, String(country)));
     if (region) conditions.push(ilike(projectsTable.region, String(region)));
@@ -51,12 +64,18 @@ router.get("/projects", async (req, res) => {
     if (minDealSize) conditions.push(gte(projectsTable.dealSizeUsdMn, Number(minDealSize)));
     if (maxDealSize) conditions.push(lte(projectsTable.dealSizeUsdMn, Number(maxDealSize)));
     if (search) conditions.push(ilike(projectsTable.projectName, `%${String(search)}%`));
+    if (developer) conditions.push(ilike(projectsTable.developer, `%${String(developer)}%`));
+    if (dealStage) conditions.push(ilike(projectsTable.dealStage, String(dealStage)));
+    if (dfiInvolvement) conditions.push(ilike(projectsTable.dfiInvolvement, `%${String(dfiInvolvement)}%`));
+
     const offset = (Number(page) - 1) * Number(limit);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     const [projects, countResult] = await Promise.all([
       db.select().from(projectsTable).where(whereClause).limit(Number(limit)).offset(offset).orderBy(projectsTable.id),
       db.select({ count: sql`count(*)` }).from(projectsTable).where(whereClause),
     ]);
+
     const total = Number(countResult[0].count);
     res.json({ projects, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
@@ -82,6 +101,11 @@ router.get("/projects/:id", async (req, res) => {
 // GET valid technology categories
 router.get("/technologies", (_req, res) => {
   res.json({ technologies: VALID_TECHNOLOGIES });
+});
+
+// GET valid deal stages
+router.get("/deal-stages", (_req, res) => {
+  res.json({ dealStages: VALID_DEAL_STAGES });
 });
 
 // Health check

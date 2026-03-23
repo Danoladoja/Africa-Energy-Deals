@@ -1,4 +1,4 @@
-import { pgTable, serial, text, doublePrecision, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, doublePrecision, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,19 @@ export const projectsTable = pgTable("energy_projects", {
   reviewStatus: text("review_status").default("approved").notNull(),
   discoveredAt: timestamp("discovered_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+
+  // ── Deal Lifecycle & Enriched Fields ──────────────────────────────────────
+  // Enum-style: "Announced" | "Mandated" | "Financial Close" | "Construction" | "Commissioned" | "Suspended"
+  dealStage: text("deal_stage"),
+  developer: text("developer"),
+  financiers: text("financiers"),
+  dfiInvolvement: text("dfi_involvement"),
+  offtaker: text("offtaker"),
+  financialCloseDate: date("financial_close_date"),
+  commissioningDate: date("commissioning_date"),
+  announcementDate: date("announcement_date"),
+  debtEquitySplit: text("debt_equity_split"),
+  grantComponent: doublePrecision("grant_component"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });

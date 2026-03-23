@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
-import { sql, inArray } from "drizzle-orm";
+import { sql, inArray, isNotNull } from "drizzle-orm";
 
 const CANONICAL_REGIONS = [
   "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa",
@@ -10,7 +10,7 @@ const router: IRouter = Router();
 
 router.get("/stats/summary", async (_req, res) => {
   try {
-    const [[result], techResult] = await Promise.all([
+    const [[result], techResult, stageResult, devResult] = await Promise.all([
       db
         .select({
           totalProjects: sql<number>`count(*)::int`,
@@ -21,11 +21,30 @@ router.get("/stats/summary", async (_req, res) => {
         })
         .from(projectsTable),
       db.selectDistinct({ technology: projectsTable.technology }).from(projectsTable),
+      db
+        .select({
+          stage: projectsTable.dealStage,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(projectsTable)
+        .where(isNotNull(projectsTable.dealStage))
+        .groupBy(projectsTable.dealStage),
+      db
+        .selectDistinct({ developer: projectsTable.developer })
+        .from(projectsTable)
+        .where(isNotNull(projectsTable.developer)),
     ]);
 
     const totalSectors = techResult.length;
 
-    res.json({ ...result, totalSectors });
+    const dealsByStage: Record<string, number> = {};
+    for (const row of stageResult) {
+      if (row.stage) dealsByStage[row.stage] = row.count;
+    }
+
+    const totalDevelopers = devResult.length;
+
+    res.json({ ...result, totalSectors, totalDevelopers, dealsByStage });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
