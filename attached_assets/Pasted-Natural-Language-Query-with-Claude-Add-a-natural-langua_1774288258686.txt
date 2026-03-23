@@ -1,0 +1,35 @@
+Natural Language Query with Claude
+
+```
+Add a natural language search interface powered by Claude that lets users ask plain-English questions about the deal database.
+
+CURRENT STATE: There's a basic text search that filters by project name. The project already has a Claude API connection (Anthropic SDK).
+
+REQUIREMENTS:
+
+1. BACKEND — Create routes/nlq.ts:
+   - POST /api/nlq with body: { query: string }
+   - The endpoint:
+     a. Takes the user's natural language query (e.g., "solar deals in West Africa above $100M in the last 2 years")
+     b. Sends it to Claude with a system prompt that includes the database schema and instructs Claude to extract structured filters: { country?, region?, technology?, status?, minDealSize?, maxDealSize?, yearMin?, yearMax?, search? }
+     c. Uses the extracted filters to query the database via the existing Drizzle query logic
+     d. Returns the matching projects plus a natural language summary from Claude
+   - Rate limit: 10 requests per minute per IP
+   - This does NOT give Claude direct SQL access — it only extracts filter parameters
+
+2. FRONTEND:
+   - Add a prominent search bar on the landing page and the Deal Tracker page
+   - Style it distinctly from the regular search: slightly larger, with a sparkle/AI icon and placeholder text: "Ask anything... e.g., 'Show me wind projects in East Africa over $200M'"
+   - On submit, show a loading state ("Searching with AI...")
+   - Display results in the same table format as the Deal Tracker
+   - Above the table, show Claude's natural language summary of the results (e.g., "Found 5 wind energy projects in East Africa with deal sizes above $200M, totaling $1.8B in investment")
+   - If no results, show a helpful message: "No projects matched your query. Try broadening your search."
+
+3. SYSTEM PROMPT for Claude should include:
+   - All available filter fields and valid values
+   - List of countries and regions in the database
+   - List of technology types
+   - Instructions to extract filters conservatively (only filter on what the user explicitly mentions)
+
+STYLING: The NLQ bar should feel premium — glass-morphism effect, subtle animation on focus. Results use the standard dark theme.
+```

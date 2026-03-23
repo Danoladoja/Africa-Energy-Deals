@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth";
 import { EmailGateModal } from "@/components/email-gate-modal";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
+import { NlqSearchBar } from "@/components/nlq-search-bar";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
@@ -159,7 +160,6 @@ function LandingChoropleth({ onExplore }: { onExplore: () => void }) {
 }
 
 export default function Landing() {
-  const [search, setSearch] = useState("");
   const [, navigate] = useLocation();
   const { data: stats } = useGetSummaryStats();
   const { isAuthenticated } = useAuth();
@@ -174,14 +174,6 @@ export default function Landing() {
       setPendingPath(path);
       setModalOpen(true);
     }
-  }
-
-  function handleExplore(e: React.FormEvent) {
-    e.preventDefault();
-    const path = search.trim()
-      ? `/deals?search=${encodeURIComponent(search.trim())}`
-      : "/deals";
-    gatedNavigate(path);
   }
 
   function handleModalSuccess() {
@@ -240,30 +232,23 @@ export default function Landing() {
           generate data-driven insights.
         </p>
 
-        {/* Search Bar */}
-        <form
-          onSubmit={handleExplore}
-          className="flex flex-col sm:flex-row items-stretch sm:items-center w-full max-w-lg gap-3 mb-14 md:mb-16"
-        >
-          <div className="flex-1 flex items-center bg-white/8 border border-white/12 rounded-full px-5 py-3.5 gap-3 focus-within:border-[#00e676]/50 focus-within:bg-white/10 transition-all">
-            <svg className="w-4 h-4 text-white/40 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by project, country, investor..."
-              className="flex-1 bg-transparent text-white text-sm placeholder:text-white/35 outline-none"
-            />
-          </div>
-          <button
-            type="submit"
-            className="bg-[#00e676] hover:bg-[#00c864] text-[#0b0f1a] font-semibold text-sm px-6 py-3.5 rounded-full transition-colors whitespace-nowrap shadow-lg shadow-[#00e676]/20"
-          >
-            Explore Data
-          </button>
-        </form>
+        {/* AI Search Bar */}
+        <div className="w-full max-w-xl mb-10 md:mb-12">
+          <NlqSearchBar
+            navigateTo={gatedNavigate}
+            placeholder='Ask anything… e.g., "Solar deals in West Africa above $100M"'
+            size="lg"
+          />
+          <p className="text-center text-[11px] text-white/25 mt-3">
+            Powered by Claude AI · or{" "}
+            <button
+              onClick={() => gatedNavigate("/deals")}
+              className="text-white/40 hover:text-white/60 underline underline-offset-2 transition-colors"
+            >
+              browse all deals
+            </button>
+          </p>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:flex md:items-start md:justify-center w-full max-w-2xl gap-y-6 md:gap-0">

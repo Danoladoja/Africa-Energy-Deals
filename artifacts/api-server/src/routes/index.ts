@@ -6,6 +6,7 @@ import scraperRouter from "./scraper.js";
 import adminRouter from "./admin.js";
 import authRouter from "./auth.js";
 import exportRouter from "./export.js";
+import nlqRouter from "./nlq.js";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(projectsRouter);
 router.use(statsRouter);
 router.use(scraperRouter);
 router.use(exportRouter);
+router.use(nlqRouter);
 
 export default router;

@@ -6,10 +6,11 @@ import { PageTransition } from "@/components/page-transition";
 import {
   Search, ChevronLeft, ChevronRight, Eye,
   MapPin, ExternalLink, Download, ChevronDown,
-  FileText, Sheet, FileJson,
+  FileText, Sheet, FileJson, Sparkles, X as XIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
+import { NlqSearchBar, type NlqResult } from "@/components/nlq-search-bar";
 
 const SECTOR_COLORS: Record<string, string> = {
   "Solar":          "#f59e0b",
@@ -316,6 +317,7 @@ export default function DealTracker() {
   const initialSearch     = params.get("search")     ?? "";
   const initialCountry    = params.get("country")    ?? "";
   const initialTechnology = params.get("technology") ?? "";
+  const initialNlq        = params.get("nlq")        ?? "";
 
   const [page, setPage]               = useState(1);
   const [search, setSearch]           = useState(initialSearch);
@@ -323,6 +325,11 @@ export default function DealTracker() {
   const [status, setStatus]           = useState("");
   const [technology, setTechnology]   = useState(initialTechnology);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+
+  // NLQ state
+  const [nlqResult, setNlqResult]     = useState<NlqResult | null>(null);
+  const [nlqLoading, setNlqLoading]   = useState(false);
+  const nlqMode = nlqResult !== null || nlqLoading;
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -354,17 +361,151 @@ export default function DealTracker() {
     <Layout>
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
 
-        <header className="mb-6 flex items-start justify-between gap-4">
+        <header className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2">Deal Tracker</h1>
             <p className="text-muted-foreground text-base md:text-lg">Search and filter through the complete database of energy transactions.</p>
           </div>
-          {/* Export on desktop header */}
           <div className="hidden md:block shrink-0 mt-1">
             <ExportDropdown filters={activeFilters} />
           </div>
         </header>
 
+        {/* ── AI Search Bar ── */}
+        <div className="mb-4">
+          <NlqSearchBar
+            initialQuery={initialNlq}
+            onResult={(r) => { setNlqResult(r); }}
+            onLoading={setNlqLoading}
+            placeholder='Ask AI… e.g., "Solar deals in Nigeria above $50M since 2021"'
+            size="sm"
+          />
+        </div>
+
+        {/* ── NLQ Results Banner + Table ── */}
+        {nlqMode && (
+          <div className="mb-6">
+            {/* Summary banner */}
+            {nlqResult && (
+              <div className="flex items-start gap-3 bg-[#001a0a] border border-[#00e676]/20 rounded-2xl px-5 py-4 mb-4">
+                <Sparkles className="w-4 h-4 text-[#00e676] mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#00e676]/90 leading-relaxed">{nlqResult.summary}</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {nlqResult.total === 0
+                      ? "No projects matched"
+                      : `${nlqResult.total} project${nlqResult.total !== 1 ? "s" : ""} matched`}
+                    {Object.entries(nlqResult.filters)
+                      .filter(([, v]) => v != null)
+                      .map(([k, v]) => ` · ${k}: ${v}`)
+                      .join("")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNlqResult(null)}
+                  className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors p-1"
+                  title="Clear AI results"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* NLQ results table */}
+            {nlqLoading ? (
+              <div className="bg-card border border-card-border rounded-2xl p-8 flex items-center justify-center gap-3 text-muted-foreground">
+                <svg className="w-5 h-5 animate-spin text-[#00e676]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-sm">Searching with AI…</span>
+              </div>
+            ) : nlqResult && nlqResult.total === 0 ? (
+              <div className="bg-card border border-card-border rounded-2xl p-8 text-center">
+                <Sparkles className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">No projects matched your query. Try broadening your search.</p>
+              </div>
+            ) : nlqResult && nlqResult.projects.length > 0 ? (
+              <div className="bg-card border border-card-border rounded-2xl overflow-hidden hidden md:block">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-background/50 border-b border-border text-muted-foreground text-sm">
+                      <th className="font-semibold py-3 px-5">Project Name</th>
+                      <th className="font-semibold py-3 px-5">Country</th>
+                      <th className="font-semibold py-3 px-5">Sector</th>
+                      <th className="font-semibold py-3 px-5">Deal Size</th>
+                      <th className="font-semibold py-3 px-5">Status</th>
+                      <th className="font-semibold py-3 px-5 text-right">Year</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {nlqResult.projects.slice().reverse().map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                        onClick={() => navigate(`/deals/${p.id}`)}
+                      >
+                        <td className="py-3 px-5 font-medium text-foreground">{p.projectName}</td>
+                        <td className="py-3 px-5 text-muted-foreground text-sm">{p.country}</td>
+                        <td className="py-3 px-5">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_SECTOR_COLOR }} />
+                            {p.technology}
+                          </div>
+                        </td>
+                        <td className="py-3 px-5 font-mono text-sm">
+                          {p.dealSizeUsdMn
+                            ? p.dealSizeUsdMn >= 1000 ? `$${(p.dealSizeUsdMn / 1000).toFixed(1)}B` : `$${p.dealSizeUsdMn}M`
+                            : "—"}
+                        </td>
+                        <td className="py-3 px-5">
+                          <Badge variant="outline" className={getStatusColor(p.status)}>{p.status}</Badge>
+                        </td>
+                        <td className="py-3 px-5 text-right text-sm text-muted-foreground font-mono">
+                          {p.announcedYear ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {/* Mobile NLQ cards */}
+            {!nlqLoading && nlqResult && nlqResult.projects.length > 0 && (
+              <div className="flex flex-col gap-3 md:hidden">
+                {nlqResult.projects.slice().reverse().map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => navigate(`/deals/${p.id}`)}
+                    className="bg-card border border-card-border rounded-xl p-4 cursor-pointer hover:border-primary/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-semibold text-sm leading-tight flex-1">{p.projectName}</h3>
+                      <Badge variant="outline" className={`${getStatusColor(p.status)} text-xs shrink-0`}>{p.status}</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{p.country}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_SECTOR_COLOR }} />
+                        {p.technology}
+                      </span>
+                      {p.dealSizeUsdMn && (
+                        <span className="font-mono font-semibold text-foreground">
+                          {p.dealSizeUsdMn >= 1000 ? `$${(p.dealSizeUsdMn/1000).toFixed(1)}B` : `$${p.dealSizeUsdMn}M`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Regular Filters (shown when not in NLQ mode) ── */}
+        {!nlqMode && (
+          <>
         {/* Filters */}
         <div className="flex flex-col gap-3 mb-6 bg-card p-4 rounded-2xl border border-card-border shadow-sm">
           <div className="relative">
@@ -616,6 +757,8 @@ export default function DealTracker() {
             </div>
           </div>
         </div>
+          </>
+        )}
 
       </PageTransition>
     </Layout>
