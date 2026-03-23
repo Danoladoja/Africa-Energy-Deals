@@ -265,7 +265,7 @@ export default function DevelopersIndex() {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-right">
-                          <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-[#00e676] transition-colors" />
+                          <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all" />
                         </td>
                       </tr>
                     ))}
@@ -302,11 +302,11 @@ export default function DevelopersIndex() {
               <div
                 key={entity.name}
                 onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
-                className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/25 transition-colors active:scale-[0.99]"
+                className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/30 hover:bg-white/[0.03] transition-all active:scale-[0.99] group"
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1">{entity.name}</h3>
-                  <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                  <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1 group-hover:text-white transition-colors">{entity.name}</h3>
+                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <div>
@@ -339,6 +339,11 @@ export default function DevelopersIndex() {
                     }}
                   >
                     {entity.topSector}
+                  </span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-end">
+                  <span className="text-xs text-slate-500 group-hover:text-[#00e676] transition-colors flex items-center gap-1">
+                    View full profile <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
               </div>

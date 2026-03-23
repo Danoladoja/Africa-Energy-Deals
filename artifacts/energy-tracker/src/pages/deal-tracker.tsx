@@ -5,7 +5,7 @@ import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta, datasetSchema } from "@/components/seo-meta";
 import {
-  Search, ChevronLeft, ChevronRight, Eye,
+  Search, ChevronLeft, ChevronRight,
   MapPin, ExternalLink, Download, ChevronDown,
   FileText, Sheet, FileJson, Sparkles, X as XIcon,
 } from "lucide-react";
@@ -611,10 +611,10 @@ export default function DealTracker() {
               <div
                 key={project.id}
                 onClick={() => navigate(`/deals/${project.id}`)}
-                className="bg-card border border-card-border rounded-xl p-4 cursor-pointer hover:border-primary/40 transition-colors active:scale-[0.99]"
+                className="bg-card border border-card-border rounded-xl p-4 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all active:scale-[0.99] group"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-sm leading-tight flex-1">{project.projectName}</h3>
+                  <h3 className="font-semibold text-sm leading-tight flex-1 group-hover:text-primary transition-colors">{project.projectName}</h3>
                   <Badge variant="outline" className={`${getStatusColor(project.status)} text-xs shrink-0`}>
                     {project.status}
                   </Badge>
@@ -630,7 +630,7 @@ export default function DealTracker() {
                   <span className="font-mono text-sm font-semibold text-foreground">
                     {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn >= 1000 ? `${(project.dealSizeUsdMn/1000).toFixed(1)}B` : `${project.dealSizeUsdMn}M`}` : "Undisclosed"}
                   </span>
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-1">
                     <ShareButton text={dealShareText(project)} stopPropagation className="p-1" />
                     {project.sourceUrl && (
                       <a
@@ -643,6 +643,9 @@ export default function DealTracker() {
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     )}
+                    <span className="text-xs text-muted-foreground/50 group-hover:text-primary transition-colors flex items-center gap-0.5 ml-1">
+                      View <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
               </div>
@@ -705,7 +708,7 @@ export default function DealTracker() {
                       className="hover:bg-muted/30 transition-colors cursor-pointer group"
                       onClick={() => navigate(`/deals/${project.id}`)}
                     >
-                      <td className="py-4 px-6 font-medium text-foreground">{project.projectName}</td>
+                      <td className="py-4 px-6 font-medium text-foreground group-hover:text-primary transition-colors">{project.projectName}</td>
                       <td className="py-4 px-6 text-muted-foreground">{project.country}</td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2 text-sm">
@@ -736,13 +739,9 @@ export default function DealTracker() {
                             </a>
                           )}
                           <ShareButton text={dealShareText(project)} stopPropagation className="opacity-0 group-hover:opacity-100" />
-                          <button
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
-                            title="View deal detail"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/deals/${project.id}`); }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
+                          <div className="p-2 rounded-lg transition-colors text-muted-foreground/40 group-hover:text-primary group-hover:bg-primary/10">
+                            <ChevronRight className="w-4 h-4" />
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -753,9 +752,12 @@ export default function DealTracker() {
           </div>
 
           <div className="bg-background/50 border-t border-border p-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{data?.projects.length || 0}</span> of <span className="font-medium text-foreground">{data?.total || 0}</span> projects
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{data?.projects.length || 0}</span> of <span className="font-medium text-foreground">{data?.total || 0}</span> projects
+              </p>
+              <span className="text-xs text-muted-foreground/50 hidden lg:inline">· Click any row to view full deal details</span>
+            </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isLoading} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 <ChevronLeft className="w-4 h-4" />
