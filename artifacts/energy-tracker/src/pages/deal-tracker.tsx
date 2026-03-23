@@ -314,21 +314,37 @@ function ExportDropdown({ filters }: {
   );
 }
 
+// ── Deal Size Presets ─────────────────────────────────────────────────────────
+
+const DEAL_SIZE_PRESETS = [
+  { id: "",       label: "All Sizes",   min: undefined,  max: undefined  },
+  { id: "0-50",   label: "$0 – 50M",   min: 0,          max: 50         },
+  { id: "50-200", label: "$50 – 200M", min: 50,         max: 200        },
+  { id: "200-1000", label: "$200M – 1B", min: 200,      max: 1000       },
+  { id: "1000+",  label: "$1B+",       min: 1000,       max: undefined  },
+] as const;
+
+type DealSizePresetId = (typeof DEAL_SIZE_PRESETS)[number]["id"];
+
 // ── Saved Searches ────────────────────────────────────────────────────────────
 
 interface SavedSearch {
   id: number;
   name: string;
-  filters: { search?: string; technology?: string; status?: string; country?: string };
+  filters: { search?: string; technology?: string; status?: string; country?: string; dealSizePreset?: string };
   createdAt: string;
   lastUsedAt: string;
 }
 
-type ActiveFilters = { search: string; technology: string; status: string; country: string };
+type ActiveFilters = { search: string; technology: string; status: string; country: string; dealSizePreset: string };
 
 function buildDefaultName(f: ActiveFilters): string {
   const parts: string[] = [];
   if (f.technology) parts.push(f.technology);
+  if (f.dealSizePreset) {
+    const preset = DEAL_SIZE_PRESETS.find((p) => p.id === f.dealSizePreset);
+    if (preset) parts.push(preset.label);
+  }
   if (f.search)     parts.push(`"${f.search}"`);
   if (f.country)    parts.push(`in ${f.country}`);
   if (f.status)     parts.push(`· ${f.status}`);
@@ -338,6 +354,10 @@ function buildDefaultName(f: ActiveFilters): string {
 function filterSummary(f: SavedSearch["filters"]): string {
   const parts: string[] = [];
   if (f.technology) parts.push(`Sector: ${f.technology}`);
+  if (f.dealSizePreset) {
+    const preset = DEAL_SIZE_PRESETS.find((p) => p.id === f.dealSizePreset);
+    if (preset) parts.push(`Size: ${preset.label}`);
+  }
   if (f.country)    parts.push(`Country: ${f.country}`);
   if (f.status)     parts.push(`Status: ${f.status}`);
   if (f.search)     parts.push(`"${f.search}"`);
@@ -710,6 +730,7 @@ export default function DealTracker() {
   const [country, setCountry]         = useState(initialCountry);
   const [status, setStatus]           = useState("");
   const [technology, setTechnology]   = useState(initialTechnology);
+  const [dealSizePreset, setDealSizePreset] = useState<DealSizePresetId>("");
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   // NLQ state
@@ -737,6 +758,7 @@ export default function DealTracker() {
     setTechnology(s.filters.technology ?? "");
     setStatus(s.filters.status ?? "");
     setCountry(s.filters.country ?? "");
+    setDealSizePreset((s.filters.dealSizePreset ?? "") as DealSizePresetId);
     setPage(1);
     authedFetch(`/api/saved-searches/${s.id}/touch`, { method: "PATCH" }).catch(() => {});
     setSavedSearches((prev) =>
@@ -798,6 +820,8 @@ export default function DealTracker() {
     setTimeout(() => setDebouncedSearch(e.target.value), 500);
   };
 
+  const activeSizePreset = DEAL_SIZE_PRESETS.find((p) => p.id === dealSizePreset) ?? DEAL_SIZE_PRESETS[0];
+
   const { data, isLoading } = useListProjects({
     page,
     limit: 15,
@@ -805,10 +829,12 @@ export default function DealTracker() {
     status: status || undefined,
     technology: technology || undefined,
     country: country || undefined,
+    minDealSize: activeSizePreset.min,
+    maxDealSize: activeSizePreset.max,
   });
 
-  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country };
-  const hasActiveFilters = !!(debouncedSearch || technology || status || country);
+  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country, dealSizePreset };
+  const hasActiveFilters = !!(debouncedSearch || technology || status || country || dealSizePreset);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -1024,6 +1050,28 @@ export default function DealTracker() {
             <div className="md:hidden">
               <ExportDropdown filters={activeFilters} />
             </div>
+          </div>
+
+          {/* Deal Size filter chips */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Deal Size</span>
+            {DEAL_SIZE_PRESETS.map((preset) => {
+              const isActive = dealSizePreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => { setDealSizePreset(preset.id); setPage(1); }}
+                  className={[
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                    isActive
+                      ? "bg-[#00e676] text-[#0b0f1a] border-[#00e676]"
+                      : "bg-transparent text-[#94a3b8] border-[#334155] hover:border-[#00e676]/50 hover:text-white",
+                  ].join(" ")}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Active filter chips (from URL params / heatmap navigation) */}
