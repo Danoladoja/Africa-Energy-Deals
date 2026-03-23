@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, projectsTable, insertProjectSchema } from "@workspace/db";
-import { ilike, and, gte, lte, eq, sql } from "drizzle-orm";
+import { ilike, and, gte, lte, eq, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -81,6 +81,22 @@ router.get("/projects", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+// GET latest projects (ordered by createdAt desc, then announcedYear desc)
+router.get("/projects/latest", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 5), 20);
+    const projects = await db
+      .select()
+      .from(projectsTable)
+      .orderBy(desc(projectsTable.createdAt), desc(projectsTable.announcedYear))
+      .limit(limit);
+    res.json({ projects });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch latest projects" });
   }
 });
 

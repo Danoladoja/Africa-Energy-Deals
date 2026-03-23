@@ -1,0 +1,32 @@
+Add a "Latest Deals" section to the landing page showing the most recently added or announced energy projects.
+
+CURRENT STATE: The landing page at /energy-tracker/ has: hero section with stats, a choropleth map preview, feature cards (Deal Database, Choropleth Map, Visualization Studio), a "What's in the database" section, and a footer. There is no recent deals section.
+
+REQUIREMENTS:
+
+1. BACKEND — New endpoint or sort option:
+   - If not already supported, add a sort parameter to GET /api/projects: ?sort=newest (sorts by announcementDate descending, falling back to yearAnnounced descending, then createdAt descending)
+   - Alternatively, create GET /api/projects/latest?limit=5 as a convenience endpoint
+
+2. LANDING PAGE SECTION — Place it between the feature cards section and the "What's in the database" section:
+
+   Section heading: "Latest Deals"
+   Subheading: "Recently added to the tracker"
+
+   Display 5 deal cards in a horizontal scrollable row (or a responsive grid: 3 on desktop, scroll on mobile). Each card shows:
+   - Project name (bold, linked to /energy-tracker/deals/:id)
+   - Country + flag emoji
+   - Sector badge (color-coded using the existing sector color scheme)
+   - Deal size (formatted: $2.0B or $694M)
+   - Status badge
+   - Year announced
+   - A subtle "NEW" tag if added in the last 30 days (based on createdAt or announcementDate)
+
+3. At the bottom of the section:
+   - "View all deals →" button linking to /energy-tracker/deals?sort=newest
+
+4. AUTO-UPDATE: This section should fetch fresh data on every page load (no caching beyond normal React Query behavior). As the AI Discovery scraper adds new deals, they should automatically appear here.
+
+5. EMPTY STATE: If there are fewer than 5 deals, show however many exist. If there are 0 deals, hide the entire section.
+
+STYLING: Cards should use the standard dark theme (#1e293b background, #334155 border). Sector badges use the existing color map. On hover, cards should subtly lift (translateY -2px) with a border glow. The horizontal scroll should have a subtle fade-out at the right edge on mobile. Keep card height consistent — truncate long project names with ellipsis.

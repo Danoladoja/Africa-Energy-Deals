@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useGetSummaryStats } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart2, Globe, Layers, Cpu } from "lucide-react";
+import { BarChart2, Globe, Layers, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 import { EmailGateModal } from "@/components/email-gate-modal";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
@@ -13,6 +13,175 @@ import { SEOMeta, organizationSchema, websiteSchema } from "@/components/seo-met
 const API = "/api";
 const AFRICA_GEOJSON_URL =
   "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Solar":          "#facc15",
+  "Wind":           "#38bdf8",
+  "Hydro":          "#22d3ee",
+  "Grid & Storage": "#a78bfa",
+  "Oil & Gas":      "#f87171",
+  "Coal":           "#6b7280",
+  "Nuclear":        "#fb923c",
+  "Bioenergy":      "#4ade80",
+};
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  "South Africa": "🇿🇦", "Nigeria": "🇳🇬", "Kenya": "🇰🇪", "Egypt": "🇪🇬",
+  "Morocco": "🇲🇦", "Ethiopia": "🇪🇹", "Ghana": "🇬🇭", "Tanzania": "🇹🇿",
+  "Mozambique": "🇲🇿", "Zambia": "🇿🇲", "Uganda": "🇺🇬", "Senegal": "🇸🇳",
+  "Ivory Coast": "🇨🇮", "Cameroon": "🇨🇲", "Angola": "🇦🇴", "Rwanda": "🇷🇼",
+  "Namibia": "🇳🇦", "Botswana": "🇧🇼", "Tunisia": "🇹🇳", "Algeria": "🇩🇿",
+  "Malawi": "🇲🇼", "Mali": "🇲🇱", "Niger": "🇳🇪", "Chad": "🇹🇩",
+  "Sudan": "🇸🇩", "Burkina Faso": "🇧🇫", "DRC": "🇨🇩", "Côte d'Ivoire": "🇨🇮",
+  "Zimbabwe": "🇿🇼", "Libya": "🇱🇾", "Somalia": "🇸🇴", "Benin": "🇧🇯",
+  "Togo": "🇹🇬", "Guinea": "🇬🇳", "Madagascar": "🇲🇬", "Sierra Leone": "🇸🇱",
+};
+
+interface LatestProject {
+  id: number;
+  projectName: string;
+  country: string;
+  technology: string;
+  dealSizeUsdMn?: number | null;
+  status: string;
+  announcedYear?: number | null;
+  createdAt: string;
+}
+
+function fmtDeal(mn?: number | null): string | null {
+  if (mn == null) return null;
+  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
+  return `$${mn.toFixed(0)}M`;
+}
+
+function isNew(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() < 30 * 24 * 60 * 60 * 1000;
+}
+
+function LatestDealCard({ project }: { project: LatestProject }) {
+  const color = SECTOR_COLORS[project.technology] ?? "#94a3b8";
+  const flag  = COUNTRY_FLAGS[project.country] ?? "🌍";
+  const size  = fmtDeal(project.dealSizeUsdMn);
+  const fresh = isNew(project.createdAt);
+
+  return (
+    <Link href={`/deals/${project.id}`}>
+      <div
+        className="group relative flex flex-col gap-3 bg-[#1e293b] border border-[#334155] rounded-2xl p-5 h-full min-w-[220px] cursor-pointer transition-all duration-200"
+        style={{ boxShadow: "none" }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+          (e.currentTarget as HTMLDivElement).style.borderColor = `${color}55`;
+          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 1px ${color}33, 0 8px 24px rgba(0,0,0,0.3)`;
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+          (e.currentTarget as HTMLDivElement).style.borderColor = "#334155";
+          (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+        }}
+      >
+        {fresh && (
+          <span className="absolute top-3 right-3 text-[10px] font-bold tracking-widest text-[#00e676] bg-[#00e676]/10 border border-[#00e676]/25 px-2 py-0.5 rounded-full">
+            NEW
+          </span>
+        )}
+
+        <div
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold self-start"
+          style={{ backgroundColor: `${color}18`, color, border: `1px solid ${color}30` }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+          {project.technology}
+        </div>
+
+        <p className="text-sm font-semibold text-white leading-snug line-clamp-2 flex-1">
+          {project.projectName}
+        </p>
+
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span>{flag}</span>
+          <span className="truncate">{project.country}</span>
+          {project.announcedYear && (
+            <>
+              <span className="text-slate-600">·</span>
+              <span>{project.announcedYear}</span>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-1 border-t border-white/5">
+          {size ? (
+            <span className="text-base font-bold text-white font-mono">{size}</span>
+          ) : (
+            <span className="text-xs text-slate-500 italic">Size undisclosed</span>
+          )}
+          <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 text-slate-400 border border-white/5">
+            {project.status}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function LatestDealsSection() {
+  const { data, isLoading } = useQuery<{ projects: LatestProject[] }>({
+    queryKey: ["latest-projects"],
+    queryFn: () => fetch(`${API}/projects/latest?limit=5`).then(r => r.json()),
+    staleTime: 0,
+  });
+
+  const projects = data?.projects ?? [];
+
+  if (!isLoading && projects.length === 0) return null;
+
+  return (
+    <section className="py-20 px-4 border-t border-white/8">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">Latest Deals</h2>
+            <p className="text-white/50 text-sm">Recently added to the tracker</p>
+          </div>
+          <Link href="/deals?sort=newest">
+            <span className="flex items-center gap-1.5 text-sm text-[#00e676] hover:text-[#00c864] font-medium transition-colors shrink-0">
+              View all deals <ArrowRight className="w-4 h-4" />
+            </span>
+          </Link>
+        </div>
+
+        {isLoading ? (
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 min-w-[220px] h-48 rounded-2xl bg-[#1e293b] border border-[#334155] animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="relative">
+            <div
+              className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {projects.map((p) => (
+                <div key={p.id} className="flex-1 min-w-[220px] max-w-[280px] snap-start">
+                  <LatestDealCard project={p} />
+                </div>
+              ))}
+            </div>
+            {/* Fade-out right edge on mobile */}
+            <div
+              className="md:hidden absolute inset-y-0 right-0 w-12 pointer-events-none"
+              style={{ background: "linear-gradient(to left, #0b0f1a, transparent)" }}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
 const DB_TO_GEO: Record<string, string> = {
   "DRC":           "DR Congo",
@@ -317,6 +486,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Latest Deals Section */}
+      <LatestDealsSection />
 
       {/* Data Section */}
       <section id="data" className="py-20 px-4">
