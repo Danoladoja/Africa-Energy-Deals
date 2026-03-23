@@ -130,7 +130,7 @@ export function EmailGateModal({ isOpen, onClose, onSuccess, pendingRedirect }: 
                 disabled={isLoading || !email.trim()}
                 className="w-full flex items-center justify-center gap-2 bg-[#00e676] hover:bg-[#00c864] disabled:opacity-50 disabled:cursor-not-allowed text-[#0b0f1a] font-semibold py-3 rounded-xl transition-colors shadow-lg shadow-[#00e676]/20"
               >
-                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <><span>Send Sign-In Link</span><ArrowRight size={16} /></>}
+                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <><span>Grant Me Access</span><ArrowRight size={16} /></>}
               </button>
             </form>
             <p className="text-white/25 text-xs text-center mt-4">No password. No spam. Unsubscribe anytime.</p>
