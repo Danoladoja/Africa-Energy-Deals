@@ -1,0 +1,47 @@
+Deal Flow Charts & Analytics Dashboard
+
+```
+Overhaul the Dashboard page (/dashboard) with comprehensive deal flow analytics.
+
+CURRENT STATE: The dashboard shows some basic charts. The API provides stats endpoints and full project data.
+
+DATA: Fetch /api/projects?limit=500 for full dataset, /api/stats/summary, /api/stats/by-technology, /api/stats/by-country.
+
+BUILD THESE CHART SECTIONS:
+
+1. ENERGY TRANSITION OVERVIEW (top of dashboard):
+   - Large donut: Renewable vs. Fossil Fuel vs. Infrastructure investment split
+   - Classify: Renewable = Solar, Wind, Hydro, Bioenergy | Fossil = Oil & Gas, Coal | Infrastructure = Grid & Storage, Nuclear
+   - Colors: Green (#00e676) renewable, Red (#f87171) fossil, Blue (#38bdf8) infrastructure
+   - Show dollar amounts and percentages
+
+2. CAPITAL COMMITTED PER QUARTER/YEAR:
+   - Time-series line+area chart showing total investment over time
+   - Two lines: cumulative total and annual/quarterly volume
+   - Requires yearAnnounced; if announcementDate available (Prompt 1), use that for quarterly granularity
+
+3. DEAL COUNT BY TECHNOLOGY:
+   - Horizontal bar chart, sorted by count descending
+   - Each bar colored by sector color
+
+4. TOP 10 INVESTORS BY VOLUME:
+   - Horizontal bar chart of top investors/developers by total deal size
+   - (Uses developer field from Prompt 1; show placeholder if data sparse)
+
+5. DEAL PIPELINE FUNNEL:
+   - Funnel visualization: Announced → Mandated → Financial Close → Construction → Commissioned
+   - Each band shows count and total investment at that stage
+   - Conversion percentages between stages
+   - Suspended shown separately
+
+6. COUNTRY × SECTOR HEATMAP:
+   - Matrix: rows = countries (sorted by total investment), columns = sectors
+   - Cell color intensity = investment amount. Cell text = $amount + count
+   - Clicking a cell navigates to /deals?country=X&technology=Y
+
+7. GLOBAL FILTERS:
+   - Add filter controls at the top of the dashboard: Date range, Country multi-select, Technology multi-select
+   - All charts update when filters change
+
+Use recharts for all visualizations. Each section should be a collapsible card.
+```

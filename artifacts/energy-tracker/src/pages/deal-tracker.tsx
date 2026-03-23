@@ -32,12 +32,16 @@ function dealShareText(project: any) {
 export default function DealTracker() {
   const rawSearch = useSearch();
   const [, navigate] = useLocation();
-  const initialSearch = new URLSearchParams(rawSearch).get("search") ?? "";
+  const params = new URLSearchParams(rawSearch);
+  const initialSearch    = params.get("search")     ?? "";
+  const initialCountry   = params.get("country")    ?? "";
+  const initialTechnology = params.get("technology") ?? "";
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState(initialSearch);
+  const [country, setCountry] = useState(initialCountry);
   const [status, setStatus] = useState("");
-  const [technology, setTechnology] = useState("");
+  const [technology, setTechnology] = useState(initialTechnology);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,7 +54,8 @@ export default function DealTracker() {
     limit: 15,
     search: debouncedSearch || undefined,
     status: status || undefined,
-    technology: technology || undefined
+    technology: technology || undefined,
+    country: country || undefined,
   });
 
   const getStatusColor = (status: string) => {
