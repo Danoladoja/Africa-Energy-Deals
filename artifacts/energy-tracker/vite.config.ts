@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { botPrerender } from "./src/plugins/bot-prerender";
 
 const rawPort = process.env.PORT;
 // PORT is required at runtime (dev/preview) but not during build
@@ -22,6 +23,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    botPrerender(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -60,6 +62,11 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
+      },
+      "/sitemap.xml": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        rewrite: () => "/api/sitemap.xml",
       },
     },
   },

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { SEOMeta } from "@/components/seo-meta";
 
 const API = "/api";
 
@@ -203,8 +204,18 @@ export default function DeveloperProfile() {
     );
   }
 
+  const devTotalStr = totalInvestment >= 1000
+    ? `$${(totalInvestment / 1000).toFixed(1)}B`
+    : `$${totalInvestment.toFixed(0)}M`;
+  const topSectors = sectorData.slice(0, 2).map((s) => s.name).join(", ");
+
   return (
     <Layout>
+      <SEOMeta
+        title={`${name} Africa Portfolio`}
+        description={`${name} energy portfolio across Africa: ${projects.length} deals${totalInvestment ? `, ${devTotalStr} deployed` : ""}${topSectors ? ` in ${topSectors}` : ""}. Active in ${countries.length} countries.`}
+        url={`/developers/${encodeURIComponent(name)}`}
+      />
       <PageTransition className="p-4 md:p-8 max-w-6xl mx-auto">
 
         {/* Back */}

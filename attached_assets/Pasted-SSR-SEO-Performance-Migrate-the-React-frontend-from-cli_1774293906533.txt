@@ -1,0 +1,39 @@
+SSR, SEO & Performance
+
+```
+Migrate the React frontend from client-side Vite SPA to a framework with server-side rendering for SEO.
+
+CURRENT STATE: React + Vite SPA. All routes return the same index.html shell. Search engines can't index individual deal, country, or developer pages. Meta tags were recently added to index.html but they're static (same for every page).
+
+REQUIREMENTS:
+
+1. MIGRATION OPTIONS (choose one based on what works best in the Replit environment):
+   - Option A: Migrate to Next.js with App Router (preferred — best SSR support)
+   - Option B: Add Vite SSR plugin with renderToString
+   - Option C: Add prerendering for key pages at build time (simpler but less dynamic)
+
+2. DYNAMIC META TAGS per page:
+   - /deals/:id → title: "{Project Name} | AfriEnergy Tracker", description: "{technology} project in {country}, ${dealSize}M investment"
+   - /countries/:name → title: "{Country} Energy Investment | AfriEnergy Tracker", description: "Energy deals in {country}: ${total}B across {count} projects"
+   - /developers/:name → title: "{Developer} Africa Portfolio | AfriEnergy Tracker"
+   - /dashboard, /deals, /map, /studio → static but unique meta tags
+
+3. STRUCTURED DATA (JSON-LD):
+   - Add Organization schema to the homepage
+   - Add Dataset schema to the deal tracker page
+   - Add Article-like schema to deal detail pages
+
+4. PERFORMANCE:
+   - Lazy load below-the-fold chart components
+   - Add loading skeletons for data-dependent sections
+   - Image optimization for any uploaded assets
+   - Ensure Lighthouse score > 90 on mobile for the landing page
+
+5. SITEMAP:
+   - Generate /sitemap.xml dynamically listing all public pages:
+     - Static: /, /dashboard, /deals, /map, /studio, /api-docs
+     - Dynamic: /deals/:id (all 77+ projects), /countries/:name (all 23+ countries), /developers/:name
+   - Add robots.txt allowing all crawlers
+
+Maintain all existing functionality — this is a migration, not a rewrite. The dark editorial design aesthetic must be preserved exactly.
+```

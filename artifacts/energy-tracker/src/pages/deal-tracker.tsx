@@ -3,6 +3,7 @@ import { useSearch, useLocation } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { SEOMeta, datasetSchema } from "@/components/seo-meta";
 import {
   Search, ChevronLeft, ChevronRight, Eye,
   MapPin, ExternalLink, Download, ChevronDown,
@@ -359,6 +360,12 @@ export default function DealTracker() {
 
   return (
     <Layout>
+      <SEOMeta
+        title="Deal Tracker"
+        description="Search and filter 123+ African energy investment deals. Filter by country, technology, status, and deal size across solar, wind, hydro, gas and more."
+        url="/deals"
+        jsonLd={datasetSchema()}
+      />
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
 
         <header className="mb-5 flex items-start justify-between gap-4">

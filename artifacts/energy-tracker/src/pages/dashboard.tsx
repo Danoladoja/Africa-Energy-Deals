@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGetSummaryStats } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { SEOMeta, datasetSchema } from "@/components/seo-meta";
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
   ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -439,6 +440,12 @@ export default function Dashboard() {
 
   return (
     <Layout>
+      <SEOMeta
+        title="Market Overview"
+        description="Interactive dashboard — African energy investment by sector, country, and year. Live charts covering 123+ deals across 26 countries."
+        url="/dashboard"
+        jsonLd={datasetSchema()}
+      />
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
 
         {/* ── Header ── */}

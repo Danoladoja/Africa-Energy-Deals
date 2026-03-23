@@ -6,6 +6,7 @@ import L from "leaflet";
 import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { SEOMeta } from "@/components/seo-meta";
 import { MapPin, Zap, Maximize2, ChevronUp, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -345,6 +346,11 @@ export default function MapPage() {
 
   return (
     <Layout>
+      <SEOMeta
+        title="Investment Map"
+        description="Explore African energy investment deals on an interactive map. Filter by technology sector and see geographic spread across 26 countries."
+        url="/map"
+      />
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
         {/* ── Map Area ── */}

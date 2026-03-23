@@ -8,6 +8,7 @@ import { EmailGateModal } from "@/components/email-gate-modal";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
 import { NlqSearchBar } from "@/components/nlq-search-bar";
+import { SEOMeta, organizationSchema, websiteSchema } from "@/components/seo-meta";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
@@ -178,6 +179,12 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white flex flex-col">
+      <SEOMeta
+        title="Africa Energy Investment Database"
+        description="Track 123+ energy investment deals across 26 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse."
+        url="/"
+        jsonLd={[organizationSchema(), websiteSchema()]}
+      />
       <EmailGateModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

@@ -2,6 +2,7 @@ import { useParams, useLocation } from "wouter";
 import { useGetProject } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
+import { SEOMeta, dealArticleSchema } from "@/components/seo-meta";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import {
   ArrowLeft, MapPin, ExternalLink, Calendar, DollarSign,
@@ -176,8 +177,23 @@ export default function DealDetail() {
     project.announcementDate || project.financialCloseDate || project.commissioningDate
   );
 
+  const dealSizeStr = project?.dealSizeUsdMn
+    ? (project.dealSizeUsdMn >= 1000
+        ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B`
+        : `$${project.dealSizeUsdMn.toFixed(0)}M`)
+    : null;
+
   return (
     <Layout>
+      {project && (
+        <SEOMeta
+          title={project.projectName}
+          description={`${project.technology} project in ${project.country}${dealSizeStr ? `, ${dealSizeStr} investment` : ""}. Status: ${project.status}.`}
+          url={`/deals/${project.id}`}
+          type="article"
+          jsonLd={dealArticleSchema(project)}
+        />
+      )}
       <PageTransition className="p-4 md:p-8 max-w-5xl mx-auto">
 
         {/* Back navigation */}

@@ -144,8 +144,20 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - `GET /api/watches/bell-count` — count unseen new-deal matches (auth required)
 - `POST /api/watches/mark-seen` — reset bell count (auth required)
 
+### SEO & Performance
+
+**Dynamic Meta Tags** — `react-helmet-async` (HelmetProvider in `main.tsx`). `SEOMeta` component (`src/components/seo-meta.tsx`) manages `<title>`, `<meta description>`, Open Graph, and Twitter Card tags on every page. JSON-LD structured data (Organization, WebSite, Dataset, Article schemas) injected via Helmet.
+
+**Bot Prerender Middleware** — Vite plugin (`src/plugins/bot-prerender.ts`) detects crawler User-Agents (Googlebot, Twitterbot, LinkedInBot, Facebook, etc.) and returns a pre-rendered HTML shell with correct OG tags fetched from the API. Applied in dev mode via `configureServer` hook.
+
+**Dynamic Sitemap** — `GET /api/sitemap.xml` on the Express server queries all projects, countries, and developer entities from the DB and returns a standards-compliant XML sitemap (~296 URLs). Vite proxies `/sitemap.xml` → `/api/sitemap.xml`. Robots.txt is a static file at `artifacts/energy-tracker/public/robots.txt`.
+
+**Code Splitting** — All pages except `Landing`, `AuthVerify`, and `NotFound` are wrapped in `React.lazy()` + `Suspense` (with a green spinner fallback) for route-level lazy loading. Heavy pages (Dashboard, DealTracker, VizStudio, MapPage) are split into separate JS chunks.
+
+**Skeleton Loaders** — `src/components/skeleton-card.tsx` exports `SkeletonCard`, `SkeletonStat`, `SkeletonTable`, `SkeletonChart`, `SkeletonText` components for use during data-fetching states.
+
 ### Frontend Libraries
-- recharts (charts), react-leaflet + leaflet (map), html2canvas (PNG export), lucide-react (icons), framer-motion (animations), date-fns (date formatting)
+- recharts (charts), react-leaflet + leaflet (map), html2canvas (PNG export), lucide-react (icons), framer-motion (animations), date-fns (date formatting), react-helmet-async (SEO meta tags)
 
 ### AI Discovery Stack
 - `lib/integrations-openai-ai-server/` — OpenAI SDK wrapper (via Replit AI Integrations, no API key needed)

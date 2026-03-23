@@ -8,6 +8,7 @@ import {
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { WatchButton } from "@/components/watch-button";
+import { SEOMeta } from "@/components/seo-meta";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Shield,
   TrendingUp, Building2, DollarSign, Layers, Activity,
@@ -190,8 +191,21 @@ export default function CountryProfile() {
     return null;
   };
 
+  const totalStr = totalInvestment >= 1000
+    ? `$${(totalInvestment / 1000).toFixed(1)}B`
+    : `$${totalInvestment.toFixed(0)}M`;
+
   return (
     <Layout>
+      <SEOMeta
+        title={`${name} Energy Investment`}
+        description={
+          projects.length
+            ? `Energy deals in ${name}: ${totalStr} across ${projects.length} projects. Leading sector: ${topSector}.`
+            : `Energy investment portfolio for ${name} — explore projects, sectors, and deal flow.`
+        }
+        url={`/countries/${encodeURIComponent(name)}`}
+      />
       <PageTransition className="p-4 md:p-8 max-w-6xl mx-auto">
 
         {/* Back */}

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,23 +9,24 @@ import { AdminLockScreen } from "@/components/admin-lock-screen";
 import { Layout } from "@/components/layout";
 
 import Landing from "@/pages/landing";
-import Dashboard from "@/pages/dashboard";
-import DealTracker from "@/pages/deal-tracker";
-import DealDetail from "@/pages/deal-detail";
-import CountriesIndex from "@/pages/countries";
-import CountryProfile from "@/pages/country-profile";
-import DevelopersIndex from "@/pages/developers";
-import DeveloperProfile from "@/pages/developer-profile";
-import MapPage from "@/pages/map";
-import VizStudio from "@/pages/viz-studio";
-import DiscoveryPage from "@/pages/discovery";
-import WatchesPage from "@/pages/watches";
 import AuthVerify from "@/pages/auth-verify";
-import EmbedDeals from "@/pages/embed-deals";
-import EmbedChart from "@/pages/embed-chart";
-import ApiDocsPage from "@/pages/api-docs";
-import AdminScraperPage from "@/pages/admin-scraper";
 import NotFound from "@/pages/not-found";
+
+const Dashboard        = lazy(() => import("@/pages/dashboard"));
+const DealTracker      = lazy(() => import("@/pages/deal-tracker"));
+const DealDetail       = lazy(() => import("@/pages/deal-detail"));
+const CountriesIndex   = lazy(() => import("@/pages/countries"));
+const CountryProfile   = lazy(() => import("@/pages/country-profile"));
+const DevelopersIndex  = lazy(() => import("@/pages/developers"));
+const DeveloperProfile = lazy(() => import("@/pages/developer-profile"));
+const MapPage          = lazy(() => import("@/pages/map"));
+const VizStudio        = lazy(() => import("@/pages/viz-studio"));
+const DiscoveryPage    = lazy(() => import("@/pages/discovery"));
+const WatchesPage      = lazy(() => import("@/pages/watches"));
+const EmbedDeals       = lazy(() => import("@/pages/embed-deals"));
+const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
+const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
+const AdminScraperPage = lazy(() => import("@/pages/admin-scraper"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,14 @@ const queryClient = new QueryClient({
     }
   }
 });
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0b0f1a]">
+      <div className="w-8 h-8 border-2 border-[#00e676]/30 border-t-[#00e676] rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -93,50 +102,64 @@ function GA4() {
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/dashboard">
-        {() => <AuthRoute component={Dashboard} />}
-      </Route>
-      <Route path="/deals">
-        {() => <AuthRoute component={DealTracker} />}
-      </Route>
-      <Route path="/deals/:id">
-        {() => <AuthRoute component={DealDetail} />}
-      </Route>
-      <Route path="/countries">
-        {() => <AuthRoute component={CountriesIndex} />}
-      </Route>
-      <Route path="/countries/:countryName">
-        {() => <AuthRoute component={CountryProfile} />}
-      </Route>
-      <Route path="/developers">
-        {() => <AuthRoute component={DevelopersIndex} />}
-      </Route>
-      <Route path="/developers/:entityName">
-        {() => <AuthRoute component={DeveloperProfile} />}
-      </Route>
-      <Route path="/map">
-        {() => <AuthRoute component={MapPage} />}
-      </Route>
-      <Route path="/studio">
-        {() => <AuthRoute component={VizStudio} />}
-      </Route>
-      <Route path="/discovery">
-        {() => <AdminRoute component={DiscoveryPage} />}
-      </Route>
-      <Route path="/watches">
-        {() => <AuthRoute component={WatchesPage} />}
-      </Route>
-      <Route path="/auth/verify" component={AuthVerify} />
-      <Route path="/embed/deals" component={EmbedDeals} />
-      <Route path="/embed/chart" component={EmbedChart} />
-      <Route path="/api-docs" component={ApiDocsPage} />
-      <Route path="/admin/scraper">
-        {() => <AdminRoute component={AdminScraperPage} />}
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/dashboard">
+          {() => <AuthRoute component={Dashboard} />}
+        </Route>
+        <Route path="/deals">
+          {() => <AuthRoute component={DealTracker} />}
+        </Route>
+        <Route path="/deals/:id">
+          {() => <AuthRoute component={DealDetail} />}
+        </Route>
+        <Route path="/countries">
+          {() => <AuthRoute component={CountriesIndex} />}
+        </Route>
+        <Route path="/countries/:countryName">
+          {() => <AuthRoute component={CountryProfile} />}
+        </Route>
+        <Route path="/developers">
+          {() => <AuthRoute component={DevelopersIndex} />}
+        </Route>
+        <Route path="/developers/:entityName">
+          {() => <AuthRoute component={DeveloperProfile} />}
+        </Route>
+        <Route path="/map">
+          {() => <AuthRoute component={MapPage} />}
+        </Route>
+        <Route path="/studio">
+          {() => <AuthRoute component={VizStudio} />}
+        </Route>
+        <Route path="/discovery">
+          {() => <AdminRoute component={DiscoveryPage} />}
+        </Route>
+        <Route path="/watches">
+          {() => <AuthRoute component={WatchesPage} />}
+        </Route>
+        <Route path="/auth/verify" component={AuthVerify} />
+        <Route path="/embed/deals">
+          {() => (
+            <Suspense fallback={null}>
+              <EmbedDeals />
+            </Suspense>
+          )}
+        </Route>
+        <Route path="/embed/chart">
+          {() => (
+            <Suspense fallback={null}>
+              <EmbedChart />
+            </Suspense>
+          )}
+        </Route>
+        <Route path="/api-docs" component={ApiDocsPage} />
+        <Route path="/admin/scraper">
+          {() => <AdminRoute component={AdminScraperPage} />}
+        </Route>
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

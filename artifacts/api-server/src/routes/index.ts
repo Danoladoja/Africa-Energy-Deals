@@ -10,6 +10,7 @@ import nlqRouter from "./nlq.js";
 import watchesRouter from "./watches.js";
 import apiKeysRouter from "./api-keys.js";
 import institutionalRouter from "./institutional.js";
+import seoRouter from "./seo.js";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(nlqRouter);
 router.use(watchesRouter);
 router.use(apiKeysRouter);
 router.use(institutionalRouter);
+router.use(seoRouter);
 
 export default router;
