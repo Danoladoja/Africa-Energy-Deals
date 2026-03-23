@@ -161,10 +161,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         
         <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
-          <div className="bg-sidebar-accent/50 rounded-2xl p-4 border border-sidebar-border/50">
-            <h4 className="font-display font-semibold text-sm mb-1 text-sidebar-foreground">Data Update</h4>
-            <p className="text-xs text-sidebar-foreground/60">Last synced: Today, 08:30 GMT</p>
-          </div>
           {isAuthenticated ? (
             <div className="flex items-center gap-3">
               <UserCircle2 className="w-4 h-4 text-slate-500 shrink-0" />
@@ -329,12 +325,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </nav>
 
-              <div className="p-4 border-t border-sidebar-border shrink-0">
-                <div className="bg-sidebar-accent/50 rounded-xl p-3 border border-sidebar-border/50">
-                  <p className="text-xs font-semibold text-sidebar-foreground/80">Data Update</p>
-                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">Last synced: Today, 08:30 GMT</p>
-                </div>
-              </div>
             </motion.div>
           </>
         )}
