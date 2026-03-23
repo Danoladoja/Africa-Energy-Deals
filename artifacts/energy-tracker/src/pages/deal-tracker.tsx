@@ -9,11 +9,13 @@ import {
   Search, ChevronLeft, ChevronRight,
   MapPin, ExternalLink, Download, ChevronDown,
   FileText, Sheet, FileJson, Sparkles, X as XIcon,
-  GitCompareArrows, Check,
+  GitCompareArrows, Check, Bookmark, BookmarkPlus, BookmarkCheck,
+  Clock, ChevronRight as ChevRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
 import { NlqSearchBar, type NlqResult } from "@/components/nlq-search-bar";
+import { useAuth, authedFetch } from "@/contexts/auth";
 
 const SECTOR_COLORS: Record<string, string> = {
   "Solar":          "#facc15",
@@ -312,6 +314,218 @@ function ExportDropdown({ filters }: {
   );
 }
 
+// ── Saved Searches ────────────────────────────────────────────────────────────
+
+interface SavedSearch {
+  id: number;
+  name: string;
+  filters: { search?: string; technology?: string; status?: string; country?: string };
+  createdAt: string;
+  lastUsedAt: string;
+}
+
+type ActiveFilters = { search: string; technology: string; status: string; country: string };
+
+function buildDefaultName(f: ActiveFilters): string {
+  const parts: string[] = [];
+  if (f.technology) parts.push(f.technology);
+  if (f.search)     parts.push(`"${f.search}"`);
+  if (f.country)    parts.push(`in ${f.country}`);
+  if (f.status)     parts.push(`· ${f.status}`);
+  return parts.length ? parts.join(" ") + " deals" : "My search";
+}
+
+function filterSummary(f: SavedSearch["filters"]): string {
+  const parts: string[] = [];
+  if (f.technology) parts.push(`Sector: ${f.technology}`);
+  if (f.country)    parts.push(`Country: ${f.country}`);
+  if (f.status)     parts.push(`Status: ${f.status}`);
+  if (f.search)     parts.push(`"${f.search}"`);
+  return parts.join(" · ") || "No filters";
+}
+
+function SaveSearchModal({
+  filters,
+  onClose,
+  onSaved,
+}: {
+  filters: ActiveFilters;
+  onClose: () => void;
+  onSaved: (s: SavedSearch) => void;
+}) {
+  const { isAuthenticated } = useAuth();
+  const [name, setName] = useState(() => buildDefaultName(filters));
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.select(); }, []);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await authedFetch("/api/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), filters }),
+      });
+      const data = await res.json();
+      if (data.savedSearch) onSaved(data.savedSearch);
+    } catch {}
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50" data-testid="save-search-modal">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Save this search"
+          className="relative bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm p-6 pointer-events-auto"
+        >
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-[#00e676]/10 border border-[#00e676]/20 flex items-center justify-center">
+              <Bookmark className="w-4 h-4 text-[#00e676]" />
+            </div>
+            <h3 className="text-base font-bold text-white">Save this search</h3>
+          </div>
+
+          {!isAuthenticated ? (
+            <div className="text-center py-4">
+              <p className="text-sm text-slate-400 mb-4">Sign in to save searches and access them later.</p>
+              <a href="/energy-tracker/" className="inline-flex items-center gap-2 px-4 py-2 bg-[#00e676] text-[#0b0f1a] text-sm font-semibold rounded-xl hover:bg-[#00c864] transition-colors">
+                Sign in
+              </a>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white/5 rounded-xl px-4 py-2.5 mb-4 text-xs text-slate-500">
+                {filterSummary(filters)}
+              </div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Name</label>
+              <input
+                ref={inputRef}
+                data-testid="save-search-name-input"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onClose(); }}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00e676]/40 focus:border-[#00e676]/40 transition-all mb-4"
+                placeholder="e.g. Solar deals in Kenya"
+                maxLength={80}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  data-testid="save-search-submit-btn"
+                  onClick={handleSave}
+                  disabled={saving || !name.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#00e676] text-[#0b0f1a] text-sm font-semibold hover:bg-[#00c864] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  ) : (
+                    <BookmarkPlus className="w-4 h-4" />
+                  )}
+                  Save Search
+                </button>
+                <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MySavedSearchesDropdown({
+  searches,
+  onApply,
+  onViewAll,
+}: {
+  searches: SavedSearch[];
+  onApply: (s: SavedSearch) => void;
+  onViewAll: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const recent = searches.slice(0, 5);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-background text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/50 transition-all whitespace-nowrap"
+      >
+        <Bookmark className="w-4 h-4" />
+        <span className="hidden sm:inline">My Searches</span>
+        {searches.length > 0 && (
+          <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-medium">
+            {searches.length}
+          </span>
+        )}
+        <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-2 z-50 bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-64 max-w-80">
+          <div className="px-4 py-2.5 border-b border-white/5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Saved Searches</p>
+          </div>
+          {recent.length === 0 ? (
+            <div className="px-4 py-5 text-center">
+              <p className="text-sm text-slate-500">No saved searches yet.</p>
+              <p className="text-xs text-slate-600 mt-1">Apply filters, then save them with the bookmark button.</p>
+            </div>
+          ) : (
+            <>
+              {recent.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => { onApply(s); setOpen(false); }}
+                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-200 group-hover:text-white line-clamp-1">{s.name}</p>
+                    <ChevRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 mt-0.5" />
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{filterSummary(s.filters)}</p>
+                </button>
+              ))}
+              {searches.length > 5 && (
+                <div className="px-4 py-2.5 border-t border-white/5">
+                  <p className="text-xs text-slate-600">+{searches.length - 5} more saved searches</p>
+                </div>
+              )}
+            </>
+          )}
+          <div className="px-4 py-2.5 border-t border-white/5 bg-white/[0.02]">
+            <button
+              onClick={() => { onViewAll(); setOpen(false); }}
+              className="text-xs text-[#00e676] hover:underline font-medium"
+            >
+              Manage all saved searches →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Comparison Panel ─────────────────────────────────────────────────────────
 
 type AnyProject = Record<string, any>;
@@ -503,6 +717,41 @@ export default function DealTracker() {
   const [nlqLoading, setNlqLoading]   = useState(false);
   const nlqMode = nlqResult !== null || nlqLoading;
 
+  // Saved searches state
+  const { isAuthenticated } = useAuth();
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveToast, setSaveToast]         = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    authedFetch("/api/saved-searches")
+      .then((r) => r.json())
+      .then((d: { savedSearches?: SavedSearch[] }) => setSavedSearches(d.savedSearches ?? []))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  function applySearch(s: SavedSearch) {
+    setSearch(s.filters.search ?? "");
+    setDebouncedSearch(s.filters.search ?? "");
+    setTechnology(s.filters.technology ?? "");
+    setStatus(s.filters.status ?? "");
+    setCountry(s.filters.country ?? "");
+    setPage(1);
+    authedFetch(`/api/saved-searches/${s.id}/touch`, { method: "PATCH" }).catch(() => {});
+    setSavedSearches((prev) =>
+      prev.map((x) => x.id === s.id ? { ...x, lastUsedAt: new Date().toISOString() } : x)
+        .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
+    );
+  }
+
+  function handleSearchSaved(saved: SavedSearch) {
+    setSaveModalOpen(false);
+    setSavedSearches((prev) => [saved, ...prev]);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
+  }
+
   // Deal comparison selection state
   const [selectedDeals, setSelectedDeals] = useState<Map<number, AnyProject>>(new Map());
   const [compareOpen, setCompareOpen]     = useState(false);
@@ -558,7 +807,8 @@ export default function DealTracker() {
     country: country || undefined,
   });
 
-  const activeFilters = { search: debouncedSearch, technology, status, country };
+  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country };
+  const hasActiveFilters = !!(debouncedSearch || technology || status || country);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -802,6 +1052,25 @@ export default function DealTracker() {
               )}
             </div>
           )}
+
+          {/* Saved-searches toolbar: My Searches dropdown + Save Search button */}
+          <div className="flex items-center justify-between pt-1 border-t border-border/50 mt-1">
+            <MySavedSearchesDropdown
+              searches={savedSearches}
+              onApply={applySearch}
+              onViewAll={() => navigate("/watches")}
+            />
+            {hasActiveFilters && (
+              <button
+                onClick={() => setSaveModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-[#00e676] hover:bg-[#00e676]/5 hover:border-[#00e676]/30 border border-transparent transition-all"
+                title="Save this search"
+              >
+                <BookmarkPlus className="w-4 h-4" />
+                <span className="hidden sm:inline">Save Search</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Mobile Card List */}
@@ -1056,6 +1325,23 @@ export default function DealTracker() {
           onClose={() => setCompareOpen(false)}
           onNavigate={(id) => { setCompareOpen(false); navigate(`/deals/${id}`); }}
         />
+      )}
+
+      {/* Save Search Modal */}
+      {saveModalOpen && (
+        <SaveSearchModal
+          filters={activeFilters}
+          onClose={() => setSaveModalOpen(false)}
+          onSaved={handleSearchSaved}
+        />
+      )}
+
+      {/* "Search saved!" toast */}
+      {saveToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-[#0b0f1a] border border-[#00e676]/30 rounded-xl shadow-2xl text-sm text-[#00e676]">
+          <BookmarkCheck className="w-4 h-4" />
+          Search saved!
+        </div>
       )}
 
     </Layout>

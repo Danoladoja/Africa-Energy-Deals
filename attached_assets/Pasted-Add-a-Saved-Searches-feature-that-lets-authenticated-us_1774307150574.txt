@@ -1,0 +1,31 @@
+Add a "Saved Searches" feature that lets authenticated users save filter configurations on the Deal Tracker and return to them later.
+
+CURRENT STATE: The Deal Tracker at /energy-tracker/deals has filter dropdowns for Sector, Status, and "More Filters" (which likely includes country, region, deal size range). The app already has email-based authentication (magic link) and a watches system.
+
+REQUIREMENTS:
+
+1. BACKEND — New table and endpoints:
+   - Create a "saved_searches" table: id, userId, name (text, user-chosen label), filters (jsonb — stores the filter state), createdAt, lastUsedAt
+   - POST /api/saved-searches — create a saved search (auth required). Body: { name: string, filters: { sector?, status?, country?, region?, minDealSize?, maxDealSize?, search? } }
+   - GET /api/saved-searches — list the user's saved searches (auth required)
+   - DELETE /api/saved-searches/:id — remove a saved search (auth required)
+   - PATCH /api/saved-searches/:id — update name or filters (auth required)
+
+2. FRONTEND — Save button on Deal Tracker:
+   - When any filter is active on /energy-tracker/deals, show a "Save Search" button (bookmark icon) next to the filters
+   - Clicking it opens a small modal: "Name this search" with a text input (pre-fill with a description like "Solar deals in Kenya") and a "Save" button
+   - If the user is not authenticated, show: "Sign in to save searches" with a sign-in link
+   - After saving, show a brief success toast: "Search saved!"
+
+3. FRONTEND — Saved searches list:
+   - Add a "Saved Searches" section to the My Watches page (or create a new tab alongside watches)
+   - Show each saved search as a card: name, filter summary (e.g. "Sector: Solar · Country: Kenya · Min Deal: $100M"), date saved, last used
+   - "Apply" button — navigates to /energy-tracker/deals with those filters pre-applied and updates lastUsedAt
+   - "Edit" button — rename the search
+   - "Delete" button — remove with confirmation
+
+4. QUICK ACCESS:
+   - In the Deal Tracker sidebar or filter area, add a "My Searches" dropdown that shows the user's saved searches for quick switching
+   - Show max 5 most recently used, with "View all" link to the full list
+
+STYLING: Bookmark icon uses lucide-react (Bookmark or BookmarkPlus). Saved search cards match the watch cards styling. The dropdown uses the same dark popover style as other filter dropdowns.

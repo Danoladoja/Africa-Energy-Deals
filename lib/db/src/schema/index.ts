@@ -4,3 +4,4 @@ export * from "./sessions";
 export * from "./watches";
 export * from "./api-keys";
 export * from "./scraper-runs";
+export * from "./saved-searches";
