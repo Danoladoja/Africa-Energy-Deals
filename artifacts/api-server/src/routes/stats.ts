@@ -16,8 +16,8 @@ router.get("/stats/summary", async (_req, res) => {
           totalProjects: sql<number>`count(*)::int`,
           totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
           totalCountries: sql<number>`count(distinct country)::int`,
-          activeProjects: sql<number>`sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end)::int`,
-          completedProjects: sql<number>`sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end)::int`,
+          activeProjects: sql<number>`coalesce(sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end), 0)::int`,
+          completedProjects: sql<number>`coalesce(sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end), 0)::int`,
         })
         .from(projectsTable),
       db.selectDistinct({ technology: projectsTable.technology }).from(projectsTable),
@@ -44,7 +44,7 @@ router.get("/stats/summary", async (_req, res) => {
 
     const totalDevelopers = devResult.length;
 
-    res.json({ ...result, totalSectors, totalDevelopers, dealsByStage });
+    res.json({ ...result, totalSectors, totalTechnologies: totalSectors, totalDevelopers, dealsByStage });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

@@ -546,9 +546,9 @@ export default function Dashboard() {
           <StatCard title="Total Investment"  value={summary ? fmt(summary.totalInvestmentUsdMn) : ""} icon={DollarSign} loading={isLoading} />
           <StatCard title="Total Projects"    value={summary ? String(summary.totalProjects)       : ""} icon={Briefcase}  loading={isLoading} />
           <StatCard title="Countries Covered" value={summary ? String(summary.totalCountries)       : ""} icon={Globe}      loading={isLoading} />
-          <StatCard title="In Development"    value={summary ? String(summary.activeProjects)       : ""} icon={Activity}   loading={isLoading} />
-          <StatCard title="Operational"       value={summary ? String(summary.completedProjects)    : ""} icon={TrendingUp} loading={isLoading} />
-          <StatCard title="Sectors"           value={summary ? String(summary.totalSectors ?? "—")  : ""} icon={Zap}        loading={isLoading} />
+          <StatCard title="In Development"    value={summary ? String(summary.activeProjects    ?? 0) : ""} icon={Activity}   loading={isLoading} />
+          <StatCard title="Operational"       value={summary ? String(summary.completedProjects ?? 0) : ""} icon={TrendingUp} loading={isLoading} />
+          <StatCard title="Sectors"           value={summary ? String(summary.totalSectors ?? summary.totalTechnologies ?? "—") : ""} icon={Zap} loading={isLoading} />
         </div>
 
         {/* ── 1. Energy Transition Overview ── */}

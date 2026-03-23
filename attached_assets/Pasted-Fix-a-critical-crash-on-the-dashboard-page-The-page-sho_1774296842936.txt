@@ -1,0 +1,24 @@
+Fix a critical crash on the /dashboard page. The page shows a white screen because the stats API returns `activeProjects: null` and `completedProjects: null`, and the dashboard code calls `.toString()` on these without null checking.
+
+SPECIFIC CHANGES NEEDED:
+
+1. In the Dashboard component (likely `client/src/pages/dashboard.tsx` or similar):
+   - Find every place where stats fields are accessed with `.toString()` — specifically:
+     `t?.activeProjects.toString()` → change to `(t?.activeProjects ?? 0).toString()`
+     `t?.completedProjects.toString()` → change to `(t?.completedProjects ?? 0).toString()`
+     `t?.totalTechnologies.toString()` → change to `(t?.totalTechnologies ?? t?.totalSectors ?? 0).toString()`
+     `t?.totalProjects.toString()` → change to `(t?.totalProjects ?? 0).toString()`
+     `t?.totalCountries.toString()` → change to `(t?.totalCountries ?? 0).toString()`
+   - The pattern to fix everywhere: any `statsVariable.toString()` should become `(statsVariable ?? 0).toString()`
+   - Also check for any `.toFixed()`, `.toLocaleString()`, or similar calls on stats values — add null guards to all of them.
+
+2. In the stats API response handler (the backend route that returns /api/stats/summary):
+   - Find where `totalTechnologies` is computed and ALSO return it as `totalSectors` for backward compatibility with production.
+   - The response should include BOTH fields: `totalTechnologies` AND `totalSectors` with the same value.
+   - Example: if the current response is `{ totalProjects, totalInvestmentUsdMn, totalCountries, totalTechnologies, activeProjects, completedProjects }`, add `totalSectors: totalTechnologies` to the response object.
+   - Also ensure `activeProjects` and `completedProjects` never return null — default them to 0.
+
+3. In the landing page component (the page at route `/`):
+   - There is a stat card that references `totalTechnologies`. Make sure it also works with `totalSectors` as a fallback: `stats?.totalTechnologies ?? stats?.totalSectors ?? 0`
+
+Do NOT change the visual design or layout — only add null safety and the field alias.

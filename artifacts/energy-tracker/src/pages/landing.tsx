@@ -258,7 +258,7 @@ export default function Landing() {
             { value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—", label: "Total Investment" },
             { value: stats ? stats.totalProjects.toString() : "—", label: "Total Projects" },
             { value: stats ? stats.totalCountries.toString() : "—", label: "Countries" },
-            { value: stats?.totalSectors != null ? stats.totalSectors.toString() : "—", label: "Sectors" },
+            { value: stats ? String(stats.totalSectors ?? stats.totalTechnologies ?? "—") : "—", label: "Sectors" },
           ].map((stat, i, arr) => (
             <div
               key={stat.label}
