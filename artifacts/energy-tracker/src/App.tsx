@@ -27,6 +27,7 @@ const EmbedDeals       = lazy(() => import("@/pages/embed-deals"));
 const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
 const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
 const AdminScraperPage = lazy(() => import("@/pages/admin-scraper"));
+const ComparePage      = lazy(() => import("@/pages/compare"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +121,9 @@ function Router() {
         </Route>
         <Route path="/countries/:countryName">
           {() => <AuthRoute component={CountryProfile} />}
+        </Route>
+        <Route path="/compare">
+          {() => <AuthRoute component={ComparePage} />}
         </Route>
         <Route path="/developers">
           {() => <AuthRoute component={DevelopersIndex} />}

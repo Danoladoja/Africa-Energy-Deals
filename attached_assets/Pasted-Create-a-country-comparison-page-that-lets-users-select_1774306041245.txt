@@ -1,0 +1,42 @@
+Create a country comparison page that lets users select 2-3 African countries and compare them side-by-side on key energy investment metrics.
+
+ROUTE: /energy-tracker/compare
+
+DATA: Use the existing API endpoints:
+- GET /api/stats/by-country for country-level aggregates
+- GET /api/projects?country={name}&limit=500 for per-country project lists
+- GET /api/stats/by-technology for sector breakdowns
+
+REQUIREMENTS:
+
+1. COUNTRY SELECTOR (top of page):
+   - Multi-select dropdown or pill selector showing all countries in the database
+   - Limit to 3 countries max. Show a message if user tries to add a 4th: "Compare up to 3 countries at a time"
+   - Pre-populate with 2 default countries (e.g. the top 2 by total investment)
+   - "Clear All" and "Swap" buttons
+
+2. COMPARISON CARDS (side-by-side):
+   - One card per selected country, displayed in a row (or stacked on mobile)
+   - Each card shows: Country name, Region, Total Investment, Project Count, Top Sector, Average Deal Size
+   - Highlight the "winner" in each metric with the accent color (#00e676)
+
+3. COMPARISON CHARTS (below cards):
+   - SECTOR MIX: Grouped bar chart or side-by-side donut charts showing investment by sector for each country
+   - DEAL SIZE DISTRIBUTION: Bar chart showing how many deals fall in each size bucket ($0-50M, $50-200M, $200M-1B, $1B+) per country
+   - INVESTMENT TIMELINE: Line chart showing annual investment volume per country over time (using yearAnnounced)
+   - STATUS BREAKDOWN: Stacked bar showing deal stage composition (Announced, Financial Close, Construction, Commissioned) per country
+
+4. PROJECTS TABLE (bottom):
+   - Combined table of all projects from selected countries
+   - Columns: Project Name, Country, Sector, Deal Size, Status
+   - Color-coded country column so you can visually distinguish
+   - Sortable by any column
+
+5. NAVIGATION:
+   - Add "Compare" to the sidebar under ANALYTICS & TOOLS, between "Countries" and "Investors"
+   - On the Countries index page, add a "Compare" button that pre-selects that country
+   - On each Country Profile page, add a "Compare with..." button
+
+6. SHARE: Add a "Share Comparison" button that copies a URL with country names as query params (e.g. /energy-tracker/compare?countries=Kenya,Nigeria,Egypt)
+
+STYLING: Same dark theme. Use the existing card components and chart library (recharts). Comparison cards should have a subtle left border in a unique color per country.

@@ -15,6 +15,7 @@ import {
   UserCircle2,
   Code2,
   Database,
+  GitCompareArrows,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,6 +30,7 @@ const publicNavItems = [
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
   { name: "Countries", href: "/countries", icon: Globe },
+  { name: "Compare", href: "/compare", icon: GitCompareArrows },
   { name: "Investors", href: "/developers", icon: Users },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
 ];

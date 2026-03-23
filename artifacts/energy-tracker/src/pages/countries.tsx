@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
-import { TrendingUp, Layers, ArrowRight } from "lucide-react";
+import { TrendingUp, Layers, ArrowRight, GitCompareArrows } from "lucide-react";
 
 const API = "/api";
 
@@ -78,10 +78,11 @@ function SectorMiniBar({ sectorTotals }: { sectorTotals: Record<string, number> 
   );
 }
 
-function CountryCard({ stat, sectorTotals, onClick }: {
+function CountryCard({ stat, sectorTotals, onClick, onCompare }: {
   stat: CountryStat;
   sectorTotals: Record<string, number>;
   onClick: () => void;
+  onCompare: (e: React.MouseEvent) => void;
 }) {
   const flag = COUNTRY_FLAGS[stat.country] ?? "🌍";
   const topSector = Object.entries(sectorTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
@@ -119,6 +120,17 @@ function CountryCard({ stat, sectorTotals, onClick }: {
       </div>
 
       <SectorMiniBar sectorTotals={sectorTotals} />
+
+      {/* Compare button — shown on hover */}
+      <div className="mt-3 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onCompare}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
+        >
+          <GitCompareArrows className="w-3.5 h-3.5" />
+          Compare
+        </button>
+      </div>
     </button>
   );
 }
@@ -212,6 +224,10 @@ export default function CountriesIndex() {
                 stat={stat}
                 sectorTotals={sectorByCountry[stat.country] ?? {}}
                 onClick={() => navigate(`/countries/${encodeURIComponent(stat.country)}`)}
+                onCompare={(e) => {
+                  e.stopPropagation();
+                  navigate(`/compare?countries=${encodeURIComponent(stat.country)}`);
+                }}
               />
             ))}
           </div>

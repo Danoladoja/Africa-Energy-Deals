@@ -11,7 +11,7 @@ import { WatchButton } from "@/components/watch-button";
 import { SEOMeta } from "@/components/seo-meta";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Shield,
-  TrendingUp, Building2, DollarSign, Layers, Activity,
+  TrendingUp, Building2, DollarSign, Layers, Activity, GitCompareArrows,
 } from "lucide-react";
 
 const API = "/api";
@@ -225,6 +225,13 @@ export default function CountryProfile() {
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">{name}</h1>
                 <WatchButton watchType="country" watchValue={name} label={`Watch ${name}`} size="sm" />
+                <button
+                  onClick={() => navigate(`/compare?countries=${encodeURIComponent(name)}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/10 text-slate-400 hover:text-[#00e676] hover:border-[#00e676]/30 hover:bg-[#00e676]/10 transition-all"
+                >
+                  <GitCompareArrows className="w-3.5 h-3.5" />
+                  Compare with…
+                </button>
               </div>
               {countryStat && (
                 <p className="text-slate-400 text-sm mt-0.5">{countryStat.region}</p>
