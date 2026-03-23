@@ -11,6 +11,7 @@ import { Layout } from "@/components/layout";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import DealTracker from "@/pages/deal-tracker";
+import DealDetail from "@/pages/deal-detail";
 import MapPage from "@/pages/map";
 import VizStudio from "@/pages/viz-studio";
 import DiscoveryPage from "@/pages/discovery";
@@ -89,6 +90,9 @@ function Router() {
       </Route>
       <Route path="/deals">
         {() => <AuthRoute component={DealTracker} />}
+      </Route>
+      <Route path="/deals/:id">
+        {() => <AuthRoute component={DealDetail} />}
       </Route>
       <Route path="/map">
         {() => <AuthRoute component={MapPage} />}
