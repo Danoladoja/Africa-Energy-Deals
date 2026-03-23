@@ -8,6 +8,8 @@ import authRouter from "./auth.js";
 import exportRouter from "./export.js";
 import nlqRouter from "./nlq.js";
 import watchesRouter from "./watches.js";
+import apiKeysRouter from "./api-keys.js";
+import institutionalRouter from "./institutional.js";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(scraperRouter);
 router.use(exportRouter);
 router.use(nlqRouter);
 router.use(watchesRouter);
+router.use(apiKeysRouter);
+router.use(institutionalRouter);
 
 export default router;

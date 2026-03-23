@@ -1,0 +1,560 @@
+openapi: "3.0.3"
+info:
+  title: AfriEnergy Tracker API
+  version: "1.0.0"
+  description: |
+    The **AfriEnergy Tracker API** provides programmatic access to African energy investment 
+    transaction data — covering 123+ projects, 26 countries, and 8 sectors.
+
+    Built and maintained by **Africa Energy Pulse**.
+
+    ## Authentication
+
+    | Tier          | Key Required | Daily Limit | Use Case                        |
+    |---------------|-------------|-------------|----------------------------------|
+    | Free          | No          | 100 req/day | Exploration & prototyping        |
+    | Institutional | Yes         | 10,000/day  | Production dashboards & research |
+
+    To use an institutional key, pass the header:
+    ```
+    X-API-Key: aet_your_key_here
+    ```
+
+    Request a key at `POST /api/keys/request`.
+
+  contact:
+    name: Africa Energy Pulse
+    email: api@afrienergypulse.com
+    url: https://afrienergytracker.io/api-docs
+
+servers:
+  - url: https://afrienergytracker.io/api
+    description: Production
+  - url: http://localhost:8080/api
+    description: Local development
+
+tags:
+  - name: Deals
+    description: Energy investment deals and projects
+  - name: Statistics
+    description: Aggregated analytics and market data
+  - name: Countries
+    description: Country-level investment data
+  - name: Investors
+    description: Developer and financier entities
+  - name: API Keys
+    description: Manage your API access
+  - name: Meta
+    description: Reference data
+
+paths:
+  # ── DEALS ──────────────────────────────────────────────────────────────────
+  /deals:
+    get:
+      tags: [Deals]
+      summary: List energy deals
+      description: |
+        Returns a paginated list of African energy investment deals with rich filtering. 
+        This is the primary endpoint for institutional API access.
+      parameters:
+        - name: country
+          in: query
+          schema: { type: string, example: "Nigeria" }
+          description: Filter by country name (partial match)
+        - name: region
+          in: query
+          schema: { type: string, enum: [East Africa, West Africa, North Africa, Southern Africa, Central Africa] }
+        - name: technology
+          in: query
+          schema: { type: string, enum: [Solar, Wind, Hydro, "Grid & Storage", "Oil & Gas", Coal, Nuclear, Bioenergy] }
+        - name: status
+          in: query
+          schema: { type: string }
+          description: Project status
+        - name: dealStage
+          in: query
+          schema: { type: string, enum: [Announced, Mandated, "Financial Close", Construction, Commissioned, Suspended] }
+        - name: developer
+          in: query
+          schema: { type: string, example: "Scatec" }
+        - name: minDealSize
+          in: query
+          schema: { type: number, example: 100 }
+          description: Minimum deal size in USD millions
+        - name: maxDealSize
+          in: query
+          schema: { type: number, example: 5000 }
+          description: Maximum deal size in USD millions
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Free-text search on project name
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DealsResponse" }
+              example:
+                data:
+                  - id: 42
+                    projectName: "Benban Solar Park"
+                    country: "Egypt"
+                    region: "North Africa"
+                    technology: "Solar"
+                    dealSizeUsdMn: 2000
+                    dealStage: "Commissioned"
+                    developer: "ACWA Power"
+                    announcedYear: 2017
+                    capacityMw: 1650
+                meta:
+                  total: 123
+                  page: 1
+                  limit: 50
+                  pages: 3
+
+  /projects:
+    get:
+      tags: [Deals]
+      summary: List projects (legacy alias)
+      description: Alias for `GET /deals`. Included for backwards compatibility.
+      parameters:
+        - name: country
+          in: query
+          schema: { type: string }
+        - name: technology
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Paginated project list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects: { type: array, items: { $ref: "#/components/schemas/Deal" } }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+
+  /projects/{id}:
+    get:
+      tags: [Deals]
+      summary: Get a single deal by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, example: 42 }
+      responses:
+        "200":
+          description: Deal detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deal" }
+        "404":
+          description: Not found
+
+  # ── STATISTICS ──────────────────────────────────────────────────────────────
+  /stats/summary:
+    get:
+      tags: [Statistics]
+      summary: Platform-wide aggregate stats
+      description: Returns totals for projects, investment, countries, and deal-stage breakdowns.
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SummaryStats" }
+              example:
+                totalProjects: 123
+                totalInvestmentUsdMn: 145600
+                totalCountries: 26
+                totalSectors: 8
+                totalDevelopers: 84
+                dealsByStage:
+                  Announced: 12
+                  "Financial Close": 28
+                  Commissioned: 55
+
+  /stats/by-technology:
+    get:
+      tags: [Statistics]
+      summary: Investment by sector / technology
+      responses:
+        "200":
+          description: Per-technology stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TechStat" }
+              example:
+                - technology: Solar
+                  projectCount: 40
+                  totalInvestmentUsdMn: 42000
+                  avgDealSizeUsdMn: 1050
+
+  /stats/by-country:
+    get:
+      tags: [Statistics]
+      summary: Investment by country
+      responses:
+        "200":
+          description: Per-country stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CountryStat" }
+
+  /stats/by-region:
+    get:
+      tags: [Statistics]
+      summary: Investment by African region
+      responses:
+        "200":
+          description: Per-region stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RegionStat" }
+
+  /stats/by-year:
+    get:
+      tags: [Statistics]
+      summary: Investment by announcement year
+      responses:
+        "200":
+          description: Yearly trends
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/YearStat" }
+
+  # ── COUNTRIES ───────────────────────────────────────────────────────────────
+  /countries:
+    get:
+      tags: [Countries]
+      summary: All countries with aggregated investment stats
+      description: Returns every country in the database with totals for investment, project count, capacity, and active technology sectors.
+      responses:
+        "200":
+          description: Countries list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CountriesResponse" }
+              example:
+                data:
+                  - country: Nigeria
+                    region: West Africa
+                    projectCount: 18
+                    totalInvestmentUsdMn: 28400
+                    avgDealSizeUsdMn: 1578
+                    totalCapacityMw: 3200
+                    technologies: "Hydro, Oil & Gas, Solar, Wind"
+                meta:
+                  total: 26
+
+  # ── INVESTORS ────────────────────────────────────────────────────────────────
+  /investors:
+    get:
+      tags: [Investors]
+      summary: Developer and financier entities
+      description: Lists all known developers/financiers with portfolio stats.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string, example: "IFC" }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Investors list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvestorsResponse" }
+              example:
+                data:
+                  - developer: "Scatec"
+                    projectCount: 7
+                    totalInvestmentUsdMn: 3200
+                    avgDealSizeUsdMn: 457
+                    countries: "Egypt, Kenya, Mozambique, Nigeria"
+                    technologies: "Solar, Wind"
+                    latestDealYear: 2023
+                meta:
+                  total: 84
+                  page: 1
+                  limit: 50
+
+  # ── API KEYS ─────────────────────────────────────────────────────────────────
+  /keys/request:
+    post:
+      tags: [API Keys]
+      summary: Request an API key
+      description: |
+        Creates a new API key for your organization and sends it to your email.
+
+        - **Free tier**: 100 requests/day, no X-API-Key required (IP-based)
+        - **Institutional tier**: 10,000 requests/day, X-API-Key header required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization, email]
+              properties:
+                organization:
+                  type: string
+                  example: "IEA Africa Research"
+                email:
+                  type: string
+                  format: email
+                  example: "analyst@iea.org"
+                tier:
+                  type: string
+                  enum: [free, institutional]
+                  default: free
+      responses:
+        "201":
+          description: Key created and sent to email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  tier: { type: string }
+                  rateLimit: { type: integer }
+        "400":
+          description: Invalid input
+        "409":
+          description: Key for this email already exists
+
+  /keys/validate:
+    get:
+      tags: [API Keys]
+      summary: Validate your API key
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Key details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  organization: { type: string }
+                  tier: { type: string }
+                  rateLimit: { type: integer }
+                  usedToday: { type: integer }
+                  remaining: { type: integer }
+        "401":
+          description: Invalid key
+
+  # ── META ─────────────────────────────────────────────────────────────────────
+  /technologies:
+    get:
+      tags: [Meta]
+      summary: List valid technology sectors
+      responses:
+        "200":
+          description: Technology list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  technologies:
+                    type: array
+                    items: { type: string }
+                    example: [Solar, Wind, Hydro, "Grid & Storage", "Oil & Gas", Coal, Nuclear, Bioenergy]
+
+  /deal-stages:
+    get:
+      tags: [Meta]
+      summary: List valid deal stages
+      responses:
+        "200":
+          description: Deal stages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stages:
+                    type: array
+                    items: { type: string }
+                    example: [Announced, Mandated, "Financial Close", Construction, Commissioned, Suspended]
+
+  /health:
+    get:
+      tags: [Meta]
+      summary: Health check
+      responses:
+        "200":
+          description: Server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  timestamp: { type: string, format: date-time }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Institutional API key. Request one at `POST /api/keys/request`.
+
+  schemas:
+    Deal:
+      type: object
+      properties:
+        id: { type: integer }
+        projectName: { type: string }
+        country: { type: string }
+        region: { type: string }
+        technology: { type: string }
+        dealSizeUsdMn: { type: number, nullable: true }
+        status: { type: string }
+        dealStage: { type: string, nullable: true }
+        developer: { type: string, nullable: true }
+        financiers: { type: string, nullable: true }
+        dfiInvolvement: { type: string, nullable: true }
+        offtaker: { type: string, nullable: true }
+        capacityMw: { type: number, nullable: true }
+        announcedYear: { type: integer, nullable: true }
+        closedYear: { type: integer, nullable: true }
+        debtEquitySplit: { type: string, nullable: true }
+        grantComponent: { type: number, nullable: true }
+        description: { type: string, nullable: true }
+        sourceUrl: { type: string, nullable: true }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    DealsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Deal" }
+        meta:
+          type: object
+          properties:
+            total: { type: integer }
+            page: { type: integer }
+            limit: { type: integer }
+            pages: { type: integer }
+
+    CountryStat:
+      type: object
+      properties:
+        country: { type: string }
+        region: { type: string }
+        totalInvestmentUsdMn: { type: number }
+        projectCount: { type: integer }
+
+    RegionStat:
+      type: object
+      properties:
+        region: { type: string }
+        totalInvestmentUsdMn: { type: number }
+        projectCount: { type: integer }
+
+    TechStat:
+      type: object
+      properties:
+        technology: { type: string }
+        projectCount: { type: integer }
+        totalInvestmentUsdMn: { type: number }
+        avgDealSizeUsdMn: { type: number }
+
+    YearStat:
+      type: object
+      properties:
+        year: { type: integer }
+        projectCount: { type: integer }
+        totalInvestmentUsdMn: { type: number }
+
+    SummaryStats:
+      type: object
+      properties:
+        totalProjects: { type: integer }
+        totalInvestmentUsdMn: { type: number }
+        totalCountries: { type: integer }
+        totalSectors: { type: integer }
+        totalDevelopers: { type: integer }
+        dealsByStage:
+          type: object
+          additionalProperties: { type: integer }
+
+    CountriesResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              country: { type: string }
+              region: { type: string }
+              projectCount: { type: integer }
+              totalInvestmentUsdMn: { type: number }
+              avgDealSizeUsdMn: { type: number }
+              totalCapacityMw: { type: number }
+              technologies: { type: string }
+        meta:
+          type: object
+          properties:
+            total: { type: integer }
+
+    InvestorsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              developer: { type: string }
+              projectCount: { type: integer }
+              totalInvestmentUsdMn: { type: number }
+              avgDealSizeUsdMn: { type: number }
+              countries: { type: string }
+              technologies: { type: string }
+              latestDealYear: { type: integer }
+        meta:
+          type: object
+          properties:
+            total: { type: integer }
+            page: { type: integer }
+            limit: { type: integer }

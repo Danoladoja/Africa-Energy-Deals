@@ -1,6 +1,14 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import { createRequire } from "module";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import router from "./routes";
+
+const require = createRequire(import.meta.url);
+const swaggerUi = require("swagger-ui-express") as typeof import("swagger-ui-express");
+const yaml = require("js-yaml") as typeof import("js-yaml");
 
 const app: Express = express();
 
@@ -72,6 +80,34 @@ setInterval(() => {
 app.use(rateLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Swagger UI at /api/docs
+try {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const specPath = join(__dirname, "openapi.yaml");
+  const spec = yaml.load(readFileSync(specPath, "utf8")) as Record<string, unknown>;
+
+  app.use("/api/docs", swaggerUi.serve);
+  app.get("/api/docs", swaggerUi.setup(spec, {
+    customSiteTitle: "AfriEnergy Tracker API",
+    customCss: `
+      body { background: #0b0f1a !important; }
+      .swagger-ui .topbar { background: #0b0f1a !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .swagger-ui .topbar-wrapper .link { visibility: hidden; }
+      .swagger-ui .info .title { color: #00e676 !important; }
+      .swagger-ui .scheme-container { background: #0f1724 !important; }
+    `,
+  }));
+  // Serve the raw spec
+  app.get("/api/openapi.json", (_req, res) => res.json(spec));
+  app.get("/api/openapi.yaml", (_req, res) => {
+    res.setHeader("Content-Type", "text/yaml");
+    res.send(readFileSync(specPath, "utf8"));
+  });
+  console.log("[Swagger] Docs at /api/docs");
+} catch (err) {
+  console.warn("[Swagger] Failed to load spec:", err);
+}
 
 // Mount API routes
 app.use("/api", router);

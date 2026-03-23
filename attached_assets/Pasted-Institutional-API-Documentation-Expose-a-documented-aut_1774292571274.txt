@@ -1,0 +1,40 @@
+Institutional API & Documentation
+
+```
+Expose a documented, authenticated REST API for institutional users with Swagger/OpenAPI documentation.
+
+CURRENT API: All endpoints are public, no auth for reads. API key required for writes (X-API-Key header).
+
+REQUIREMENTS:
+
+1. API KEY MANAGEMENT:
+   - New table: api_keys (id, key, organization, email, tier: "free" | "institutional", rateLimit, createdAt, lastUsedAt)
+   - Free tier: 100 requests/day, no auth needed (current behavior)
+   - Institutional tier: 10,000 requests/day, requires X-API-Key header
+   - POST /api/keys/request — accepts { organization, email, tier }, sends API key via email
+   - Middleware: count requests per key, enforce rate limits, return 429 when exceeded
+
+2. ENHANCED ENDPOINTS for institutional users:
+   - GET /api/deals — alias for /api/projects with full filtering (matches institutional API naming convention)
+   - GET /api/countries — returns all countries with aggregated stats (currently available via /api/stats/by-country)
+   - GET /api/investors — returns developer/financier entities with portfolio stats
+   - GET /api/technologies — already exists; document it
+   - All endpoints return consistent JSON structure: { data: [...], meta: { total, page, limit } }
+
+3. SWAGGER/OPENAPI DOCUMENTATION:
+   - Create an OpenAPI 3.0 spec file (openapi.yaml or generated from route decorators)
+   - Serve interactive docs at /api/docs using swagger-ui-express
+   - Document every endpoint: description, parameters, request/response schemas, example payloads
+   - Include authentication section explaining the API key system
+
+4. FRONTEND API DOCS PAGE:
+   - Create /api-docs page in the React app with:
+     - Getting started guide
+     - Authentication instructions
+     - "Request API Key" form
+     - Interactive endpoint explorer (fetches from the Swagger spec)
+     - Code examples in Python, JavaScript, and curl
+   - Add "API Docs" to sidebar under a "DEVELOPER" section
+
+STYLING: API docs page uses a clean, technical design. Code blocks with syntax highlighting. Match Stripe/Vercel docs aesthetic in dark mode.
+```

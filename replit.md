@@ -86,6 +86,31 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - `POST /api/scraper/review/:id` — approve or reject a project (`{action: "approve"|"reject"}`)
 - `POST /api/scraper/review-all` — bulk approve or reject all pending
 
+### Institutional API Endpoints
+- `GET /api/deals` — alias for `/api/projects`, returns `{ data: [...], meta: { total, page, limit, pages } }`
+- `GET /api/countries` — all countries with aggregated stats (investment, count, capacity, sectors)
+- `GET /api/investors` — developer/financier entities with portfolio stats
+- `POST /api/keys/request` — request an API key `{organization, email, tier: "free"|"institutional"}`
+- `GET /api/keys/validate` — validate an API key, check usage (X-API-Key header required)
+
+### API Key System
+- DB table: `api_keys` (key, organization, email, tier, rateLimit, createdAt, lastUsedAt)
+- Free tier: 100 req/day, no key needed
+- Institutional tier: 10,000 req/day, `X-API-Key: aet_...` header
+- Keys are generated with `crypto.randomBytes(24)`, prefixed `aet_`
+- Daily usage tracked in-memory (resets on restart); rate limit enforced via `apiKeyMiddleware`
+
+### Swagger / OpenAPI
+- Spec file: `artifacts/api-server/src/openapi.yaml`
+- Interactive docs: `GET /api/docs` (swagger-ui-express)
+- Raw spec: `GET /api/openapi.json` or `GET /api/openapi.yaml`
+
+### Embeddable Widgets
+- `GET /energy-tracker/embed/deals?technology=&country=&limit=&theme=` — compact deal card widget
+- `GET /energy-tracker/embed/chart?type=&groupBy=&metric=&title=` — standalone recharts embed
+- Both are public routes (no auth); suitable for iframe embedding
+- Viz Studio "Embed" button opens a modal with live iframe preview + copy-able code snippets
+
 ### API Endpoints (auth + watches)
 - `POST /api/auth/email` — send magic link (returns `devLink` in dev mode)
 - `GET /api/auth/verify?token=` — verify magic link token → `{sessionToken, email}`

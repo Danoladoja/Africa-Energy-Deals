@@ -23,6 +23,7 @@ import WatchesPage from "@/pages/watches";
 import AuthVerify from "@/pages/auth-verify";
 import EmbedDeals from "@/pages/embed-deals";
 import EmbedChart from "@/pages/embed-chart";
+import ApiDocsPage from "@/pages/api-docs";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -129,6 +130,7 @@ function Router() {
       <Route path="/auth/verify" component={AuthVerify} />
       <Route path="/embed/deals" component={EmbedDeals} />
       <Route path="/embed/chart" component={EmbedChart} />
+      <Route path="/api-docs" component={ApiDocsPage} />
       <Route component={NotFound} />
     </Switch>
   );
