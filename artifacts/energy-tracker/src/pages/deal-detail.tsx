@@ -7,7 +7,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import {
   ArrowLeft, MapPin, ExternalLink, Calendar, DollarSign,
   Zap, Activity, Building2, Users, Landmark, ShoppingCart,
-  GitBranch, Gift, Map,
+  GitBranch, Gift, Map, GitCompareArrows,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { WatchButton } from "@/components/watch-button";
@@ -250,6 +250,13 @@ export default function DealDetail() {
                 {project.developer && (
                   <WatchButton watchType="developer" watchValue={project.developer} label={`Watch ${project.developer}`} size="sm" />
                 )}
+                <button
+                  onClick={() => navigate(`/deals?compareId=${project.id}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-white/10 hover:border-[#00e676]/40 hover:text-[#00e676] hover:bg-[#00e676]/5 transition-all"
+                >
+                  <GitCompareArrows className="w-3.5 h-3.5" />
+                  Compare with…
+                </button>
               </div>
             </div>
 

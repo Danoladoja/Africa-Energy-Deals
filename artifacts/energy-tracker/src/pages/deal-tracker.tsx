@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta, datasetSchema } from "@/components/seo-meta";
@@ -8,6 +9,7 @@ import {
   Search, ChevronLeft, ChevronRight,
   MapPin, ExternalLink, Download, ChevronDown,
   FileText, Sheet, FileJson, Sparkles, X as XIcon,
+  GitCompareArrows, Check,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
@@ -310,6 +312,175 @@ function ExportDropdown({ filters }: {
   );
 }
 
+// ── Comparison Panel ─────────────────────────────────────────────────────────
+
+type AnyProject = Record<string, any>;
+
+const COMPARE_ROWS: { label: string; key: string; fmt?: (v: any) => string }[] = [
+  { label: "Country",        key: "country" },
+  { label: "Region",         key: "region" },
+  { label: "Sector",         key: "technology" },
+  { label: "Deal Size",      key: "dealSizeUsdMn",  fmt: (v) => v ? (v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v}M`) : "—" },
+  { label: "Capacity (MW)",  key: "capacityMw",     fmt: (v) => v ? `${v} MW` : "—" },
+  { label: "Status",         key: "status",         fmt: (v) => v ?? "—" },
+  { label: "Deal Stage",     key: "dealStage",      fmt: (v) => v ?? "—" },
+  { label: "Year Announced", key: "announcedYear",  fmt: (v) => v ? String(v) : "—" },
+  { label: "Developer",      key: "developer",      fmt: (v) => v ?? "—" },
+  { label: "Financiers",     key: "financiers",     fmt: (v) => v ?? "—" },
+];
+
+function exportComparisonCSV(deals: AnyProject[]) {
+  const headers = ["Attribute", ...deals.map((d) => d.projectName)];
+  const rows = COMPARE_ROWS.map(({ label, key, fmt }) => [
+    label,
+    ...deals.map((d) => {
+      const v = d[key];
+      return fmt ? fmt(v) : (v ?? "—");
+    }),
+  ]);
+  const lines = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `deal_comparison_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ComparisonPanel({
+  deals,
+  onClose,
+  onNavigate,
+}: {
+  deals: AnyProject[];
+  onClose: () => void;
+  onNavigate: (id: number) => void;
+}) {
+  const sizes = deals.map((d) => d.dealSizeUsdMn ?? null).filter(Boolean) as number[];
+  const maxSize = sizes.length ? Math.max(...sizes) : null;
+  const minSize = sizes.length > 1 ? Math.min(...sizes) : null;
+
+  function dealSizeStyle(val: any) {
+    if (!val || sizes.length < 2) return {};
+    if (val === maxSize) return { color: "#00e676" };
+    if (val === minSize) return { color: "#475569" };
+    return {};
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+        onClick={onClose}
+      />
+
+      {/* Panel slides in from right */}
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-[#0b0f1a] border-l border-white/10 shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-3">
+            <GitCompareArrows className="w-5 h-5 text-[#00e676]" />
+            <h2 className="text-lg font-bold text-white">Deal Comparison</h2>
+            <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">
+              {deals.length} deal{deals.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportComparisonCSV(deals)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Comparison table */}
+        <div className="flex-1 overflow-auto p-6">
+          {/* Deal name header row */}
+          <div className="grid mb-3" style={{ gridTemplateColumns: `180px repeat(${deals.length}, 1fr)` }}>
+            <div />
+            {deals.map((d) => {
+              const color = SECTOR_COLORS[d.technology] ?? FALLBACK_SECTOR_COLOR;
+              return (
+                <div key={d.id} className="px-4 pb-3 border-b-2" style={{ borderColor: color }}>
+                  <p className="font-bold text-white text-sm leading-tight line-clamp-2">{d.projectName}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-xs text-slate-400">{d.technology}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Attribute rows */}
+          {COMPARE_ROWS.map(({ label, key, fmt }, rowIdx) => (
+            <div
+              key={key}
+              className="grid items-center"
+              style={{ gridTemplateColumns: `180px repeat(${deals.length}, 1fr)`, backgroundColor: rowIdx % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}
+            >
+              <div className="px-2 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
+              {deals.map((d) => {
+                const raw = d[key];
+                const display = fmt ? fmt(raw) : (raw ?? "—");
+                const style = key === "dealSizeUsdMn" ? dealSizeStyle(raw) : {};
+                return (
+                  <div key={d.id} className="px-4 py-3 text-sm font-medium text-slate-200" style={style}>
+                    {display === "—" ? <span className="text-slate-600">—</span> : display}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* View Details row */}
+          <div
+            className="grid mt-4 pt-4 border-t border-white/5"
+            style={{ gridTemplateColumns: `180px repeat(${deals.length}, 1fr)` }}
+          >
+            <div />
+            {deals.map((d) => (
+              <div key={d.id} className="px-4 py-2">
+                <button
+                  onClick={() => onNavigate(d.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-[#00e676] border border-[#00e676]/30 hover:bg-[#00e676]/10 transition-colors"
+                >
+                  View Details
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-white/10 shrink-0 flex items-center justify-between">
+          <p className="text-xs text-slate-600">
+            Deal Size: <span className="text-[#00e676]">▲ highest</span>
+            {sizes.length > 1 && <span className="text-slate-600"> · <span className="text-slate-500">lowest</span></span>}
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/10"
+          >
+            Close &amp; return to table
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DealTracker() {
   const rawSearch = useSearch();
@@ -331,6 +502,47 @@ export default function DealTracker() {
   const [nlqResult, setNlqResult]     = useState<NlqResult | null>(null);
   const [nlqLoading, setNlqLoading]   = useState(false);
   const nlqMode = nlqResult !== null || nlqLoading;
+
+  // Deal comparison selection state
+  const [selectedDeals, setSelectedDeals] = useState<Map<number, AnyProject>>(new Map());
+  const [compareOpen, setCompareOpen]     = useState(false);
+  const [maxToast, setMaxToast]           = useState(false);
+
+  // Pre-select a deal from URL param ?compareId=X (coming from deal detail page)
+  const preSelectId = params.get("compareId") ? Number(params.get("compareId")) : null;
+  const { data: preSelectProject } = useQuery({
+    queryKey: ["project-preselect", preSelectId],
+    queryFn: async () => {
+      if (!preSelectId) return null;
+      const r = await fetch(`/api/projects/${preSelectId}`);
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!preSelectId,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    if (preSelectProject && !selectedDeals.has(preSelectProject.id)) {
+      setSelectedDeals((prev) => new Map(prev).set(preSelectProject.id, preSelectProject));
+    }
+  }, [preSelectProject]);
+
+  const toggleSelect = useCallback((project: AnyProject, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedDeals((prev) => {
+      const next = new Map(prev);
+      if (next.has(project.id)) {
+        next.delete(project.id);
+      } else if (next.size >= 3) {
+        setMaxToast(true);
+        setTimeout(() => setMaxToast(false), 3000);
+        return prev;
+      } else {
+        next.set(project.id, project);
+      }
+      return next;
+    });
+  }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -607,17 +819,28 @@ export default function DealTracker() {
               No projects found matching your criteria.
             </div>
           ) : (
-            data?.projects.map((project) => (
+            data?.projects.map((project) => {
+              const isChecked = selectedDeals.has(project.id);
+              return (
               <div
                 key={project.id}
                 onClick={() => navigate(`/deals/${project.id}`)}
-                className="bg-card border border-card-border rounded-xl p-4 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all active:scale-[0.99] group"
+                className={`bg-card border rounded-xl p-4 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all active:scale-[0.99] group ${isChecked ? "border-primary/40 bg-primary/5" : "border-card-border"}`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-semibold text-sm leading-tight flex-1 group-hover:text-primary transition-colors">{project.projectName}</h3>
-                  <Badge variant="outline" className={`${getStatusColor(project.status)} text-xs shrink-0`}>
-                    {project.status}
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isChecked ? "bg-primary border-primary" : "border-border"}`}
+                      onClick={(e) => toggleSelect(project as AnyProject, e)}
+                      title="Select to compare"
+                    >
+                      {isChecked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                    </div>
+                    <Badge variant="outline" className={`${getStatusColor(project.status)} text-xs shrink-0`}>
+                      {project.status}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3 flex-wrap">
                   <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{project.country}</span>
@@ -649,7 +872,8 @@ export default function DealTracker() {
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
 
           {/* Mobile Pagination */}
@@ -675,6 +899,9 @@ export default function DealTracker() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-background/50 border-b border-border text-muted-foreground text-sm">
+                  <th className="py-4 pl-4 pr-2 w-10">
+                    <GitCompareArrows className="w-3.5 h-3.5 text-muted-foreground/40" title="Select to compare" />
+                  </th>
                   <th className="font-semibold py-4 px-6">Project Name</th>
                   <th className="font-semibold py-4 px-6">Country</th>
                   <th className="font-semibold py-4 px-6">Sector</th>
@@ -687,6 +914,7 @@ export default function DealTracker() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i}>
+                      <td className="py-4 pl-4 pr-2"><div className="w-5 h-5 bg-muted rounded animate-pulse"></div></td>
                       <td className="py-4 px-6"><div className="h-5 bg-muted rounded w-48 animate-pulse"></div></td>
                       <td className="py-4 px-6"><div className="h-5 bg-muted rounded w-24 animate-pulse"></div></td>
                       <td className="py-4 px-6"><div className="h-5 bg-muted rounded w-24 animate-pulse"></div></td>
@@ -697,55 +925,69 @@ export default function DealTracker() {
                   ))
                 ) : data?.projects.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
                       No projects found matching your criteria.
                     </td>
                   </tr>
                 ) : (
-                  data?.projects.map((project) => (
-                    <tr
-                      key={project.id}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer group"
-                      onClick={() => navigate(`/deals/${project.id}`)}
-                    >
-                      <td className="py-4 px-6 font-medium text-foreground group-hover:text-primary transition-colors">{project.projectName}</td>
-                      <td className="py-4 px-6 text-muted-foreground">{project.country}</td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_SECTOR_COLOR }} />
-                          {project.technology}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 font-mono text-sm">
-                        {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn}M` : 'Undisclosed'}
-                      </td>
-                      <td className="py-4 px-6">
-                        <Badge variant="outline" className={getStatusColor(project.status)}>
-                          {project.status}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {project.sourceUrl && (
-                            <a
-                              href={project.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="View source"
-                              className="p-2 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors opacity-0 group-hover:opacity-100"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                          <ShareButton text={dealShareText(project)} stopPropagation className="opacity-0 group-hover:opacity-100" />
-                          <div className="p-2 rounded-lg transition-colors text-muted-foreground/40 group-hover:text-primary group-hover:bg-primary/10">
-                            <ChevronRight className="w-4 h-4" />
+                  data?.projects.map((project) => {
+                    const isChecked = selectedDeals.has(project.id);
+                    return (
+                      <tr
+                        key={project.id}
+                        className={`hover:bg-muted/30 transition-colors cursor-pointer group ${isChecked ? "bg-primary/5" : ""}`}
+                        onClick={() => navigate(`/deals/${project.id}`)}
+                      >
+                        <td className="py-4 pl-4 pr-2" onClick={(e) => toggleSelect(project as AnyProject, e)}>
+                          <div
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all shrink-0 ${
+                              isChecked
+                                ? "bg-primary border-primary"
+                                : "border-border group-hover:border-primary/50"
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3 h-3 text-primary-foreground" />}
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="py-4 px-6 font-medium text-foreground group-hover:text-primary transition-colors">{project.projectName}</td>
+                        <td className="py-4 px-6 text-muted-foreground">{project.country}</td>
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_SECTOR_COLOR }} />
+                            {project.technology}
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 font-mono text-sm">
+                          {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn}M` : 'Undisclosed'}
+                        </td>
+                        <td className="py-4 px-6">
+                          <Badge variant="outline" className={getStatusColor(project.status)}>
+                            {project.status}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {project.sourceUrl && (
+                              <a
+                                href={project.sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="View source"
+                                className="p-2 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors opacity-0 group-hover:opacity-100"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                            <ShareButton text={dealShareText(project)} stopPropagation className="opacity-0 group-hover:opacity-100" />
+                            <div className="p-2 rounded-lg transition-colors text-muted-foreground/40 group-hover:text-primary group-hover:bg-primary/10">
+                              <ChevronRight className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -772,7 +1014,50 @@ export default function DealTracker() {
           </>
         )}
 
+        {/* Floating action bar — appears when deals are selected */}
+        {selectedDeals.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-3 bg-[#0b0f1a] border border-[#00e676]/30 rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-sm">
+            <span className="text-sm font-medium text-slate-300">
+              <span className="text-[#00e676] font-bold">{selectedDeals.size}</span>{" "}
+              deal{selectedDeals.size !== 1 ? "s" : ""} selected
+            </span>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={() => setCompareOpen(true)}
+              disabled={selectedDeals.size < 2}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-[#00e676] text-[#0b0f1a] hover:bg-[#00e676]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <GitCompareArrows className="w-4 h-4" />
+              Compare
+            </button>
+            <button
+              onClick={() => setSelectedDeals(new Map())}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Max-3 toast */}
+        {maxToast && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-400 shadow-xl whitespace-nowrap">
+            Select up to 3 deals to compare
+          </div>
+        )}
+
       </PageTransition>
+
+      {/* Comparison Panel (portal-like, rendered outside PageTransition so it overlays everything) */}
+      {compareOpen && selectedDeals.size >= 2 && (
+        <ComparisonPanel
+          deals={Array.from(selectedDeals.values())}
+          onClose={() => setCompareOpen(false)}
+          onNavigate={(id) => { setCompareOpen(false); navigate(`/deals/${id}`); }}
+        />
+      )}
+
     </Layout>
   );
 }

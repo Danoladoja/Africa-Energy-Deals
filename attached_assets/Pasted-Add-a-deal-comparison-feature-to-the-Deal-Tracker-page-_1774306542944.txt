@@ -1,0 +1,43 @@
+Add a deal comparison feature to the Deal Tracker page that lets users select 2-3 deals and compare them side-by-side.
+
+CURRENT STATE: The Deal Tracker at /energy-tracker/deals shows a table of projects with columns: Project Name, Country, Sector, Deal Size, Status, Actions. Each row has action buttons.
+
+REQUIREMENTS:
+
+1. SELECTION MODE:
+   - Add a checkbox column as the first column in the deal table
+   - When 1+ deals are checked, show a floating action bar at the bottom of the page: "X deals selected — Compare | Clear"
+   - Limit selection to 3 deals. If user tries to check a 4th, show a toast: "Select up to 3 deals to compare"
+   - The checkboxes should persist across pagination (store selected deal IDs in state)
+
+2. COMPARISON VIEW:
+   - Clicking "Compare" opens a modal or slides out a panel (not a new page — keep it in context)
+   - Display a comparison table with deals as columns and attributes as rows:
+
+     | Attribute          | Deal A              | Deal B              | Deal C          |
+     |--------------------|---------------------|---------------------|-----------------|
+     | Project Name       | Benban Solar Park   | Lake Turkana Wind   | Dangote Gas     |
+     | Country            | Egypt               | Kenya               | Nigeria         |
+     | Region             | North Africa        | East Africa         | West Africa     |
+     | Sector             | Solar               | Wind                | Oil & Gas       |
+     | Deal Size          | $2,000M             | $694M               | $2,500M         |
+     | Capacity (MW)      | 1,650               | 310                 | —               |
+     | Status             | Operational         | Operational         | Active          |
+     | Deal Stage         | Commissioned        | Commissioned        | Financial Close |
+     | Year Announced     | 2017                | 2014                | 2019            |
+     | Developer          | —                   | —                   | Dangote Group   |
+     | Financiers         | IFC, EBRD           | AfDB, EIB           | —               |
+
+   - Highlight the highest deal size in green, lowest in muted gray
+   - Show "—" for missing data
+
+3. ACTIONS in comparison view:
+   - "View Details" button under each deal (links to /energy-tracker/deals/:id)
+   - "Export Comparison" button that downloads the comparison as CSV
+   - "Close" button to return to the deal table with selections preserved
+
+4. QUICK COMPARE from deal detail page:
+   - On any deal detail page (/energy-tracker/deals/:id), add a "Compare with..." button
+   - Clicking it navigates to the Deal Tracker with that deal pre-selected and opens a search to pick a second deal
+
+STYLING: Comparison table uses alternating row backgrounds. The floating action bar should be fixed to the bottom with a subtle shadow. Modal/panel slides in from the right with a semi-transparent backdrop.
