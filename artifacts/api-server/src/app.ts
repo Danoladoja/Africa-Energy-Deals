@@ -1,9 +1,9 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import { createRequire } from "module";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
 import router from "./routes";
 
 const require = createRequire(import.meta.url);
@@ -111,5 +111,21 @@ try {
 
 // Mount API routes
 app.use("/api", router);
+
+// Serve the built frontend and SPA fallback for /energy-tracker/*
+// This enables client-side routing on direct URL access and page refresh.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const clientDistPath = resolve(__dirname, "../../energy-tracker/dist/public");
+const clientIndexHtml = join(clientDistPath, "index.html");
+
+if (existsSync(clientDistPath)) {
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use("/energy-tracker", express.static(clientDistPath, { index: false }));
+
+  // Catch-all: return index.html for any /energy-tracker/* path not matched above
+  app.get("/energy-tracker/*splat", (_req: Request, res: Response) => {
+    res.sendFile(clientIndexHtml);
+  });
+}
 
 export default app;
