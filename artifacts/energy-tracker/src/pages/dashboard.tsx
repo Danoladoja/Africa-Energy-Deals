@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useGetSummaryStats } from "@workspace/api-client-react";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButton } from "@/components/share-button";
+import { generateDashboardPdf } from "@/utils/generate-dashboard-pdf";
 
 const API = "/api";
 
@@ -426,6 +427,33 @@ export default function Dashboard() {
     return `rgba(0,${g},${b},${0.3 + 0.6 * t})`;
   }
 
+  /* ── PDF export ── */
+  const handleDownloadPdf = useCallback(() => {
+    /* Build country rows from heatmapData */
+    const countryTotals: Record<string, { investment: number; count: number }> = {};
+    for (const p of filtered) {
+      if (!countryTotals[p.country]) countryTotals[p.country] = { investment: 0, count: 0 };
+      countryTotals[p.country].investment += p.dealSizeUsdMn ?? 0;
+      countryTotals[p.country].count++;
+    }
+    const countryRows = Object.entries(countryTotals)
+      .sort((a, b) => b[1].investment - a[1].investment)
+      .slice(0, 10)
+      .map(([country, v]) => ({ country, ...v }));
+
+    generateDashboardPdf({
+      totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
+      totalProjects:        summary?.totalProjects ?? filtered.length,
+      totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
+      totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
+      sectors:              techCountData,
+      transition:           transitionData,
+      countries:            countryRows,
+      yearRange,
+      filters: { countries: selCountries, techs: selTechs },
+    });
+  }, [filtered, summary, techCountData, transitionData, yearRange, selCountries, selTechs]);
+
   const TransitionTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
@@ -466,6 +494,7 @@ export default function Dashboard() {
               ? `🌍 Africa Energy Investment: ${fmt(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries.`
               : "🌍 Africa Energy Investment Tracker"}
             variant="icon-label"
+            onDownloadPdf={handleDownloadPdf}
             className="border border-white/10 rounded-xl px-3 py-2 bg-[#1e293b] hover:bg-white/10 self-start sm:self-auto"
           />
         </header>

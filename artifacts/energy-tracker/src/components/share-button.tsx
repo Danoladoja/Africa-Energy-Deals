@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Share2, Copy, Check, X } from "lucide-react";
+import { Share2, Copy, Check, X, FileDown } from "lucide-react";
 import { toPng } from "html-to-image";
 
 /* ── Inline brand icons ───────────────────────────────────────────── */
@@ -79,6 +79,8 @@ export interface ShareButtonProps {
   url?: string;
   /** Optional chart container ref — enables "Share image" via Web Share API */
   chartRef?: React.RefObject<HTMLDivElement | null>;
+  /** Optional PDF generator — adds "Download PDF" option to the dropdown */
+  onDownloadPdf?: () => void;
   /** Additional classes on the trigger button */
   className?: string;
   /** Button variant */
@@ -92,6 +94,7 @@ export function ShareButton({
   text,
   url,
   chartRef,
+  onDownloadPdf,
   className = "",
   variant = "icon",
   stopPropagation = false,
@@ -239,6 +242,20 @@ export function ShareButton({
               <Share2 className="w-4 h-4 shrink-0" />
               <span>{sharingImage ? "Preparing…" : "Share chart image"}</span>
             </button>
+          )}
+
+          {/* Download PDF (only if onDownloadPdf provided) */}
+          {onDownloadPdf && (
+            <>
+              <div className="h-px bg-border my-2" />
+              <button
+                onClick={e => { e.stopPropagation(); onDownloadPdf(); setOpen(false); }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
+              >
+                <FileDown className="w-4 h-4 shrink-0" />
+                <span>Download PDF overview</span>
+              </button>
+            </>
           )}
         </div>
       )}
