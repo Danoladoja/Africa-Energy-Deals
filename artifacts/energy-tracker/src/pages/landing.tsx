@@ -1,13 +1,161 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useGetSummaryStats } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart2, Globe, Layers, Cpu } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 import { EmailGateModal } from "@/components/email-gate-modal";
+import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
+import type { GeoJsonObject } from "geojson";
+
+const API = "/api";
+const AFRICA_GEOJSON_URL =
+  "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
+
+const DB_TO_GEO: Record<string, string> = {
+  "DRC":           "DR Congo",
+  "Côte d'Ivoire": "Ivory Coast",
+};
+
+interface CountryStat {
+  country: string;
+  totalInvestmentUsdMn: number;
+}
+
+function getCountryColor(investment: number, maxInvestment: number): string {
+  if (!investment) return "rgba(15, 23, 42, 0.55)";
+  const t = Math.log1p(investment) / Math.log1p(maxInvestment);
+  const g = Math.round(77 + (230 - 77) * t);
+  const b = Math.round(42 + (118 - 42) * t);
+  const alpha = 0.35 + 0.55 * t;
+  return `rgba(0,${g},${b},${alpha})`;
+}
 
 function formatBillions(mn: number) {
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
   return `$${mn.toFixed(0)}M`;
+}
+
+function LandingChoropleth({ onExplore }: { onExplore: () => void }) {
+  const { data: countryStats } = useQuery<CountryStat[]>({
+    queryKey: ["country-stats-landing"],
+    queryFn: () => fetch(`${API}/stats/by-country`).then(r => r.json()),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: geoJson } = useQuery<GeoJsonObject>({
+    queryKey: ["africa-geojson"],
+    queryFn: () => fetch(AFRICA_GEOJSON_URL).then(r => r.json()),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const { countryStatsMap, maxInvestment } = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of countryStats ?? []) {
+      m[DB_TO_GEO[s.country] ?? s.country] = s.totalInvestmentUsdMn;
+    }
+    const max = Math.max(1, ...Object.values(m));
+    return { countryStatsMap: m, maxInvestment: max };
+  }, [countryStats]);
+
+  const geoStyle = useCallback((feature: any) => {
+    const inv = countryStatsMap[feature.properties?.name] ?? 0;
+    return {
+      fillColor: getCountryColor(inv, maxInvestment),
+      fillOpacity: 1,
+      color: "#0f172a",
+      weight: 0.8,
+    };
+  }, [countryStatsMap, maxInvestment]);
+
+  const onEachFeature = useCallback((feature: any, layer: any) => {
+    const name = feature.properties?.name as string;
+    const inv = countryStatsMap[name];
+    if (inv) {
+      layer.bindTooltip(
+        `<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.12);padding:6px 10px;border-radius:8px;font-family:inherit;font-size:12px;color:#f1f5f9;">
+          <strong>${name}</strong><br/>
+          <span style="color:#00e676;font-weight:600;font-family:monospace;">${formatBillions(inv)}</span>
+        </div>`,
+        { sticky: true, className: "leaflet-choropleth-tooltip", offset: [10, 0] }
+      );
+    }
+  }, [countryStatsMap]);
+
+  const geoKey = useMemo(
+    () => `landing-geo-${Object.keys(countryStatsMap).length}`,
+    [countryStatsMap]
+  );
+
+  if (!geoJson) {
+    return (
+      <div
+        className="w-full rounded-2xl overflow-hidden border border-white/8"
+        style={{ height: 320, background: "#0d1526", display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <div className="text-white/20 text-sm">Loading map…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full rounded-2xl overflow-hidden border border-white/8 shadow-2xl" style={{ height: 320 }}>
+      <MapContainer
+        center={[2, 20]}
+        zoom={3}
+        style={{ height: "100%", width: "100%", zIndex: 0 }}
+        zoomControl={false}
+        scrollWheelZoom={false}
+        dragging={false}
+        doubleClickZoom={false}
+        attributionControl={false}
+      >
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+        {geoJson && countryStats && (
+          <GeoJSON
+            key={geoKey}
+            data={geoJson}
+            style={geoStyle}
+            onEachFeature={onEachFeature}
+          />
+        )}
+      </MapContainer>
+
+      {/* Gradient overlay bottom */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-20 pointer-events-none z-10"
+        style={{ background: "linear-gradient(to top, rgba(11,15,26,0.9), transparent)" }}
+      />
+
+      {/* CTA overlay */}
+      <div className="absolute inset-x-0 bottom-5 flex items-center justify-center z-20">
+        <button
+          onClick={onExplore}
+          className="bg-[#00e676]/90 hover:bg-[#00e676] text-[#0b0f1a] font-semibold text-sm px-6 py-2.5 rounded-full transition-all shadow-lg shadow-[#00e676]/20 backdrop-blur"
+        >
+          Explore the interactive map →
+        </button>
+      </div>
+
+      {/* Top-left label */}
+      <div className="absolute top-4 left-4 z-20 pointer-events-none">
+        <div className="bg-[#0b0f1a]/80 backdrop-blur border border-white/10 rounded-xl px-3 py-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Investment by Country</p>
+        </div>
+      </div>
+
+      {/* Color legend */}
+      <div className="absolute top-4 right-4 z-20 pointer-events-none">
+        <div className="bg-[#0b0f1a]/80 backdrop-blur border border-white/10 rounded-xl px-3 py-2 flex items-center gap-2">
+          <div
+            className="h-2 w-16 rounded-full"
+            style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
+          />
+          <span className="text-[10px] text-slate-400">Low → High</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Landing() {
@@ -77,7 +225,7 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <main className="flex-1 flex flex-col items-center justify-center text-center px-4 pt-16 pb-24 max-w-4xl mx-auto w-full">
+      <main className="flex-1 flex flex-col items-center justify-center text-center px-4 pt-16 pb-16 max-w-4xl mx-auto w-full">
         <h1 className="text-[2.6rem] sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-6 md:mb-8">
           <span className="text-white">Africa's Energy</span>
           <br />
@@ -95,7 +243,7 @@ export default function Landing() {
         {/* Search Bar */}
         <form
           onSubmit={handleExplore}
-          className="flex flex-col sm:flex-row items-stretch sm:items-center w-full max-w-lg gap-3 mb-16 md:mb-20"
+          className="flex flex-col sm:flex-row items-stretch sm:items-center w-full max-w-lg gap-3 mb-14 md:mb-16"
         >
           <div className="flex-1 flex items-center bg-white/8 border border-white/12 rounded-full px-5 py-3.5 gap-3 focus-within:border-[#00e676]/50 focus-within:bg-white/10 transition-all">
             <svg className="w-4 h-4 text-white/40 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -117,25 +265,13 @@ export default function Landing() {
           </button>
         </form>
 
-        {/* Stats — 2×2 on mobile, single row on md+ */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:flex md:items-start md:justify-center w-full max-w-2xl gap-y-6 md:gap-0">
           {[
-            {
-              value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—",
-              label: "Total Investment",
-            },
-            {
-              value: stats ? stats.totalProjects.toString() : "—",
-              label: "Total Projects",
-            },
-            {
-              value: stats ? stats.totalCountries.toString() : "—",
-              label: "Countries",
-            },
-            {
-              value: stats?.totalSectors != null ? stats.totalSectors.toString() : "—",
-              label: "Sectors",
-            },
+            { value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—", label: "Total Investment" },
+            { value: stats ? stats.totalProjects.toString() : "—", label: "Total Projects" },
+            { value: stats ? stats.totalCountries.toString() : "—", label: "Countries" },
+            { value: stats?.totalSectors != null ? stats.totalSectors.toString() : "—", label: "Sectors" },
           ].map((stat, i, arr) => (
             <div
               key={stat.label}
@@ -152,6 +288,15 @@ export default function Landing() {
         </div>
       </main>
 
+      {/* ── Mini Choropleth Map ── */}
+      <section className="px-4 pb-20 max-w-5xl mx-auto w-full">
+        <div className="text-center mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Where capital is flowing</h2>
+          <p className="text-white/40 text-sm">Total energy investment by country — darker green = higher capital deployment</p>
+        </div>
+        <LandingChoropleth onExplore={() => gatedNavigate("/map")} />
+      </section>
+
       {/* Features Section */}
       <section id="features" className="bg-white/3 border-t border-white/8 py-20 px-4">
         <div className="max-w-5xl mx-auto">
@@ -166,8 +311,8 @@ export default function Landing() {
               },
               {
                 icon: <Globe className="w-6 h-6 text-[#00e676]" />,
-                title: "Interactive Map",
-                desc: "Visualise project locations on a full-screen Africa map with color-coded markers by sector type and clickable detail popups.",
+                title: "Choropleth Map",
+                desc: "Visualise investment intensity by country with a GeoJSON choropleth layer — hover for stats, click through to country profiles.",
               },
               {
                 icon: <BarChart2 className="w-6 h-6 text-[#00e676]" />,

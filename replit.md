@@ -43,9 +43,11 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 ### Features
 1. **Dashboard** — Summary KPIs (total investment, projects, countries, technologies), investment trajectory chart, technology breakdown donut, regional breakdown bar chart
 2. **Deal Tracker** — Searchable/filterable table of all energy deals with project name, country, technology, deal size, investors, status. Pagination + detail modal.
-3. **Interactive Map** — Full-screen Leaflet map centered on Africa. Color-coded circle markers by technology. Click for popup details. Project sidebar list.
+3. **Interactive Map** — Full-screen Leaflet map with choropleth + marker hybrid. GeoJSON Africa choropleth colors countries by total investment (dark→bright green log scale, source: codeforgermany CDN). Hover country for tooltip (name, investment, project count). Click country → `/countries/:name`. Layer toggle (Both/Choropleth/Markers) at top. Legend (investment gradient + sector dots) bottom-left. Zoom-to-fit button. Enhanced marker popups: project name, country, Deal Stage badge, Deal Size, Capacity, Year, investors, "View Details →" button navigates to `/deals/:id`.
 4. **Visualization Studio** — Select chart type (bar/line/pie), metric (investment $ or project count), grouping (country/technology/region/year). Download as PNG via html2canvas.
-5. **AI Discovery** — AI agent that scrapes 6 RSS feeds (ESI Africa, PV Magazine Africa, Recharge News, The Africa Report, African Business, Reuters) daily at 06:00 UTC. Uses OpenAI gpt-5.2 to extract structured deal data. New deals land in a review queue (pending/approved/rejected). Human approves before publishing to the site.
+5. **Countries** (`/countries`, `/countries/:name`) — Country index with sector-mix bars + sortable cards. Profile pages with bar/donut charts, developer table, paginated projects.
+6. **Investors** (`/developers`, `/developers/:entityName`) — Auto-generated profiles for all entities appearing in 2+ deals, parsed from the `investors` field (comma-separated). Index table sortable by investment/deals/countries. Profile page: portfolio map, by-country bar chart, by-technology donut, sortable deals table.
+7. **AI Discovery** — AI agent that scrapes 6 RSS feeds (ESI Africa, PV Magazine Africa, Recharge News, The Africa Report, African Business, Reuters) daily at 06:00 UTC. Uses OpenAI gpt-5.2 to extract structured deal data. New deals land in a review queue (pending/approved/rejected). Human approves before publishing to the site.
 
 ### Database
 - Table: `energy_projects` in PostgreSQL

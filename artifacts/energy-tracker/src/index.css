@@ -165,3 +165,19 @@
   color: hsl(var(--foreground)) !important;
   border-bottom-color: hsl(var(--border)) !important;
 }
+
+/* Choropleth hover tooltip — override Leaflet defaults */
+.leaflet-choropleth-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.leaflet-choropleth-tooltip::before {
+  display: none !important;
+}
+.leaflet-tooltip.leaflet-choropleth-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}

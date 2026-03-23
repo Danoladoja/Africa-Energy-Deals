@@ -1,351 +1,467 @@
-import { useState } from "react";
-import { useListProjects } from "@workspace/api-client-react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { GeoJSON, MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-import { Zap, ExternalLink, MapPin, DollarSign, Calendar, Users, Activity } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { MapPin, Zap, Maximize2 } from "lucide-react";
 
-const techColors: Record<string, string> = {
-  "Solar":          "hsl(45, 95%, 55%)",
-  "Wind":           "hsl(189, 94%, 43%)",
-  "Hydro":          "hsl(217, 91%, 60%)",
-  "Grid & Storage": "hsl(174, 80%, 40%)",
-  "Oil & Gas":      "hsl(25, 90%, 50%)",
-  "Coal":           "hsl(20, 10%, 48%)",
-  "Nuclear":        "hsl(280, 65%, 60%)",
-  "Bioenergy":      "hsl(145, 60%, 42%)",
+const API = "/api";
+const AFRICA_GEOJSON_URL =
+  "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Solar":          "#f59e0b",
+  "Wind":           "#06b6d4",
+  "Hydro":          "#3b82f6",
+  "Grid & Storage": "#14b8a6",
+  "Oil & Gas":      "#f97316",
+  "Coal":           "#78716c",
+  "Nuclear":        "#a855f7",
+  "Bioenergy":      "#22c55e",
 };
+const DEFAULT_COLOR = "#94a3b8";
 
-const defaultColor = "hsl(215, 20%, 65%)";
+const DB_TO_GEO: Record<string, string> = {
+  "DRC":            "DR Congo",
+  "Côte d'Ivoire":  "Ivory Coast",
+};
+const GEO_TO_DB: Record<string, string> = Object.fromEntries(
+  Object.entries(DB_TO_GEO).map(([db, geo]) => [geo, db])
+);
 
-function getStatusColor(status: string) {
-  switch (status.toLowerCase()) {
-    case "operational": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/25";
-    case "under construction": return "bg-blue-500/15 text-blue-400 border-blue-500/25";
-    case "development": return "bg-amber-500/15 text-amber-400 border-amber-500/25";
-    case "active": return "bg-teal-500/15 text-teal-400 border-teal-500/25";
-    default: return "bg-gray-500/15 text-gray-400 border-gray-500/25";
-  }
+function fmt(mn: number | null | undefined): string {
+  if (!mn) return "N/A";
+  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
+  return `$${mn.toFixed(0)}M`;
+}
+
+function getCountryColor(investment: number, maxInvestment: number): string {
+  if (!investment) return "rgba(15, 23, 42, 0.6)";
+  const t = Math.log1p(investment) / Math.log1p(maxInvestment);
+  const g = Math.round(77 + (230 - 77) * t);
+  const b = Math.round(42 + (118 - 42) * t);
+  const alpha = 0.35 + 0.55 * t;
+  return `rgba(0,${g},${b},${alpha})`;
+}
+
+type LayerMode = "both" | "choropleth" | "markers";
+
+interface CountryStat {
+  country: string;
+  region: string;
+  projectCount: number;
+  totalInvestmentUsdMn: number;
+}
+
+interface Project {
+  id: number;
+  projectName: string;
+  country: string;
+  region: string;
+  technology: string;
+  dealSizeUsdMn?: number | null;
+  capacityMw?: number | null;
+  investors?: string | null;
+  developer?: string | null;
+  dealStage?: string | null;
+  status: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  announcedYear?: number | null;
+  sourceUrl?: string | null;
+}
+
+function MapController({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  const map = useMap();
+  useEffect(() => { mapRef.current = map; }, [map, mapRef]);
+  return null;
+}
+
+function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: string) => void }) {
+  const color = SECTOR_COLORS[project.technology] ?? DEFAULT_COLOR;
+  return (
+    <div style={{ fontFamily: "inherit", minWidth: 280, maxWidth: 310 }}>
+      <div
+        style={{
+          background: `linear-gradient(135deg, ${color}18, transparent)`,
+          borderBottom: `2px solid ${color}40`,
+          padding: "10px 14px 8px",
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color, marginBottom: 3 }}>
+          {project.technology}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>
+          {project.projectName}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>📍 {project.country}, {project.region}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
+            background: "rgba(100,116,139,0.15)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)",
+          }}>
+            {project.dealStage ?? project.status}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Deal Size</div>
+            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace" }}>{fmt(project.dealSizeUsdMn)}</div>
+          </div>
+          {project.capacityMw != null && (
+            <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
+              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Capacity</div>
+              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace" }}>
+                {project.capacityMw >= 1000 ? `${(project.capacityMw / 1000).toFixed(1)} GW` : `${project.capacityMw} MW`}
+              </div>
+            </div>
+          )}
+          {project.announcedYear != null && (
+            <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
+              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{project.announcedYear}</div>
+            </div>
+          )}
+        </div>
+
+        {project.developer && (
+          <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+            <span style={{ color: "#64748b" }}>Developer: </span>{project.developer}
+          </div>
+        )}
+
+        {project.investors && (
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Investors & Partners</div>
+            <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>{project.investors}</div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+          <button
+            onClick={() => navigate(`/deals/${project.id}`)}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 5, fontSize: 12, fontWeight: 600, color: "#0b0f1a",
+              background: "#00e676", border: "none", borderRadius: 8,
+              padding: "8px 12px", cursor: "pointer",
+            }}
+          >
+            View Details →
+          </button>
+          {project.sourceUrl && (
+            <a
+              href={project.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 600, color: "#94a3b8",
+                background: "rgba(148,163,184,0.08)", border: "1px solid rgba(148,163,184,0.20)",
+                borderRadius: 8, padding: "8px 12px", textDecoration: "none",
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function MapPage() {
-  const [activeProject, setActiveProject] = useState<any>(null);
-  const [legendOpen, setLegendOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
-  const { data, isLoading } = useListProjects({ limit: 500 });
-  const mapProjects = data?.projects.filter(p => p.latitude != null && p.longitude != null) || [];
+  const mapRef = useRef<L.Map | null>(null);
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [layerMode, setLayerMode] = useState<LayerMode>("both");
+  const [legendOpen, setLegendOpen] = useState(true);
+
+  const { data: projectsData, isLoading } = useQuery<{ projects: Project[] }>({
+    queryKey: ["all-projects-map"],
+    queryFn: () => fetch(`${API}/projects?limit=500`).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: countryStats } = useQuery<CountryStat[]>({
+    queryKey: ["country-stats-map"],
+    queryFn: () => fetch(`${API}/stats/by-country`).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: geoJson } = useQuery<GeoJsonObject>({
+    queryKey: ["africa-geojson"],
+    queryFn: () => fetch(AFRICA_GEOJSON_URL).then(r => r.json()),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const mapProjects = useMemo(
+    () => (projectsData?.projects ?? []).filter(p => p.latitude != null && p.longitude != null),
+    [projectsData]
+  );
+
+  const countryStatsMap = useMemo(() => {
+    const m: Record<string, CountryStat> = {};
+    for (const s of countryStats ?? []) {
+      m[DB_TO_GEO[s.country] ?? s.country] = s;
+    }
+    return m;
+  }, [countryStats]);
+
+  const maxInvestment = useMemo(
+    () => Math.max(1, ...Object.values(countryStatsMap).map(c => c.totalInvestmentUsdMn)),
+    [countryStatsMap]
+  );
+
+  const geoStyle = useCallback((feature: any) => {
+    const stat = countryStatsMap[feature.properties?.name];
+    return {
+      fillColor: stat?.totalInvestmentUsdMn
+        ? getCountryColor(stat.totalInvestmentUsdMn, maxInvestment)
+        : "rgba(15, 23, 42, 0.55)",
+      fillOpacity: 1,
+      color: "#0f172a",
+      weight: 1,
+    };
+  }, [countryStatsMap, maxInvestment]);
+
+  const onEachFeature = useCallback((feature: any, layer: any) => {
+    const name = feature.properties?.name as string;
+    const stat = countryStatsMap[name];
+
+    layer.bindTooltip(
+      `<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.12);padding:8px 12px;border-radius:10px;min-width:140px;font-family:inherit;pointer-events:none;">
+        <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">${name}</div>
+        ${stat
+          ? `<div style="font-size:12px;color:#00e676;font-weight:600;font-family:monospace;">${fmt(stat.totalInvestmentUsdMn)}</div>
+             <div style="font-size:11px;color:#64748b;margin-top:2px;">${stat.projectCount} project${stat.projectCount !== 1 ? "s" : ""}</div>`
+          : `<div style="font-size:11px;color:#475569;">No data tracked</div>`}
+      </div>`,
+      { sticky: true, className: "leaflet-choropleth-tooltip", offset: [12, 0] }
+    );
+
+    layer.on("mouseover", () => layer.setStyle({ weight: 2, color: "#00e676" }));
+    layer.on("mouseout", () => layer.setStyle({ weight: 1, color: "#0f172a" }));
+    layer.on("click", () => {
+      const dbName = GEO_TO_DB[name] ?? name;
+      navigateRef.current(`/countries/${encodeURIComponent(dbName)}`);
+    });
+  }, [countryStatsMap]);
+
+  const geoKey = useMemo(
+    () => `geo-${Object.keys(countryStatsMap).length}`,
+    [countryStatsMap]
+  );
+
+  const showChoropleth = layerMode === "both" || layerMode === "choropleth";
+  const showMarkers = layerMode === "both" || layerMode === "markers";
+
+  function handleZoomFit() {
+    if (!mapRef.current || !mapProjects.length) return;
+    const bounds = L.latLngBounds(mapProjects.map(p => [p.latitude!, p.longitude!] as [number, number]));
+    mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+  }
 
   return (
     <Layout>
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
-        {/* Map Area */}
+        {/* ── Map Area ── */}
         <div className="flex-1 h-[55vh] md:h-full relative z-0">
           <MapContainer
-            center={[0, 20]}
+            center={[2, 20]}
             zoom={4}
             style={{ height: "100%", width: "100%", zIndex: 0 }}
             zoomControl={false}
           >
+            <MapController mapRef={mapRef} />
+
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              attribution='&copy; OpenStreetMap &copy; CARTO'
             />
 
-            {mapProjects.map((project) => (
+            {/* Choropleth */}
+            {showChoropleth && geoJson && countryStats && (
+              <GeoJSON
+                key={geoKey}
+                data={geoJson}
+                style={geoStyle}
+                onEachFeature={onEachFeature}
+              />
+            )}
+
+            {/* Markers */}
+            {showMarkers && mapProjects.map(p => (
               <CircleMarker
-                key={project.id}
-                center={[project.latitude!, project.longitude!]}
-                radius={project.dealSizeUsdMn ? Math.max(6, Math.min(20, Math.sqrt(project.dealSizeUsdMn) * 1.5)) : 8}
+                key={p.id}
+                center={[p.latitude!, p.longitude!]}
+                radius={p.dealSizeUsdMn
+                  ? Math.max(6, Math.min(22, Math.sqrt(p.dealSizeUsdMn) * 1.5))
+                  : 8}
                 pathOptions={{
-                  color: activeProject?.id === project.id ? "#fff" : techColors[project.technology] || defaultColor,
-                  fillColor: techColors[project.technology] || defaultColor,
-                  fillOpacity: 0.75,
-                  weight: activeProject?.id === project.id ? 4 : 1,
+                  color: activeProject?.id === p.id ? "#ffffff" : SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
+                  fillColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
+                  fillOpacity: 0.85,
+                  weight: activeProject?.id === p.id ? 3 : 1.5,
                 }}
-                eventHandlers={{ click: () => setActiveProject(project) }}
+                eventHandlers={{ click: () => setActiveProject(p) }}
               >
-                <Popup
-                  className="custom-popup"
-                  maxWidth={320}
-                  minWidth={280}
-                >
-                  <div style={{ fontFamily: "inherit", minWidth: 280 }}>
-                    {/* Header stripe */}
-                    <div
-                      style={{
-                        background: `linear-gradient(135deg, ${techColors[project.technology] || defaultColor}22, transparent)`,
-                        borderBottom: `2px solid ${techColors[project.technology] || defaultColor}55`,
-                        padding: "12px 14px 10px",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            color: techColors[project.technology] || defaultColor,
-                            marginBottom: 4,
-                          }}>
-                            {project.technology}
-                          </div>
-                          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, color: "inherit" }}>
-                            {project.projectName}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {/* Location + Status row */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 12, color: "#94a3b8", display: "flex", alignItems: "center", gap: 4 }}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                          {project.country}, {project.region}
-                        </span>
-                        <span style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          padding: "2px 8px",
-                          borderRadius: 20,
-                          border: "1px solid",
-                          ...(project.status === "Operational"
-                            ? { background: "rgba(16,185,129,0.12)", color: "#34d399", borderColor: "rgba(16,185,129,0.25)" }
-                            : project.status === "Under Construction"
-                            ? { background: "rgba(59,130,246,0.12)", color: "#60a5fa", borderColor: "rgba(59,130,246,0.25)" }
-                            : project.status === "Development"
-                            ? { background: "rgba(245,158,11,0.12)", color: "#fbbf24", borderColor: "rgba(245,158,11,0.25)" }
-                            : { background: "rgba(100,116,139,0.12)", color: "#94a3b8", borderColor: "rgba(100,116,139,0.25)" }
-                          ),
-                        }}>
-                          {project.status}
-                        </span>
-                      </div>
-
-                      {/* Deal Size + Capacity */}
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "7px 10px" }}>
-                          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Deal Size</div>
-                          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace" }}>
-                            {project.dealSizeUsdMn
-                              ? project.dealSizeUsdMn >= 1000
-                                ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B`
-                                : `$${project.dealSizeUsdMn}M`
-                              : "N/A"}
-                          </div>
-                        </div>
-                        {project.capacityMw && (
-                          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "7px 10px" }}>
-                            <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Capacity</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace" }}>
-                              {project.capacityMw >= 1000
-                                ? `${(project.capacityMw / 1000).toFixed(1)} GW`
-                                : `${project.capacityMw} MW`}
-                            </div>
-                          </div>
-                        )}
-                        {project.announcedYear && (
-                          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "7px 10px" }}>
-                            <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Year</div>
-                            <div style={{ fontSize: 14, fontWeight: 700 }}>
-                              {project.closedYear ?? project.announcedYear}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Investors */}
-                      {project.investors && (
-                        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "7px 10px" }}>
-                          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>Investors & Partners</div>
-                          <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>{project.investors}</div>
-                        </div>
-                      )}
-
-                      {/* Description */}
-                      {project.description && (
-                        <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.55, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
-                          {project.description}
-                        </div>
-                      )}
-
-                      {/* Source footer */}
-                      <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
-                        {(project as any).newsUrl && (
-                          <a
-                            href={(project as any).newsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 6,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#94a3b8",
-                              background: "rgba(148,163,184,0.08)",
-                              border: "1px solid rgba(148,163,184,0.20)",
-                              borderRadius: 8,
-                              padding: "8px 12px",
-                              textDecoration: "none",
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
-                            </svg>
-                            Read News
-                          </a>
-                        )}
-                        {project.sourceUrl && (
-                          <a
-                            href={project.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 6,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: techColors[project.technology] || defaultColor,
-                              background: `${techColors[project.technology] || defaultColor}12`,
-                              border: `1px solid ${techColors[project.technology] || defaultColor}30`,
-                              borderRadius: 8,
-                              padding: "8px 12px",
-                              textDecoration: "none",
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                            </svg>
-                            View Source
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <Popup className="custom-popup" maxWidth={320} minWidth={285}>
+                  <EnhancedPopup project={p} navigate={navigate} />
                 </Popup>
               </CircleMarker>
             ))}
           </MapContainer>
 
-          {/* Legend — collapsible on mobile, always open on desktop */}
+          {/* Layer toggle — floats over map */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-1/2 z-[1000] pointer-events-auto">
+            <div className="flex items-center gap-0.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-1 shadow-xl">
+              {(["both", "choropleth", "markers"] as LayerMode[]).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setLayerMode(mode)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors capitalize ${
+                    layerMode === mode
+                      ? "bg-[#00e676] text-[#0b0f1a]"
+                      : "text-slate-400 hover:text-white hover:bg-white/8"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Zoom-to-fit button */}
+          <button
+            onClick={handleZoomFit}
+            title="Zoom to fit all projects"
+            className="absolute bottom-24 right-4 md:bottom-6 md:right-6 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
+          >
+            <Maximize2 className="w-4 h-4 text-slate-300" />
+          </button>
+
+          {/* Legend */}
           <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 z-[1000]">
-            {/* Mobile toggle button */}
             <button
               onClick={() => setLegendOpen(v => !v)}
-              className="md:hidden flex items-center gap-2 bg-card/95 backdrop-blur-md border border-border px-3 py-2 rounded-xl shadow-xl text-xs font-semibold text-foreground"
+              className="md:hidden flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 px-3 py-2 rounded-xl text-xs font-semibold"
             >
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              {legendOpen ? "Hide" : "Legend"}
+              <span className="w-2 h-2 rounded-full bg-[#00e676]" />
+              {legendOpen ? "Hide legend" : "Legend"}
             </button>
 
-            {/* Legend panel */}
-            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-card/90 backdrop-blur-md border border-border p-4 rounded-xl shadow-xl mt-2 md:mt-0`}>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Technologies</h4>
-              <div className="space-y-2">
-                {Object.entries(techColors).map(([tech, color]) => (
-                  <div key={tech} className="flex items-center gap-2 text-xs">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span>{tech}</span>
+            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[60vh] overflow-y-auto`}>
+              {/* Investment color scale */}
+              {showChoropleth && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
+                  <div
+                    className="h-2.5 w-28 rounded-full mb-1.5"
+                    style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-500">
+                    <span>None</span>
+                    <span>{fmt(maxInvestment)}</span>
                   </div>
-                ))}
-              </div>
+                  <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile page</p>
+                </div>
+              )}
+
+              {/* Technology dots */}
+              {showMarkers && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Technologies</p>
+                  <div className="space-y-1.5">
+                    {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
+                      <div key={tech} className="flex items-center gap-2 text-xs text-slate-300">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        {tech}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-600 mt-2">Marker size ∝ deal size</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Sidebar Project List */}
-        <div className="w-full md:w-96 bg-card border-l border-card-border flex flex-col h-[50vh] md:h-full z-10 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.5)]">
-          <div className="p-6 border-b border-border">
-            <h2 className="text-2xl font-bold font-display mb-2">Project Explorer</h2>
-            <p className="text-sm text-muted-foreground">
-              {isLoading ? "Loading projects..." : `${mapProjects.length} mapped projects across Africa.`}
+        {/* ── Sidebar ── */}
+        <div className="w-full md:w-[320px] bg-[#1e293b] border-l border-white/5 flex flex-col h-[50vh] md:h-full z-10">
+          <div className="p-5 border-b border-white/5 shrink-0">
+            <h2 className="text-base font-bold mb-0.5">Project Explorer</h2>
+            <p className="text-xs text-slate-500">
+              {isLoading
+                ? "Loading…"
+                : `${mapProjects.length} mapped · ${(projectsData?.projects ?? []).length} total`}
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="p-4 rounded-xl border border-border bg-background animate-pulse">
-                  <div className="h-4 bg-muted w-3/4 mb-3 rounded" />
-                  <div className="h-3 bg-muted w-1/2 mb-2 rounded" />
-                  <div className="h-8 bg-muted w-24 rounded-full" />
-                </div>
-              ))
-            ) : (
-              mapProjects.map((project) => (
-                <div
-                  key={project.id}
-                  onClick={() => setActiveProject(project)}
-                  className={`
-                    p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden
-                    ${activeProject?.id === project.id
-                      ? "bg-primary/10 border-primary shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                      : "bg-background border-border hover:border-primary/50"
-                    }
-                  `}
-                >
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+            {isLoading
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="p-3.5 rounded-xl border border-white/5 bg-white/2 animate-pulse">
+                    <div className="h-3.5 bg-white/5 w-3/4 mb-2 rounded" />
+                    <div className="h-3 bg-white/5 w-1/2 rounded" />
+                  </div>
+                ))
+              : (projectsData?.projects ?? []).map(p => (
                   <div
-                    className="absolute left-0 top-0 bottom-0 w-1"
-                    style={{ backgroundColor: techColors[project.technology] || defaultColor }}
-                  />
-                  <div className="pl-3">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="font-bold text-sm leading-tight flex-1">{project.projectName}</h3>
-                      {project.sourceUrl && (
-                        <a
-                          href={project.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="View verified source"
-                          className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-muted-foreground mb-2 flex flex-wrap gap-x-3 gap-y-1">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {project.country}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Zap className="w-3 h-3" /> {project.technology}
-                      </span>
-                      {project.capacityMw && (
+                    key={p.id}
+                    onClick={() => setActiveProject(activeProject?.id === p.id ? null : p)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
+                      activeProject?.id === p.id
+                        ? "bg-[#00e676]/8 border-[#00e676]/25"
+                        : "bg-white/2 border-white/5 hover:border-white/15"
+                    }`}
+                  >
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l"
+                      style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
+                    />
+                    <div className="pl-3">
+                      <div className="flex items-start justify-between gap-2 mb-0.5">
+                        <h3 className="font-semibold text-xs leading-tight flex-1 text-slate-200 line-clamp-2">
+                          {p.projectName}
+                        </h3>
+                        {p.dealSizeUsdMn && (
+                          <span className="font-mono text-[11px] font-bold text-[#00e676] shrink-0">
+                            {fmt(p.dealSizeUsdMn)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
                         <span className="flex items-center gap-1">
-                          <Activity className="w-3 h-3" /> {project.capacityMw} MW
+                          <MapPin className="w-2.5 h-2.5" /> {p.country}
                         </span>
-                      )}
-                    </p>
-
-                    <div className="flex justify-between items-center">
-                      <Badge variant="outline" className={`text-xs ${getStatusColor(project.status)}`}>
-                        {project.status}
-                      </Badge>
-                      <span className="font-mono text-sm font-semibold">
-                        {project.dealSizeUsdMn
-                          ? project.dealSizeUsdMn >= 1000
-                            ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B`
-                            : `$${project.dealSizeUsdMn}M`
-                          : ""}
-                      </span>
+                        <span className="flex items-center gap-1">
+                          <Zap
+                            className="w-2.5 h-2.5"
+                            style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
+                          />
+                          {p.technology}
+                        </span>
+                      </p>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))}
           </div>
         </div>
 
