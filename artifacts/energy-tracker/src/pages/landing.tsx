@@ -241,15 +241,6 @@ export default function Landing() {
             placeholder='Ask anything… e.g., "Solar deals in West Africa above $100M"'
             size="lg"
           />
-          <p className="text-center text-[11px] text-white/25 mt-3">
-            Powered by Claude AI · or{" "}
-            <button
-              onClick={() => gatedNavigate("/deals")}
-              className="text-white/40 hover:text-white/60 underline underline-offset-2 transition-colors"
-            >
-              browse all deals
-            </button>
-          </p>
         </div>
 
         {/* Stats */}
