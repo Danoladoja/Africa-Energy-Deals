@@ -289,8 +289,8 @@ export default function Landing() {
               },
               {
                 icon: <Globe className="w-6 h-6 text-[#00e676]" />,
-                title: "Choropleth Map",
-                desc: "Visualise investment intensity by country with a GeoJSON choropleth layer — hover for stats, click through to country profiles.",
+                title: "Interactive Map",
+                desc: "Visualise investment intensity across Africa on an interactive map — hover countries for stats and click through to country profiles.",
               },
               {
                 icon: <BarChart2 className="w-6 h-6 text-[#00e676]" />,
