@@ -59,15 +59,16 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 }
 
 function AuthRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       navigate("/");
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
+  if (isLoading) return <PageLoader />;
   if (!isAuthenticated) return null;
   return <Component />;
 }
