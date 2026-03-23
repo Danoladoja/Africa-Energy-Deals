@@ -1,0 +1,44 @@
+Data Pipeline & AI Scraper Expansion
+
+```
+Expand the existing AI scraper to systematically pull energy deal data from multiple authoritative sources.
+
+CURRENT STATE: There is a scraper module at artifacts/api-server/src/routes/scraper.ts. It needs to be expanded to cover more sources.
+
+REQUIREMENTS:
+
+1. SOURCE ADAPTERS — Create a modular scraper architecture with adapters for each source:
+   - Zawya (Middle East & Africa deals)
+   - Reuters Africa (energy news with deal data)
+   - ESI Africa (energy sector news)
+   - AfDB project database (https://projectsportal.afdb.org)
+   - IRENA project data and reports
+   - PV Tech (solar-specific deals)
+   - IFC disclosure portal (https://disclosures.ifc.org)
+   - National energy regulatory announcements (start with South Africa NERSA, Kenya EPRA, Nigeria NERC)
+   - EMBER
+
+2. STRUCTURED EXTRACTION:
+   - For each scraped article/entry, use Claude to extract structured fields:
+     - projectName, technology, capacityMw, country, developer, financiers (array), dfiInvolvement, offtaker, dealSizeUsdMn, dealStage, financialCloseDate, announcementDate
+   - Confidence score for each extracted field
+   - Source URL and scrape timestamp
+
+3. DEDUPLICATION:
+   - Before inserting, check for existing projects with similar name + country + technology
+   - If match found (fuzzy matching), update the existing record with new data (merge, don't duplicate)
+   - If confidence score < 0.7 on key fields, flag for manual review
+
+4. ADMIN DASHBOARD:
+   - Create /admin/scraper page (behind API key auth) showing:
+     - Last scrape time per source
+     - Records found, inserted, updated, flagged for review
+     - Manual review queue for low-confidence extractions
+     - "Run Scraper" button per source
+
+5. SCHEDULING:
+   - Add a cron-style scheduler that runs each adapter daily
+   - Stagger runs to avoid rate limiting (e.g., 2 sources per hour)
+
+Store scraper logs in a new scraper_runs table: id, source, startedAt, completedAt, recordsFound, recordsInserted, recordsUpdated, errors.
+```

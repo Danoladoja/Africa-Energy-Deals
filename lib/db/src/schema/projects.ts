@@ -36,6 +36,10 @@ export const projectsTable = pgTable("energy_projects", {
   announcementDate: date("announcement_date"),
   debtEquitySplit: text("debt_equity_split"),
   grantComponent: doublePrecision("grant_component"),
+
+  // ── AI Extraction Metadata ────────────────────────────────────────────────
+  confidenceScore: doublePrecision("confidence_score"),
+  extractionSource: text("extraction_source"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });

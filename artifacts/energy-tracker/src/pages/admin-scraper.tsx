@@ -1,0 +1,571 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Layout } from "@/components/layout";
+import { getAdminToken } from "@/contexts/admin-auth";
+import {
+  Database, Play, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
+  AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
+  FileSearch, Activity, BarChart2, Filter,
+} from "lucide-react";
+
+const API = "/api";
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getAdminToken();
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json", ...extra };
+}
+
+function ago(dateStr: string | null | undefined): string {
+  if (!dateStr) return "Never";
+  const d = new Date(dateStr);
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  return `${Math.floor(diffH / 24)}d ago`;
+}
+
+interface SourceGroup {
+  name: string;
+  description: string;
+  feedCount: number;
+  isRunning: boolean;
+}
+
+interface SourceStat {
+  lastRun: {
+    id: number;
+    sourceName: string;
+    startedAt: string;
+    completedAt: string | null;
+    recordsFound: number;
+    recordsInserted: number;
+    recordsUpdated: number;
+    flaggedForReview: number;
+    errors: string | null;
+    triggeredBy: string;
+  } | null;
+  totalInserted: number;
+  totalUpdated: number;
+  totalFound: number;
+  totalFlagged: number;
+  runCount: number;
+}
+
+interface Project {
+  id: number;
+  projectName: string;
+  country: string;
+  technology: string;
+  dealSizeUsdMn: number | null;
+  capacityMw: number | null;
+  status: string;
+  description: string | null;
+  sourceUrl: string | null;
+  newsUrl: string | null;
+  reviewStatus: string;
+  discoveredAt: string | null;
+  confidenceScore: number | null;
+  extractionSource: string | null;
+  developer: string | null;
+  financiers: string | null;
+}
+
+interface RunProgress {
+  stage: string;
+  message: string;
+  processed?: number;
+  discovered?: number;
+  updated?: number;
+  flagged?: number;
+}
+
+type ReviewAction = "approve" | "reject";
+
+const TECH_COLORS: Record<string, string> = {
+  Solar: "text-amber-400 bg-amber-400/10",
+  Wind: "text-blue-400 bg-blue-400/10",
+  Hydro: "text-cyan-400 bg-cyan-400/10",
+  "Grid & Storage": "text-purple-400 bg-purple-400/10",
+  "Oil & Gas": "text-orange-400 bg-orange-400/10",
+  Coal: "text-stone-400 bg-stone-400/10",
+  Nuclear: "text-red-400 bg-red-400/10",
+  Bioenergy: "text-green-400 bg-green-400/10",
+};
+
+function ConfidenceBadge({ score }: { score: number | null }) {
+  if (score === null) return null;
+  const pct = Math.round(score * 100);
+  const color = score >= 0.8 ? "text-green-400" : score >= 0.6 ? "text-yellow-400" : "text-red-400";
+  return (
+    <span className={`text-xs font-mono ${color}`}>{pct}%</span>
+  );
+}
+
+export default function AdminScraperPage() {
+  const [sources, setSources] = useState<SourceGroup[]>([]);
+  const [bySource, setBySource] = useState<Record<string, SourceStat>>({});
+  const [pendingItems, setPendingItems] = useState<Project[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [runningSource, setRunningSource] = useState<string | null>(null);
+  const [runLog, setRunLog] = useState<RunProgress[]>([]);
+  const [runLogSource, setRunLogSource] = useState<string | null>(null);
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+  const [reviewActions, setReviewActions] = useState<Record<number, "approve" | "reject" | "loading">>({});
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  async function loadData() {
+    try {
+      const [sourcesRes, runsRes, statusRes] = await Promise.all([
+        fetch(`${API}/scraper/sources`, { headers: authHeaders() }),
+        fetch(`${API}/scraper/runs?limit=100`, { headers: authHeaders() }),
+        fetch(`${API}/scraper/status`, { headers: authHeaders() }),
+      ]);
+      const [sourcesData, runsData, statusData] = await Promise.all([
+        sourcesRes.json(),
+        runsRes.json(),
+        statusRes.json(),
+      ]);
+      setSources(Array.isArray(sourcesData) ? sourcesData : []);
+      setBySource(runsData.bySource ?? {});
+      setPendingCount(statusData.pendingCount ?? 0);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadQueue() {
+    try {
+      const res = await fetch(`${API}/scraper/queue?limit=50`, { headers: authHeaders() });
+      const data = await res.json();
+      setPendingItems(Array.isArray(data) ? data : []);
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+    loadQueue();
+  }, []);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [runLog]);
+
+  async function runSource(sourceName: string) {
+    if (runningSource) return;
+    setRunningSource(sourceName);
+    setRunLogSource(sourceName);
+    setRunLog([{ stage: "fetching", message: `Starting "${sourceName}"...` }]);
+
+    try {
+      const res = await fetch(`${API}/scraper/run/${encodeURIComponent(sourceName)}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              setRunLog((prev) => [...prev, parsed]);
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setRunLog((prev) => [...prev, { stage: "error", message: String(err) }]);
+    } finally {
+      setRunningSource(null);
+      await loadData();
+      await loadQueue();
+    }
+  }
+
+  async function reviewItem(id: number, action: ReviewAction) {
+    setReviewActions((prev) => ({ ...prev, [id]: "loading" }));
+    try {
+      await fetch(`${API}/scraper/review/${id}`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ action }),
+      });
+      setReviewActions((prev) => ({ ...prev, [id]: action }));
+      setPendingItems((prev) => prev.filter((p) => p.id !== id));
+      setPendingCount((c) => Math.max(0, c - 1));
+    } catch {
+      setReviewActions((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
+  async function reviewAll(action: ReviewAction) {
+    try {
+      await fetch(`${API}/scraper/review-all`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ action }),
+      });
+      setPendingItems([]);
+      setPendingCount(0);
+    } catch {
+      // ignore
+    }
+  }
+
+  const filteredPending = sourceFilter === "all"
+    ? pendingItems
+    : pendingItems.filter((p) => p.extractionSource === sourceFilter);
+
+  const uniqueSources = [...new Set(pendingItems.map((p) => p.extractionSource).filter(Boolean))];
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="h-full overflow-y-auto bg-background">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                <Database className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Data Pipeline</h1>
+                <p className="text-sm text-muted-foreground">AI scraper management & review queue</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { loadData(); loadQueue(); }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-card transition-colors text-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: "Source Groups", value: sources.length, icon: <Database className="w-4 h-4" />, color: "text-blue-400" },
+              { label: "Pending Review", value: pendingCount, icon: <Clock className="w-4 h-4" />, color: "text-yellow-400" },
+              { label: "Total Inserted", value: Object.values(bySource).reduce((s, v) => s + v.totalInserted, 0), icon: <TrendingUp className="w-4 h-4" />, color: "text-green-400" },
+              { label: "Total Updated", value: Object.values(bySource).reduce((s, v) => s + v.totalUpdated, 0), icon: <Activity className="w-4 h-4" />, color: "text-purple-400" },
+            ].map(({ label, value, icon, color }) => (
+              <div key={label} className="bg-card border border-border rounded-xl p-4">
+                <div className={`flex items-center gap-2 ${color} mb-2`}>
+                  {icon}
+                  <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+                </div>
+                <div className="text-2xl font-bold text-foreground">{value.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Source Groups Table */}
+          <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-foreground">Source Groups</h2>
+                <span className="text-xs text-muted-foreground ml-1">({sources.length} groups, scheduled daily with 30-min stagger)</span>
+              </div>
+            </div>
+
+            <div className="divide-y divide-border">
+              {sources.map((source) => {
+                const stats = bySource[source.name];
+                const lastRun = stats?.lastRun;
+                const isRunning = runningSource === source.name;
+                const isExpanded = expandedSource === source.name;
+
+                return (
+                  <div key={source.name}>
+                    <div className="px-6 py-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-medium text-foreground text-sm">{source.name}</span>
+                            <span className="text-xs text-muted-foreground">({source.feedCount} feeds)</span>
+                            {source.isRunning && (
+                              <span className="flex items-center gap-1 text-xs text-primary">
+                                <Loader2 className="w-3 h-3 animate-spin" />Running
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{source.description}</p>
+                        </div>
+
+                        <div className="flex items-center gap-6 text-xs shrink-0">
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Last Run</div>
+                            <div className="font-medium text-foreground">{ago(lastRun?.completedAt)}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Inserted</div>
+                            <div className="font-medium text-green-400">{stats?.totalInserted ?? 0}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Updated</div>
+                            <div className="font-medium text-blue-400">{stats?.totalUpdated ?? 0}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Flagged</div>
+                            <div className="font-medium text-yellow-400">{stats?.totalFlagged ?? 0}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Runs</div>
+                            <div className="font-medium text-foreground">{stats?.runCount ?? 0}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {lastRun?.errors && (
+                            <button
+                              onClick={() => setExpandedSource(isExpanded ? null : source.name)}
+                              className="p-1.5 rounded-lg text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+                              title="View errors"
+                            >
+                              <AlertCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => runSource(source.name)}
+                            disabled={!!runningSource}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                            {isRunning ? "Running" : "Run"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && lastRun?.errors && (
+                        <div className="mt-3 bg-yellow-400/5 border border-yellow-400/20 rounded-lg p-3">
+                          <p className="text-xs font-medium text-yellow-400 mb-1">Last run errors:</p>
+                          <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                            {(() => {
+                              try { return JSON.parse(lastRun.errors).join("\n"); } catch { return lastRun.errors; }
+                            })()}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Live Run Log */}
+          {runLog.length > 0 && (
+            <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-foreground">Live Run: {runLogSource}</h2>
+                {runningSource && <Loader2 className="w-4 h-4 animate-spin text-primary ml-auto" />}
+              </div>
+              <div className="p-4 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
+                {runLog.map((entry, i) => {
+                  const color =
+                    entry.stage === "error" ? "text-red-400" :
+                    entry.stage === "done" || entry.stage === "complete" ? "text-green-400" :
+                    entry.stage === "analyzing" ? "text-purple-400" :
+                    entry.stage === "saving" ? "text-blue-400" :
+                    "text-muted-foreground";
+                  return (
+                    <div key={i} className={`${color} leading-relaxed`}>
+                      <span className="text-muted-foreground/50 mr-2">[{entry.stage}]</span>
+                      {entry.message}
+                      {entry.discovered !== undefined && ` — ${entry.discovered} new`}
+                      {entry.updated !== undefined && `, ${entry.updated} updated`}
+                      {entry.flagged !== undefined && entry.flagged > 0 && `, ${entry.flagged} flagged`}
+                    </div>
+                  );
+                })}
+                <div ref={logEndRef} />
+              </div>
+            </div>
+          )}
+
+          {/* Review Queue */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileSearch className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-foreground">Review Queue</h2>
+                  {pendingCount > 0 && (
+                    <span className="text-xs font-bold bg-yellow-400/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                </div>
+                {pendingItems.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => reviewAll("approve")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-medium"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Approve All
+                    </button>
+                    <button
+                      onClick={() => reviewAll("reject")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Reject All
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {uniqueSources.length > 1 && (
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                  <button
+                    onClick={() => setSourceFilter("all")}
+                    className={`text-xs px-2 py-1 rounded-md transition-colors ${sourceFilter === "all" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    All
+                  </button>
+                  {uniqueSources.map((src) => (
+                    <button
+                      key={src}
+                      onClick={() => setSourceFilter(src!)}
+                      className={`text-xs px-2 py-1 rounded-md transition-colors ${sourceFilter === src ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {src}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {filteredPending.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <CheckCircle2 className="w-10 h-10 text-green-400/40 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">
+                  {pendingCount === 0 ? "No items pending review" : "No items match the current filter"}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {filteredPending.map((project) => {
+                  const action = reviewActions[project.id];
+                  return (
+                    <div key={project.id} className="px-6 py-4 flex gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-2 flex-wrap mb-1">
+                          <span className="font-medium text-foreground text-sm leading-tight">{project.projectName}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${TECH_COLORS[project.technology] ?? "text-muted-foreground bg-muted"}`}>
+                            {project.technology}
+                          </span>
+                          <ConfidenceBadge score={project.confidenceScore} />
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-1">
+                          <span>{project.country}</span>
+                          {project.dealSizeUsdMn && <span>${project.dealSizeUsdMn.toFixed(0)}M</span>}
+                          {project.capacityMw && <span>{project.capacityMw.toFixed(0)} MW</span>}
+                          {project.extractionSource && <span className="text-primary/60">via {project.extractionSource}</span>}
+                          <span>{ago(project.discoveredAt)}</span>
+                        </div>
+                        {project.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
+                        )}
+                        {project.developer && (
+                          <p className="text-xs text-muted-foreground mt-0.5">Developer: <span className="text-foreground/70">{project.developer}</span></p>
+                        )}
+                        {project.financiers && (
+                          <p className="text-xs text-muted-foreground mt-0.5">Financiers: <span className="text-foreground/70">{project.financiers}</span></p>
+                        )}
+                        {(project.sourceUrl || project.newsUrl) && (
+                          <a
+                            href={project.sourceUrl ?? project.newsUrl ?? "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline mt-0.5 block truncate"
+                          >
+                            {project.sourceUrl ?? project.newsUrl}
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex items-start gap-2 shrink-0 pt-0.5">
+                        {action === "loading" ? (
+                          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        ) : action === "approve" ? (
+                          <span className="flex items-center gap-1 text-xs text-green-400">
+                            <CheckCircle2 className="w-4 h-4" />Approved
+                          </span>
+                        ) : action === "reject" ? (
+                          <span className="flex items-center gap-1 text-xs text-red-400">
+                            <XCircle className="w-4 h-4" />Rejected
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => reviewItem(project.id, "approve")}
+                              className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors"
+                              title="Approve"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => reviewItem(project.id, "reject")}
+                              className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors"
+                              title="Reject"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </Layout>
+  );
+}

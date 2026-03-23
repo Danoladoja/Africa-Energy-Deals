@@ -14,6 +14,7 @@ import {
   Bell,
   UserCircle2,
   Code2,
+  Database,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +35,7 @@ const publicNavItems = [
 
 const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
 const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles };
+const adminScraperNavItem = { name: "Data Pipeline", href: "/admin/scraper", icon: Database };
 
 function NavItem({ item }: { item: typeof publicNavItems[number] }) {
   const [isActive] = useRoute(item.href);
@@ -88,7 +90,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [, navigate] = useLocation();
 
   const navItems = isAdmin
-    ? [...publicNavItems, adminNavItem]
+    ? [...publicNavItems, adminNavItem, adminScraperNavItem]
     : publicNavItems;
 
   useEffect(() => {

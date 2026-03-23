@@ -105,6 +105,28 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - Interactive docs: `GET /api/docs` (swagger-ui-express)
 - Raw spec: `GET /api/openapi.json` or `GET /api/openapi.yaml`
 
+### Data Pipeline & Scraper Architecture
+
+**Source Groups** — 11 named groups, each independently runnable with staggered daily scheduling:
+- Energy Media (06:00 UTC), Development Banks (06:30), Energy Agencies (07:00), Financial Institutions (07:30)
+- Pan-African News (08:00), Government & Regulators (08:30), Nigeria (09:00), East Africa (09:30)
+- Southern & North Africa (10:00), EV & Clean Mobility (10:30), Recent Deals (11:00)
+
+**Confidence Scores** — Claude returns a `confidence` field (0–1) per extraction. Low-confidence items (< 0.7) are flagged in the DB.
+
+**Fuzzy Deduplication** — Jaccard token similarity on project name tokens + country + technology. Matches trigger DB updates (merge), not duplicates.
+
+**New Fields** — `confidenceScore`, `extractionSource` added to `energy_projects` table.
+
+**`scraper_runs` Table** — logs each source group run: sourceName, startedAt, completedAt, recordsFound, recordsInserted, recordsUpdated, flaggedForReview, errors, triggeredBy.
+
+**Admin Scraper Page** — `/admin/scraper` (admin-only): per-source stats table, manual "Run" button per group, live log stream via SSE, review queue with confidence badges and source filters.
+
+**New API Routes (admin-only)**:
+- `GET /api/scraper/sources` — list source groups with feed counts and isRunning status
+- `GET /api/scraper/runs?limit=N` — run history with per-source aggregates
+- `POST /api/scraper/run/:source` — trigger a single source group (SSE stream)
+
 ### Embeddable Widgets
 - `GET /energy-tracker/embed/deals?technology=&country=&limit=&theme=` — compact deal card widget
 - `GET /energy-tracker/embed/chart?type=&groupBy=&metric=&title=` — standalone recharts embed
