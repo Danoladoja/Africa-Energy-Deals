@@ -15,7 +15,8 @@ import {
 } from "recharts";
 import {
   Download, RefreshCw, Layers, BarChart2, Globe, MapPin,
-  ChevronDown, Zap, DollarSign,
+  ChevronDown, Zap, DollarSign, Code2, Copy, Check, X,
+  ExternalLink, Monitor,
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { ShareButton } from "@/components/share-button";
@@ -185,6 +186,204 @@ function ChartRenderer({
   );
 }
 
+const EMBED_CHART_TYPES: { value: string; label: string }[] = [
+  { value: "bar", label: "Vertical Bar" },
+  { value: "horizontal-bar", label: "Horizontal Bar" },
+  { value: "line", label: "Line" },
+  { value: "area", label: "Area" },
+  { value: "pie", label: "Pie" },
+  { value: "donut", label: "Donut" },
+];
+
+const EMBED_GROUP_BY: { value: string; label: string }[] = [
+  { value: "technology", label: "Sector" },
+  { value: "country", label: "Country" },
+  { value: "region", label: "Region" },
+  { value: "year", label: "Year" },
+];
+
+const EMBED_METRICS: { value: string; label: string }[] = [
+  { value: "investment", label: "Investment ($)" },
+  { value: "count", label: "Project Count" },
+];
+
+function EmbedCodeModal({
+  chartType, groupBy, metric,
+  onClose,
+}: {
+  chartType: ChartType;
+  groupBy: Grouping;
+  metric: Metric;
+  onClose: () => void;
+}) {
+  const [modalChartType, setModalChartType] = useState<string>(chartType);
+  const [modalGroupBy, setModalGroupBy] = useState<string>(groupBy);
+  const [modalMetric, setModalMetric] = useState<string>(metric === "projectCount" ? "count" : "investment");
+  const [width, setWidth] = useState("600");
+  const [height, setHeight] = useState("400");
+  const [copied, setCopied] = useState<"iframe" | "js" | null>(null);
+
+  const basePath = import.meta.env.BASE_URL;
+  const origin = window.location.origin;
+  const embedSrc = `${origin}${basePath}embed/chart?type=${modalChartType}&groupBy=${modalGroupBy}&metric=${modalMetric}`;
+
+  const iframeCode = `<iframe
+  src="${embedSrc}"
+  width="${width}"
+  height="${height}"
+  frameborder="0"
+  scrolling="no"
+  style="border-radius:12px;overflow:hidden;"
+  title="Africa Energy Investment Chart"
+></iframe>`;
+
+  const jsCode = `<div id="afrienergy-chart"></div>
+<script>
+  (function() {
+    var iframe = document.createElement('iframe');
+    iframe.src = '${embedSrc}';
+    iframe.width = '${width}';
+    iframe.height = '${height}';
+    iframe.frameBorder = '0';
+    iframe.scrolling = 'no';
+    iframe.style.borderRadius = '12px';
+    iframe.style.overflow = 'hidden';
+    document.getElementById('afrienergy-chart').appendChild(iframe);
+  })();
+</script>`;
+
+  async function copyCode(code: string, key: "iframe" | "js") {
+    await navigator.clipboard.writeText(code);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div
+        className="relative bg-[#0f1724] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-5 h-5 text-[#00e676]" />
+            <h2 className="text-lg font-bold">Embed Chart</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Config Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Chart type", value: modalChartType, opts: EMBED_CHART_TYPES, set: setModalChartType },
+              { label: "Group by", value: modalGroupBy, opts: EMBED_GROUP_BY, set: setModalGroupBy },
+              { label: "Metric", value: modalMetric, opts: EMBED_METRICS, set: setModalMetric },
+            ].map(({ label, value, opts, set }) => (
+              <div key={label}>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">{label}</label>
+                <div className="relative">
+                  <select
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00e676]/40 appearance-none pr-7"
+                  >
+                    {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                </div>
+              </div>
+            ))}
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Size (px)</label>
+              <div className="flex gap-1">
+                <input
+                  value={width}
+                  onChange={(e) => setWidth(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#00e676]/40"
+                  placeholder="W"
+                />
+                <span className="text-slate-600 self-center">×</span>
+                <input
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#00e676]/40"
+                  placeholder="H"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Monitor className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-semibold text-slate-300">Live Preview</span>
+              <a
+                href={embedSrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1 text-xs text-[#00e676] hover:underline"
+              >
+                Open in new tab <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-white/10 bg-[#0b0f1a]" style={{ height: "260px" }}>
+              <iframe
+                src={embedSrc}
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                scrolling="no"
+                title="Embed Preview"
+                key={`${modalChartType}-${modalGroupBy}-${modalMetric}`}
+              />
+            </div>
+          </div>
+
+          {/* Code Tabs */}
+          <div className="space-y-3">
+            {/* iframe */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-slate-400">HTML iframe</span>
+                <button
+                  onClick={() => copyCode(iframeCode, "iframe")}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  {copied === "iframe" ? <><Check className="w-3 h-3 text-[#00e676]" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                </button>
+              </div>
+              <pre className="bg-[#0b0f1a] border border-white/10 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
+                {iframeCode}
+              </pre>
+            </div>
+
+            {/* JS snippet */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-slate-400">JavaScript snippet</span>
+                <button
+                  onClick={() => copyCode(jsCode, "js")}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  {copied === "js" ? <><Check className="w-3 h-3 text-[#00e676]" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                </button>
+              </div>
+              <pre className="bg-[#0b0f1a] border border-white/10 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
+                {jsCode}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VizStudio() {
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [chartType, setChartType] = useState<ChartType>("bar");
@@ -197,6 +396,7 @@ export default function VizStudio() {
   const [spotlightGrouping, setSpotlightGrouping] = useState<string>("technology");
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingSpotlightChart, setIsExportingSpotlightChart] = useState(false);
+  const [showEmbedModal, setShowEmbedModal] = useState(false);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
@@ -332,6 +532,15 @@ export default function VizStudio() {
               variant="icon-label"
               className="border border-border rounded-xl px-3 py-3 bg-card hover:bg-muted"
             />
+            {viewMode === "overview" && (
+              <button
+                onClick={() => setShowEmbedModal(true)}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-card hover:bg-muted text-sm font-medium transition-colors"
+              >
+                <Code2 className="w-4 h-4 text-[#00e676]" />
+                Embed
+              </button>
+            )}
             <button
               onClick={() => viewMode === "overview"
                 ? exportChart(chartRef, `${grouping}-${metric}`, setIsExporting)
@@ -345,6 +554,15 @@ export default function VizStudio() {
             </button>
           </div>
         </header>
+
+        {showEmbedModal && (
+          <EmbedCodeModal
+            chartType={chartType}
+            groupBy={grouping}
+            metric={metric}
+            onClose={() => setShowEmbedModal(false)}
+          />
+        )}
 
         {/* View Mode Tabs */}
         <div className="flex gap-2 mb-6 bg-card border border-border rounded-xl p-1 w-fit">

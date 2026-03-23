@@ -21,6 +21,8 @@ import VizStudio from "@/pages/viz-studio";
 import DiscoveryPage from "@/pages/discovery";
 import WatchesPage from "@/pages/watches";
 import AuthVerify from "@/pages/auth-verify";
+import EmbedDeals from "@/pages/embed-deals";
+import EmbedChart from "@/pages/embed-chart";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -125,6 +127,8 @@ function Router() {
         {() => <AuthRoute component={WatchesPage} />}
       </Route>
       <Route path="/auth/verify" component={AuthVerify} />
+      <Route path="/embed/deals" component={EmbedDeals} />
+      <Route path="/embed/chart" component={EmbedChart} />
       <Route component={NotFound} />
     </Switch>
   );
