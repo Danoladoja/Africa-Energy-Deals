@@ -189,8 +189,8 @@ export default function DevelopersIndex() {
           </div>
         )}
 
-        {/* Table */}
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden">
+        {/* Desktop Table */}
+        <div className="hidden md:block bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -278,6 +278,75 @@ export default function DevelopersIndex() {
                 {entities.length} entities · min. 2 deal appearances · click any row to view full profile
               </p>
             </div>
+          )}
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden flex flex-col gap-3">
+          {isLoading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 animate-pulse">
+                  <div className="h-4 bg-white/5 rounded w-2/3 mb-3" />
+                  <div className="h-3 bg-white/5 rounded w-1/3" />
+                </div>
+              ))
+            : entities.length === 0
+            ? (
+              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-8 text-center">
+                <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 font-medium mb-1">No entity data yet</p>
+                <p className="text-slate-600 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
+              </div>
+            )
+            : sorted.map((entity) => (
+              <div
+                key={entity.name}
+                onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
+                className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/25 transition-colors active:scale-[0.99]"
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1">{entity.name}</h3>
+                  <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Investment</p>
+                    <p className="text-sm font-bold font-mono text-[#00e676]">{fmt(entity.totalInvestment)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Deals</p>
+                    <p className="text-sm font-bold text-white">{entity.projectCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Countries</p>
+                    <p className="text-sm font-bold text-white">{entity.countries.length}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-1">
+                    {entity.countries.slice(0, 2).map((c) => (
+                      <span key={c} className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">{c}</span>
+                    ))}
+                    {entity.countries.length > 2 && (
+                      <span className="text-xs text-slate-600 bg-white/5 px-2 py-0.5 rounded-full">+{entity.countries.length - 2}</span>
+                    )}
+                  </div>
+                  <span
+                    className="text-xs px-2.5 py-1 rounded-full font-medium shrink-0"
+                    style={{
+                      backgroundColor: `${SECTOR_COLORS[entity.topSector] ?? "#94a3b8"}20`,
+                      color: SECTOR_COLORS[entity.topSector] ?? "#94a3b8",
+                    }}
+                  >
+                    {entity.topSector}
+                  </span>
+                </div>
+              </div>
+            ))}
+          {entities.length > 0 && (
+            <p className="text-xs text-slate-600 text-center py-2">
+              {entities.length} entities · min. 2 deal appearances
+            </p>
           )}
         </div>
       </PageTransition>

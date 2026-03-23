@@ -6,7 +6,8 @@ import L from "leaflet";
 import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
-import { MapPin, Zap, Maximize2 } from "lucide-react";
+import { MapPin, Zap, Maximize2, ChevronUp, X as XIcon } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
@@ -182,6 +183,70 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
   );
 }
 
+function ProjectList({
+  projects,
+  isLoading,
+  activeProject,
+  onSelect,
+}: {
+  projects: Project[];
+  isLoading: boolean;
+  activeProject: Project | null;
+  onSelect: (p: Project) => void;
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+      {isLoading
+        ? Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="p-3.5 rounded-xl border border-white/5 bg-white/2 animate-pulse">
+              <div className="h-3.5 bg-white/5 w-3/4 mb-2 rounded" />
+              <div className="h-3 bg-white/5 w-1/2 rounded" />
+            </div>
+          ))
+        : projects.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => onSelect(p)}
+              className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
+                activeProject?.id === p.id
+                  ? "bg-[#00e676]/8 border-[#00e676]/25"
+                  : "bg-white/2 border-white/5 hover:border-white/15"
+              }`}
+            >
+              <div
+                className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l"
+                style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
+              />
+              <div className="pl-3">
+                <div className="flex items-start justify-between gap-2 mb-0.5">
+                  <h3 className="font-semibold text-xs leading-tight flex-1 text-slate-200 line-clamp-2">
+                    {p.projectName}
+                  </h3>
+                  {p.dealSizeUsdMn && (
+                    <span className="font-mono text-[11px] font-bold text-[#00e676] shrink-0">
+                      {fmt(p.dealSizeUsdMn)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-2.5 h-2.5" /> {p.country}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Zap
+                      className="w-2.5 h-2.5"
+                      style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
+                    />
+                    {p.technology}
+                  </span>
+                </p>
+              </div>
+            </div>
+          ))}
+    </div>
+  );
+}
+
 export default function MapPage() {
   const [, navigate] = useLocation();
   const navigateRef = useRef(navigate);
@@ -191,6 +256,7 @@ export default function MapPage() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [layerMode, setLayerMode] = useState<LayerMode>("both");
   const [legendOpen, setLegendOpen] = useState(true);
+  const [showProjects, setShowProjects] = useState(false);
 
   const { data: projectsData, isLoading } = useQuery<{ projects: Project[] }>({
     queryKey: ["all-projects-map"],
@@ -282,7 +348,7 @@ export default function MapPage() {
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
         {/* ── Map Area ── */}
-        <div className="flex-1 h-[55vh] md:h-full relative z-0">
+        <div className="flex-1 h-full relative z-0">
           <MapContainer
             center={[2, 20]}
             zoom={4}
@@ -352,9 +418,18 @@ export default function MapPage() {
           <button
             onClick={handleZoomFit}
             title="Zoom to fit all projects"
-            className="absolute bottom-24 right-4 md:bottom-6 md:right-6 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
+            className="absolute bottom-20 right-4 md:bottom-6 md:right-6 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
           >
             <Maximize2 className="w-4 h-4 text-slate-300" />
+          </button>
+
+          {/* Mobile: toggle project list button */}
+          <button
+            onClick={() => setShowProjects(true)}
+            className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-slate-200"
+          >
+            <ChevronUp className="w-4 h-4 text-[#00e676]" />
+            {isLoading ? "Loading…" : `${(projectsData?.projects ?? []).length} Projects`}
           </button>
 
           {/* Legend */}
@@ -403,8 +478,8 @@ export default function MapPage() {
           </div>
         </div>
 
-        {/* ── Sidebar ── */}
-        <div className="w-full md:w-[320px] bg-[#1e293b] border-l border-white/5 flex flex-col h-[50vh] md:h-full z-10">
+        {/* ── Desktop Sidebar ── */}
+        <div className="hidden md:flex w-[320px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
           <div className="p-5 border-b border-white/5 shrink-0">
             <h2 className="text-base font-bold mb-0.5">Project Explorer</h2>
             <p className="text-xs text-slate-500">
@@ -413,57 +488,58 @@ export default function MapPage() {
                 : `${mapProjects.length} mapped · ${(projectsData?.projects ?? []).length} total`}
             </p>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {isLoading
-              ? Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="p-3.5 rounded-xl border border-white/5 bg-white/2 animate-pulse">
-                    <div className="h-3.5 bg-white/5 w-3/4 mb-2 rounded" />
-                    <div className="h-3 bg-white/5 w-1/2 rounded" />
-                  </div>
-                ))
-              : (projectsData?.projects ?? []).map(p => (
-                  <div
-                    key={p.id}
-                    onClick={() => setActiveProject(activeProject?.id === p.id ? null : p)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
-                      activeProject?.id === p.id
-                        ? "bg-[#00e676]/8 border-[#00e676]/25"
-                        : "bg-white/2 border-white/5 hover:border-white/15"
-                    }`}
-                  >
-                    <div
-                      className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l"
-                      style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
-                    />
-                    <div className="pl-3">
-                      <div className="flex items-start justify-between gap-2 mb-0.5">
-                        <h3 className="font-semibold text-xs leading-tight flex-1 text-slate-200 line-clamp-2">
-                          {p.projectName}
-                        </h3>
-                        {p.dealSizeUsdMn && (
-                          <span className="font-mono text-[11px] font-bold text-[#00e676] shrink-0">
-                            {fmt(p.dealSizeUsdMn)}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5" /> {p.country}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Zap
-                            className="w-2.5 h-2.5"
-                            style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
-                          />
-                          {p.technology}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                ))}
-          </div>
+          <ProjectList
+            projects={projectsData?.projects ?? []}
+            isLoading={isLoading}
+            activeProject={activeProject}
+            onSelect={(p) => setActiveProject(activeProject?.id === p.id ? null : p)}
+          />
         </div>
+
+        {/* ── Mobile Bottom Sheet ── */}
+        <AnimatePresence>
+          {showProjects && (
+            <>
+              <motion.div
+                key="bs-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="md:hidden fixed inset-0 z-[1100] bg-black/50"
+                onClick={() => setShowProjects(false)}
+              />
+              <motion.div
+                key="bs-panel"
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", stiffness: 320, damping: 35 }}
+                className="md:hidden fixed bottom-0 left-0 right-0 z-[1200] bg-[#1e293b] rounded-t-2xl border-t border-white/10 flex flex-col"
+                style={{ maxHeight: "70vh" }}
+              >
+                <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
+                  <div>
+                    <h2 className="text-sm font-bold">Project Explorer</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {isLoading ? "Loading…" : `${mapProjects.length} mapped · ${(projectsData?.projects ?? []).length} total`}
+                    </p>
+                  </div>
+                  <button onClick={() => setShowProjects(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8">
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <ProjectList
+                    projects={projectsData?.projects ?? []}
+                    isLoading={isLoading}
+                    activeProject={activeProject}
+                    onSelect={(p) => { setActiveProject(activeProject?.id === p.id ? null : p); setShowProjects(false); }}
+                  />
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
       </PageTransition>
     </Layout>

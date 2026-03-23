@@ -368,7 +368,9 @@ export default function CountryProfile() {
               All Projects ({projects.length})
             </h2>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
@@ -403,32 +405,56 @@ export default function CountryProfile() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
-                            <div
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_COLOR }}
-                            />
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_COLOR }} />
                             <span className="text-slate-400 text-xs">{project.technology}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">
-                          {fmt(project.dealSizeUsdMn)}
-                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">{fmt(project.dealSizeUsdMn)}</td>
                         <td className="py-3 px-4">
                           {project.dealStage ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">
-                              {project.dealStage}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600 text-xs">—</span>
-                          )}
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{project.dealStage}</span>
+                          ) : <span className="text-slate-600 text-xs">—</span>}
                         </td>
-                        <td className="py-3 px-5 text-right text-slate-500 text-xs">
-                          {project.announcedYear ?? "—"}
-                        </td>
+                        <td className="py-3 px-5 text-right text-slate-500 text-xs">{project.announcedYear ?? "—"}</td>
                       </tr>
                     ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-white/5">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-4 animate-pulse">
+                    <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-white/5 rounded w-1/2" />
+                  </div>
+                ))
+              : paginatedProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/deals/${project.id}`)}
+                    className="p-4 cursor-pointer hover:bg-white/5 transition-colors active:bg-white/5"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-medium text-slate-100 text-sm leading-tight flex-1">{project.projectName}</h3>
+                      {project.dealSizeUsdMn ? (
+                        <span className="font-mono text-xs font-bold text-[#00e676] shrink-0">{fmt(project.dealSizeUsdMn)}</span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_COLOR }} />
+                        {project.technology}
+                      </span>
+                      {project.dealStage && (
+                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">{project.dealStage}</span>
+                      )}
+                      {project.announcedYear && <span>{project.announcedYear}</span>}
+                    </div>
+                  </div>
+                ))}
           </div>
           {totalPages > 1 && (
             <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">

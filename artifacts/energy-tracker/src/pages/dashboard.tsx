@@ -625,7 +625,7 @@ export default function Dashboard() {
           ) : (
             <div className="h-64 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={yearData} margin={{ top: 8, right: 60, left: 0, bottom: 0 }}>
+                <ComposedChart data={yearData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="annualGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.3} />
@@ -633,9 +633,9 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={55} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
+                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
                   <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <Area
                     yAxisId="left"

@@ -364,34 +364,24 @@ export default function DeveloperProfile() {
               All Deals ({projects.length})
             </h2>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
                   <th className="text-left py-3 px-5 font-semibold">Project Name</th>
-                  <th
-                    className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none"
-                    onClick={() => handleSort("country")}
-                  >
+                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("country")}>
                     <div className="flex items-center gap-1">Country <SortIcon col="country" /></div>
                   </th>
                   <th className="text-left py-3 px-4 font-semibold">Sector</th>
-                  <th
-                    className="text-right py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none"
-                    onClick={() => handleSort("dealSizeUsdMn")}
-                  >
+                  <th className="text-right py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("dealSizeUsdMn")}>
                     <div className="flex items-center justify-end gap-1">Deal Size <SortIcon col="dealSizeUsdMn" /></div>
                   </th>
-                  <th
-                    className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none"
-                    onClick={() => handleSort("status")}
-                  >
+                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("status")}>
                     <div className="flex items-center gap-1">Status <SortIcon col="status" /></div>
                   </th>
-                  <th
-                    className="text-right py-3 px-5 font-semibold cursor-pointer hover:text-white transition-colors select-none"
-                    onClick={() => handleSort("announcedYear")}
-                  >
+                  <th className="text-right py-3 px-5 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("announcedYear")}>
                     <div className="flex items-center justify-end gap-1">Year <SortIcon col="announcedYear" /></div>
                   </th>
                 </tr>
@@ -408,42 +398,64 @@ export default function DeveloperProfile() {
                       </tr>
                     ))
                   : pageRows.map((p) => (
-                      <tr
-                        key={p.id}
-                        onClick={() => navigate(`/deals/${p.id}`)}
-                        className="cursor-pointer hover:bg-white/5 transition-colors group"
-                      >
+                      <tr key={p.id} onClick={() => navigate(`/deals/${p.id}`)} className="cursor-pointer hover:bg-white/5 transition-colors group">
                         <td className="py-3 px-5">
-                          <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">
-                            {p.projectName}
-                          </span>
+                          <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">{p.projectName}</span>
                         </td>
                         <td className="py-3 px-4 text-slate-400 text-xs">{p.country}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
-                            <div
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }}
-                            />
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }} />
                             <span className="text-slate-400 text-xs">{p.technology}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">
-                          {fmt(p.dealSizeUsdMn)}
-                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">{fmt(p.dealSizeUsdMn)}</td>
                         <td className="py-3 px-4">
-                          <span className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">
-                            {p.dealStage ?? p.status}
-                          </span>
+                          <span className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">{p.dealStage ?? p.status}</span>
                         </td>
-                        <td className="py-3 px-5 text-right text-slate-500 text-xs">
-                          {p.announcedYear ?? "—"}
-                        </td>
+                        <td className="py-3 px-5 text-right text-slate-500 text-xs">{p.announcedYear ?? "—"}</td>
                       </tr>
                     ))}
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-white/5">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-4 animate-pulse">
+                    <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-white/5 rounded w-1/2" />
+                  </div>
+                ))
+              : pageRows.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => navigate(`/deals/${p.id}`)}
+                    className="p-4 cursor-pointer hover:bg-white/5 transition-colors active:bg-white/5"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-medium text-slate-100 text-sm leading-tight flex-1">{p.projectName}</h3>
+                      {p.dealSizeUsdMn ? (
+                        <span className="font-mono text-xs font-bold text-[#00e676] shrink-0">{fmt(p.dealSizeUsdMn)}</span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                      <span>{p.country}</span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }} />
+                        {p.technology}
+                      </span>
+                      {(p.dealStage ?? p.status) && (
+                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">{p.dealStage ?? p.status}</span>
+                      )}
+                      {p.announcedYear && <span>{p.announcedYear}</span>}
+                    </div>
+                  </div>
+                ))}
+          </div>
+
           {totalPages > 1 && (
             <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
               <span className="text-xs text-slate-500">Page {page} of {totalPages}</span>

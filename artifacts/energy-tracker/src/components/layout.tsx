@@ -62,11 +62,12 @@ function MobileNavItem({ item, onClose }: { item: typeof publicNavItems[number];
   return (
     <Link href={item.href} onClick={onClose}>
       <div className={`
-        flex items-center gap-4 px-4 py-4 rounded-xl text-lg
-        ${isActive ? "bg-primary/10 text-primary font-medium" : "text-foreground/70"}
+        flex items-center gap-4 px-4 py-3.5 rounded-xl
+        ${isActive ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"}
+        transition-colors
       `}>
-        <item.icon className="w-6 h-6" />
-        {item.name}
+        <item.icon className="w-5 h-5 shrink-0" />
+        <span className="text-base font-medium">{item.name}</span>
       </div>
     </Link>
   );
@@ -126,9 +127,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border z-50 flex items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2">
+      {/* Mobile Top Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border z-50 flex items-center justify-between px-4">
+        <Link href="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <img 
               src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
@@ -136,49 +137,88 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="w-5 h-5 filter brightness-0"
             />
           </div>
-          <span className="font-display font-bold text-lg">AfriEnergy</span>
+          <span className="font-display font-bold text-base">AfriEnergy</span>
         </Link>
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-foreground/80 hover:text-foreground"
+          className="p-2 rounded-xl text-foreground/70 hover:text-foreground hover:bg-white/8 transition-colors"
+          aria-label="Toggle menu"
         >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Slide-out Drawer + Backdrop */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden fixed inset-0 z-40 bg-background/98 backdrop-blur-xl pt-20 px-4"
-          >
-            <nav className="flex flex-col gap-2 mt-4">
-              <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
-              <div className="px-4 pt-2 pb-1 text-xs font-semibold text-foreground/40 uppercase tracking-wider">
-                Analytics & Tools
-              </div>
-              {navItems.map((item) => (
-                <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
-              ))}
-              {isAdmin && (
-                <button
-                  onClick={() => { logout(); setMobileMenuOpen(false); }}
-                  className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg text-foreground/50"
-                >
-                  <LogOut className="w-6 h-6" />
-                  Sign out of admin
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+
+            {/* Drawer panel */}
+            <motion.div
+              key="drawer"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", stiffness: 320, damping: 35 }}
+              className="md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col"
+            >
+              {/* Drawer header */}
+              <div className="h-14 flex items-center justify-between px-5 border-b border-sidebar-border shrink-0">
+                <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-5 h-5 filter brightness-0" />
+                  </div>
+                  <span className="font-display font-bold text-base text-sidebar-foreground">AfriEnergy</span>
+                </Link>
+                <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 rounded-lg text-foreground/50 hover:text-foreground">
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-            </nav>
-          </motion.div>
+              </div>
+
+              {/* Nav items */}
+              <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
+                <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
+                <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
+                  Analytics & Tools
+                </div>
+                {navItems.map((item) => (
+                  <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
+                ))}
+                {isAdmin && (
+                  <button
+                    onClick={() => { logout(); setMobileMenuOpen(false); }}
+                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Sign out of admin
+                  </button>
+                )}
+              </nav>
+
+              {/* Drawer footer */}
+              <div className="p-4 border-t border-sidebar-border shrink-0">
+                <div className="bg-sidebar-accent/50 rounded-xl p-3 border border-sidebar-border/50">
+                  <p className="text-xs font-semibold text-sidebar-foreground/80">Data Update</p>
+                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">Last synced: Today, 08:30 GMT</p>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative pt-16 md:pt-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative pt-14 md:pt-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none -z-10" />
         <div className="flex-1 overflow-y-auto">
           {children}
