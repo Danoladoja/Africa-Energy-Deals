@@ -183,9 +183,10 @@ function MultiSelect({
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl py-2 min-w-44 max-h-64 overflow-y-auto">
           {options.map(opt => (
-            <label
+            <button
               key={opt}
-              className="flex items-center gap-2.5 px-4 py-2 hover:bg-white/5 cursor-pointer text-sm text-slate-300 hover:text-white"
+              onClick={() => toggle(opt)}
+              className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-white/5 cursor-pointer text-sm text-slate-300 hover:text-white text-left"
             >
               <div
                 className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
@@ -201,7 +202,7 @@ function MultiSelect({
                 )}
               </div>
               <span className="truncate">{opt}</span>
-            </label>
+            </button>
           ))}
           {selected.length > 0 && (
             <div className="border-t border-white/5 mt-1 pt-1">
