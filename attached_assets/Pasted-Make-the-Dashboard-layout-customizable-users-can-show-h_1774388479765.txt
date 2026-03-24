@@ -1,0 +1,71 @@
+Make the Dashboard layout customizable — users can show/hide widgets, rearrange their order, and save their preferred view.
+
+CURRENT STATE:
+- Dashboard at /energy-tracker/dashboard has 6 fixed widget sections:
+  1. Energy Transition Overview (Renewable/Fossil/Infrastructure split)
+  2. Capital Committed by Year (bar + line chart)
+  3. Deals by Technology (horizontal bar)
+  4. Top 10 Investors by Volume (horizontal bar)
+  5. Deal Pipeline Funnel
+  6. Country × Sector Heatmap
+- Plus stat cards at top (Total Investment, Projects, Countries, etc.)
+- Layout is fixed — all users see the same 6 charts in the same order
+
+REQUIREMENTS:
+
+1. EDIT MODE TOGGLE — Add a "Customize" button (pencil/grid icon) next to the existing Share button:
+   - Clicking enters "Edit Mode" — the button changes to "Save Layout" (green) + "Cancel" (ghost)
+   - In edit mode, each widget gets:
+     a) A drag handle (⠿ icon top-left) for reordering
+     b) A visibility toggle (eye icon top-right) to show/hide
+     c) A subtle dashed border to indicate it's movable
+
+2. DRAG-AND-DROP REORDERING:
+   - Use a lightweight drag-and-drop library (react-beautiful-dnd, @dnd-kit/core, or similar)
+   - Users can drag widgets to rearrange them in the grid
+   - The dashboard uses a 2-column grid for most widgets — maintain this grid but allow reordering within it
+   - Show a blue drop indicator line when dragging between positions
+   - Stat cards row at the top is NOT customizable (always stays as-is)
+
+3. SHOW/HIDE WIDGETS:
+   - Toggling the eye icon hides the widget (with a fade-out animation)
+   - Hidden widgets appear in a collapsed "Hidden Widgets" section at the bottom of edit mode:
+     "[Widget Name] — Hidden" with a "Show" button to restore it
+   - At least 2 widgets must remain visible (prevent hiding all)
+
+4. SAVE LAYOUT — When user clicks "Save Layout":
+   - Store the layout config in localStorage:
+     {
+       widgetOrder: ["energy-transition", "capital-by-year", "deals-by-tech", ...],
+       hiddenWidgets: ["pipeline-funnel"],
+       savedAt: "2026-03-24T..."
+     }
+   - Exit edit mode
+   - Show toast: "Dashboard layout saved"
+
+5. RESET OPTION — Add a "Reset to Default" link (small, muted) in edit mode:
+   - Restores the original 6-widget order with all visible
+   - Clears the localStorage layout config
+
+6. PRESET LAYOUTS — Offer 2-3 preset layouts as quick options:
+   - "Full Overview" (default — all 6 widgets)
+   - "Investor Focus" (Energy Transition + Top 10 Investors + Pipeline Funnel + Heatmap)
+   - "Country Analyst" (Capital by Year + Deals by Tech + Heatmap)
+   - Show these as small clickable chips at the top of edit mode
+
+7. PERSISTENCE:
+   - Use localStorage for now (same approach as saved searches)
+   - On page load, check for saved layout and apply it
+   - If no saved layout, show the default
+
+8. RESPONSIVE BEHAVIOR:
+   - On mobile (< 768px), widgets stack to single column regardless of saved layout
+   - Drag-and-drop is disabled on mobile — show a "desktop only" note in edit mode on small screens
+
+IMPLEMENTATION:
+- Give each widget a unique ID: "energy-transition", "capital-by-year", "deals-by-tech", "top-investors", "pipeline-funnel", "country-heatmap"
+- Create a DashboardLayout component that reads the widget order and visibility from state
+- Use CSS Grid with grid-template-columns for the layout
+- Wrap each widget in a DashboardWidget wrapper that handles the edit-mode overlay, drag handle, and visibility toggle
+
+STYLING: Match the dark theme. Edit mode should feel polished — not like a raw dev tool. Use subtle animations for drag, hide, and show transitions.

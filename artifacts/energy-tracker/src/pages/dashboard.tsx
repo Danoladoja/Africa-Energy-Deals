@@ -13,6 +13,7 @@ import {
 import {
   Activity, Globe, Zap, DollarSign, TrendingUp, Briefcase,
   ChevronDown, ChevronUp, Filter, X, Leaf, Flame, Cpu,
+  LayoutGrid, GripVertical, Eye, EyeOff, RotateCcw, Pencil, Check,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButton } from "@/components/share-button";
@@ -20,6 +21,17 @@ import { ExportDropdown } from "@/components/export-dropdown";
 import { generateDashboardPdf } from "@/utils/generate-dashboard-pdf";
 import { generateDashboardPptx } from "@/utils/generate-dashboard-pptx";
 import { exportToPng } from "@/utils/export-utils";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, DragOverlay,
+  type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, useSortable,
+  rectSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 
 const API = "/api";
 
@@ -41,6 +53,110 @@ const ENERGY_GROUPS = {
 } as const;
 const FUNNEL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned"];
 const FUNNEL_COLORS = ["#94a3b8", "#facc15", "#22d3ee", "#38bdf8", "#00e676"];
+
+// ── Layout customisation ───────────────────────────────────────────────────────
+type WidgetId = "energy-transition" | "capital-by-year" | "deals-by-tech" | "top-investors" | "pipeline-funnel" | "country-heatmap";
+
+const DEFAULT_ORDER: WidgetId[] = [
+  "energy-transition", "capital-by-year", "deals-by-tech",
+  "top-investors", "pipeline-funnel", "country-heatmap",
+];
+
+const WIDGET_META: Record<WidgetId, { label: string; colSpan: 1 | 2; icon: React.ComponentType<any>; color: string }> = {
+  "energy-transition": { label: "Energy Transition Overview", colSpan: 2, icon: Leaf,       color: "#00e676" },
+  "capital-by-year":   { label: "Capital Committed by Year",  colSpan: 2, icon: TrendingUp, color: "#38bdf8" },
+  "deals-by-tech":     { label: "Deals by Technology",        colSpan: 1, icon: Zap,        color: "#facc15" },
+  "top-investors":     { label: "Top 10 Investors",           colSpan: 1, icon: Briefcase,  color: "#fb923c" },
+  "pipeline-funnel":   { label: "Deal Pipeline Funnel",       colSpan: 2, icon: Activity,   color: "#38bdf8" },
+  "country-heatmap":   { label: "Country × Sector Heatmap",   colSpan: 2, icon: Globe,      color: "#38bdf8" },
+};
+
+const PRESETS: Record<string, { order: WidgetId[]; hidden: WidgetId[] }> = {
+  "Full Overview":    { order: [...DEFAULT_ORDER], hidden: [] },
+  "Investor Focus":   {
+    order: ["energy-transition", "top-investors", "pipeline-funnel", "country-heatmap", "capital-by-year", "deals-by-tech"],
+    hidden: ["capital-by-year", "deals-by-tech"],
+  },
+  "Country Analyst":  {
+    order: ["capital-by-year", "deals-by-tech", "country-heatmap", "energy-transition", "top-investors", "pipeline-funnel"],
+    hidden: ["energy-transition", "top-investors", "pipeline-funnel"],
+  },
+};
+
+const LAYOUT_LS_KEY = "afrienergy_dashboard_layout";
+
+function loadSavedLayout(): { widgetOrder: WidgetId[]; hiddenWidgets: WidgetId[] } | null {
+  try {
+    const raw = localStorage.getItem(LAYOUT_LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+// ── SortableWidget ─────────────────────────────────────────────────────────────
+function SortableWidget({
+  id, colSpan, editMode, isHidden, canHide, label, onToggleHide, children,
+}: {
+  id: WidgetId;
+  colSpan: 1 | 2;
+  editMode: boolean;
+  isHidden: boolean;
+  canHide: boolean;
+  label: string;
+  onToggleHide: () => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  const colClass = colSpan === 2 ? "lg:col-span-2" : "";
+
+  return (
+    <div ref={setNodeRef} style={style} className={`relative ${colClass} ${isHidden ? "opacity-40" : ""}`}>
+      {editMode && (
+        <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-blue-500/25 pointer-events-none z-10 transition-colors" />
+      )}
+      {editMode && (
+        <div className="absolute top-3 left-3 z-20 flex items-center gap-1">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg bg-[#0f172a]/80 backdrop-blur-sm border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+      {editMode && (
+        <div className="absolute top-3 right-3 z-20">
+          <button
+            onClick={onToggleHide}
+            disabled={!canHide}
+            className={`p-1.5 rounded-lg bg-[#0f172a]/80 backdrop-blur-sm border transition-colors ${
+              isHidden
+                ? "border-[#00e676]/30 text-[#00e676] hover:border-[#00e676]/60"
+                : canHide
+                  ? "border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30"
+                  : "border-white/5 text-slate-700 cursor-not-allowed"
+            }`}
+            title={isHidden ? "Show widget" : canHide ? "Hide widget" : "At least 2 widgets must be visible"}
+          >
+            {isHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          </button>
+        </div>
+      )}
+      <div className={`transition-opacity duration-200 ${editMode ? "pt-1" : ""}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Project {
@@ -292,6 +408,64 @@ export default function Dashboard() {
   const [selTechs, setSelTechs]     = useState<string[]>([]);
   const hasFilters = selCountries.length > 0 || selTechs.length > 0 || yearRange[0] > 2007 || yearRange[1] < 2026;
 
+  // ── Layout customisation ──
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => loadSavedLayout()?.widgetOrder ?? DEFAULT_ORDER);
+  const [hiddenWidgets, setHiddenWidgets] = useState<Set<WidgetId>>(() => new Set(loadSavedLayout()?.hiddenWidgets ?? []));
+  const [editMode, setEditMode] = useState(false);
+  const [draftOrder, setDraftOrder] = useState<WidgetId[]>(DEFAULT_ORDER);
+  const [draftHidden, setDraftHidden] = useState<Set<WidgetId>>(new Set());
+  const [activeId, setActiveId] = useState<WidgetId | null>(null);
+
+  function enterEditMode() {
+    setDraftOrder([...widgetOrder]);
+    setDraftHidden(new Set(hiddenWidgets));
+    setEditMode(true);
+  }
+  function cancelEdit() { setEditMode(false); }
+  function saveLayout() {
+    setWidgetOrder(draftOrder);
+    setHiddenWidgets(draftHidden);
+    localStorage.setItem(LAYOUT_LS_KEY, JSON.stringify({
+      widgetOrder: draftOrder,
+      hiddenWidgets: [...draftHidden],
+      savedAt: new Date().toISOString(),
+    }));
+    setEditMode(false);
+    toast.success("Dashboard layout saved");
+  }
+  function resetLayout() {
+    setDraftOrder([...DEFAULT_ORDER]);
+    setDraftHidden(new Set());
+  }
+  function applyPreset(name: string) {
+    const p = PRESETS[name];
+    if (!p) return;
+    setDraftOrder(p.order);
+    setDraftHidden(new Set(p.hidden));
+  }
+  function toggleHideWidget(id: WidgetId) {
+    const visible = draftOrder.filter(wId => !draftHidden.has(wId));
+    const isHidden = draftHidden.has(id);
+    if (!isHidden && visible.length <= 2) return;
+    const next = new Set(draftHidden);
+    if (isHidden) next.delete(id); else next.add(id);
+    setDraftHidden(next);
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  function handleDragStart(e: DragStartEvent) { setActiveId(e.active.id as WidgetId); }
+  function handleDragEnd(e: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIdx = draftOrder.indexOf(active.id as WidgetId);
+    const newIdx = draftOrder.indexOf(over.id as WidgetId);
+    setDraftOrder(arrayMove(draftOrder, oldIdx, newIdx));
+  }
+
   // ── Data fetches ──
   const { data: summary, isLoading: loadingSummary } = useGetSummaryStats();
 
@@ -527,6 +701,228 @@ export default function Dashboard() {
     );
   };
 
+  // Render individual widget content (called by the sortable grid)
+  const renderWidget = (id: WidgetId): React.ReactNode => {
+    switch (id) {
+      case "energy-transition": return (
+        <ChartCard title="Energy Transition Overview" subtitle="Renewable vs Fossil Fuel vs Infrastructure investment split" icon={Leaf} iconColor="#00e676">
+          {isLoading ? <Skeleton className="h-48 w-full rounded-xl" /> : (
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="w-full md:w-56 h-56 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={transitionData} dataKey="investment" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={96} paddingAngle={3} strokeWidth={0}>
+                      {transitionData.map(d => <Cell key={d.name} fill={d.color} />)}
+                    </Pie>
+                    <RechartsTooltip content={<TransitionTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 space-y-3">
+                {transitionData.map(d => (
+                  <div key={d.name} className="flex items-center gap-4">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-white">{d.name}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-slate-500">{d.count} projects</span>
+                          <span className="font-mono text-sm font-bold" style={{ color: d.color }}>{fmt(d.investment)}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${d.pct}%`, backgroundColor: d.color, opacity: 0.8 }} />
+                      </div>
+                      <p className="text-right text-[10px] text-slate-500 mt-0.5">{d.pct}% of total</p>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-[11px] text-slate-500">Renewable = Solar, Wind, Hydro, Bioenergy · Fossil = Oil &amp; Gas, Coal · Infrastructure = Grid &amp; Storage, Nuclear</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </ChartCard>
+      );
+
+      case "capital-by-year": return (
+        <ChartCard title="Capital Committed by Year" subtitle="Annual deal volume (bars) + cumulative total (line)" icon={TrendingUp} iconColor="#38bdf8">
+          {isLoading ? <Skeleton className="h-64 w-full rounded-xl" /> : yearData.length === 0 ? (
+            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
+          ) : (
+            <div className="h-64 md:h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={yearData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="annualGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Area yAxisId="left" type="monotone" dataKey="annual" name="Annual Volume" stroke="#38bdf8" strokeWidth={2} fill="url(#annualGrad)" />
+                  <Line yAxisId="right" type="monotone" dataKey="cumulative" name="Cumulative" stroke="#00e676" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="flex items-center gap-6 mt-3 text-xs text-slate-500">
+            <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#38bdf8]" /> Annual Volume</div>
+            <div className="flex items-center gap-2"><div className="w-8 h-0.5 border-t-2 border-dashed border-[#00e676]" /> Cumulative Total</div>
+          </div>
+        </ChartCard>
+      );
+
+      case "deals-by-tech": return (
+        <ChartCard title="Deals by Technology" subtitle="Count of deals per sector, sorted descending" icon={Zap} iconColor="#facc15">
+          {isLoading ? <Skeleton className="h-48 w-full rounded-xl" /> : (
+            <div className="h-56 md:h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={techCountData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="technology" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={88} />
+                  <RechartsTooltip content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
+                        <p className="font-semibold mb-1" style={{ color: d.color }}>{label}</p>
+                        <p className="text-white">{d.count} deals</p>
+                        <p className="text-slate-400 font-mono">{fmt(d.investment)}</p>
+                      </div>
+                    );
+                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Bar dataKey="count" name="Deals" radius={[0, 4, 4, 0]}>
+                    {techCountData.map(d => <Cell key={d.technology} fill={d.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+      );
+
+      case "top-investors": return (
+        <ChartCard title="Top 10 Investors by Volume" subtitle="Total deal size attributed per investor / developer" icon={Briefcase} iconColor="#fb923c">
+          {isLoading ? <Skeleton className="h-48 w-full rounded-xl" /> : investorData.length === 0 ? (
+            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No investor data yet — developer field is being populated.</div>
+          ) : (
+            <div className="h-56 md:h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={investorData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={88} tickFormatter={v => v.length > 12 ? v.slice(0, 12) + "…" : v} />
+                  <RechartsTooltip content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
+                        <p className="font-semibold text-white mb-1">{label}</p>
+                        <p className="text-[#a855f7] font-mono font-bold">{fmt(payload[0].value as number)}</p>
+                      </div>
+                    );
+                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Bar dataKey="investment" name="Volume" fill="#fb923c" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+      );
+
+      case "pipeline-funnel": return (
+        <ChartCard title="Deal Pipeline Funnel" subtitle="Announced → Mandated → Financial Close → Construction → Commissioned" icon={Activity} iconColor="#38bdf8">
+          {isLoading ? <Skeleton className="h-56 w-full rounded-xl" /> : funnelData.funnel.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-slate-600 text-sm">No stage data</div>
+          ) : (
+            <div>
+              <FunnelViz data={funnelData.funnel} />
+              {funnelData.suspended.count > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Suspended</span>
+                  <span className="text-xs text-red-400 font-medium">{funnelData.suspended.count} deals</span>
+                  <span className="text-xs text-slate-500 font-mono">{fmt(funnelData.suspended.investment)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </ChartCard>
+      );
+
+      case "country-heatmap": return (
+        <ChartCard title="Country × Sector Heatmap" subtitle="Investment intensity — top 15 countries by total. Click a cell to filter deals." icon={Globe} iconColor="#38bdf8">
+          {isLoading ? <Skeleton className="h-80 w-full rounded-xl" /> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-separate border-spacing-0.5" style={{ minWidth: 520 }}>
+                <thead>
+                  <tr>
+                    <th className="text-left py-1.5 pr-3 text-slate-500 font-medium text-[11px] sticky left-0 bg-[#1e293b] z-10">Country</th>
+                    {heatmapData.sectors.map(s => (
+                      <th key={s} className="text-center pb-1.5 text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[s] }} />
+                          <span className="truncate max-w-[56px]" title={s}>{s.replace(" & ", "/").replace("Grid/Storage", "Grid")}</span>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="text-right py-1.5 pl-2 text-slate-500 font-medium text-[11px]">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatmapData.countries.map(country => {
+                    const rowTotal = heatmapData.sectors.reduce((s, sector) => s + (heatmapData.cells[country]?.[sector]?.inv ?? 0), 0);
+                    return (
+                      <tr key={country}>
+                        <td className="py-1 pr-3 text-slate-300 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-[#1e293b] z-10">{country}</td>
+                        {heatmapData.sectors.map(sector => {
+                          const cell = heatmapData.cells[country]?.[sector];
+                          const inv = cell?.inv ?? 0;
+                          return (
+                            <td key={sector} className="p-0.5">
+                              {inv > 0 ? (
+                                <button
+                                  onClick={() => navigate(`/deals?country=${encodeURIComponent(country)}&technology=${encodeURIComponent(sector)}`)}
+                                  className="w-full h-10 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105 hover:ring-1 hover:ring-white/20"
+                                  style={{ backgroundColor: heatmapCellColor(inv, heatmapData.globalMax) }}
+                                  title={`${country} · ${sector}: ${fmt(inv)} · ${cell?.count} deal${cell?.count !== 1 ? "s" : ""}`}
+                                >
+                                  <span className="text-[9px] font-mono font-bold text-white leading-none">{fmt(inv, 0)}</span>
+                                  <span className="text-[8px] text-white/50 leading-none">{cell?.count}×</span>
+                                </button>
+                              ) : (
+                                <div className="w-full h-10 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.02)" }} />
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="py-1 pl-2 text-right font-mono text-[11px] text-slate-400 whitespace-nowrap">{fmt(rowTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="text-[10px] text-slate-600 mt-3">Showing top 15 countries by total investment · Click any colored cell to filter the deal tracker</p>
+            </div>
+          )}
+        </ChartCard>
+      );
+
+      default: return null;
+    }
+  };
+
+  // Compute what's shown in the grid (edit mode uses draft, view mode uses saved)
+  const displayOrder = editMode
+    ? draftOrder.filter(id => !draftHidden.has(id))
+    : widgetOrder.filter(id => !hiddenWidgets.has(id));
+  const visibleCount = displayOrder.length;
+
   return (
     <Layout>
       <SEOMeta
@@ -551,7 +947,33 @@ export default function Dashboard() {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {!editMode ? (
+              <button
+                onClick={enterEditMode}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-[#1e293b] hover:bg-white/10 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Customize
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={saveLayout}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#00e676]/40 bg-[#00e676]/10 text-[#00e676] hover:bg-[#00e676]/20 text-sm font-semibold transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Layout
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </button>
+              </>
+            )}
             <ShareButton
               text={summary
                 ? `🌍 Africa Energy Investment: ${fmt(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries.`
@@ -669,319 +1091,85 @@ export default function Dashboard() {
           <StatCard title="Sectors"           value={summary ? String(summary.totalSectors ?? summary.totalTechnologies ?? "—") : ""} icon={Zap} loading={isLoading} />
         </div>
 
-        {/* ── 1. Energy Transition Overview ── */}
-        <ChartCard
-          title="Energy Transition Overview"
-          subtitle="Renewable vs Fossil Fuel vs Infrastructure investment split"
-          icon={Leaf}
-          iconColor="#00e676"
-        >
-          {isLoading ? (
-            <Skeleton className="h-48 w-full rounded-xl" />
-          ) : (
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="w-full md:w-56 h-56 shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={transitionData}
-                      dataKey="investment"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={96}
-                      paddingAngle={3}
-                      strokeWidth={0}
-                    >
-                      {transitionData.map(d => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip content={<TransitionTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1 space-y-3">
-                {transitionData.map(d => (
-                  <div key={d.name} className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-white">{d.name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-slate-500">{d.count} projects</span>
-                          <span className="font-mono text-sm font-bold" style={{ color: d.color }}>{fmt(d.investment)}</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${d.pct}%`, backgroundColor: d.color, opacity: 0.8 }}
-                        />
-                      </div>
-                      <p className="text-right text-[10px] text-slate-500 mt-0.5">{d.pct}% of total</p>
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-2 border-t border-white/5">
-                  <p className="text-[11px] text-slate-500">
-                    Renewable = Solar, Wind, Hydro, Bioenergy ·
-                    Fossil = Oil &amp; Gas, Coal ·
-                    Infrastructure = Grid &amp; Storage, Nuclear
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </ChartCard>
-
-        {/* ── 2. Capital Committed by Year ── */}
-        <ChartCard
-          title="Capital Committed by Year"
-          subtitle="Annual deal volume (bars) + cumulative total (line)"
-          icon={TrendingUp}
-          iconColor="#38bdf8"
-        >
-          {isLoading ? (
-            <Skeleton className="h-64 w-full rounded-xl" />
-          ) : yearData.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
-          ) : (
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={yearData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="annualGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
-                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="annual"
-                    name="Annual Volume"
-                    stroke="#38bdf8"
-                    strokeWidth={2}
-                    fill="url(#annualGrad)"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="cumulative"
-                    name="Cumulative"
-                    stroke="#00e676"
-                    strokeWidth={2.5}
-                    dot={false}
-                    strokeDasharray="6 3"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          <div className="flex items-center gap-6 mt-3 text-xs text-slate-500">
-            <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#38bdf8]" /> Annual Volume</div>
-            <div className="flex items-center gap-2"><div className="w-8 h-0.5 border-t-2 border-dashed border-[#00e676]" /> Cumulative Total</div>
-          </div>
-        </ChartCard>
-
-        {/* ── 3 & 4: Side-by-side ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* 3. Deal Count by Technology */}
-          <ChartCard
-            title="Deals by Technology"
-            subtitle="Count of deals per sector, sorted descending"
-            icon={Zap}
-            iconColor="#facc15"
-          >
-            {isLoading ? (
-              <Skeleton className="h-48 w-full rounded-xl" />
-            ) : (
-              <div className="h-56 md:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={techCountData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                    <XAxis type="number" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="technology" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={88} />
-                    <RechartsTooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload;
-                        return (
-                          <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
-                            <p className="font-semibold mb-1" style={{ color: d.color }}>{label}</p>
-                            <p className="text-white">{d.count} deals</p>
-                            <p className="text-slate-400 font-mono">{fmt(d.investment)}</p>
-                          </div>
-                        );
-                      }}
-                      cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                    />
-                    <Bar dataKey="count" name="Deals" radius={[0, 4, 4, 0]}>
-                      {techCountData.map(d => (
-                        <Cell key={d.technology} fill={d.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </ChartCard>
-
-          {/* 4. Top 10 Investors */}
-          <ChartCard
-            title="Top 10 Investors by Volume"
-            subtitle="Total deal size attributed per investor / developer"
-            icon={Briefcase}
-            iconColor="#fb923c"
-          >
-            {isLoading ? (
-              <Skeleton className="h-48 w-full rounded-xl" />
-            ) : investorData.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-slate-600 text-sm">
-                No investor data yet — developer field is being populated.
-              </div>
-            ) : (
-              <div className="h-56 md:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={investorData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                    <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fill: "#94a3b8", fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={88}
-                      tickFormatter={v => v.length > 12 ? v.slice(0, 12) + "…" : v}
-                    />
-                    <RechartsTooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        return (
-                          <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
-                            <p className="font-semibold text-white mb-1">{label}</p>
-                            <p className="text-[#a855f7] font-mono font-bold">{fmt(payload[0].value as number)}</p>
-                          </div>
-                        );
-                      }}
-                      cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                    />
-                    <Bar dataKey="investment" name="Volume" fill="#fb923c" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </ChartCard>
-        </div>
-
-        {/* ── 5. Deal Pipeline Funnel ── */}
-        <ChartCard
-          title="Deal Pipeline Funnel"
-          subtitle="Announced → Mandated → Financial Close → Construction → Commissioned"
-          icon={Activity}
-          iconColor="#38bdf8"
-        >
-          {isLoading ? (
-            <Skeleton className="h-56 w-full rounded-xl" />
-          ) : funnelData.funnel.length === 0 ? (
-            <div className="h-32 flex items-center justify-center text-slate-600 text-sm">No stage data</div>
-          ) : (
+        {/* ── Edit Mode Toolbar ── */}
+        {editMode && (
+          <div className="bg-[#1e293b] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <FunnelViz data={funnelData.funnel} />
-              {funnelData.suspended.count > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Suspended</span>
-                  <span className="text-xs text-red-400 font-medium">{funnelData.suspended.count} deals</span>
-                  <span className="text-xs text-slate-500 font-mono">{fmt(funnelData.suspended.investment)}</span>
-                </div>
-              )}
+              <p className="text-sm font-semibold text-white">Customize Dashboard Layout</p>
+              <p className="text-xs text-slate-500 mt-0.5">Drag widgets to reorder · click the eye to hide · choose a preset to start</p>
             </div>
-          )}
-        </ChartCard>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 mr-1">Presets:</span>
+              {Object.keys(PRESETS).map(name => (
+                <button
+                  key={name}
+                  onClick={() => applyPreset(name)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all"
+                >
+                  {name}
+                </button>
+              ))}
+              <button
+                onClick={resetLayout}
+                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset
+              </button>
+            </div>
+          </div>
+        )}
 
-        {/* ── 6. Country × Sector Heatmap ── */}
-        <ChartCard
-          title="Country × Sector Heatmap"
-          subtitle="Investment intensity — top 15 countries by total. Click a cell to filter deals."
-          icon={Globe}
-          iconColor="#38bdf8"
-        >
-          {isLoading ? (
-            <Skeleton className="h-80 w-full rounded-xl" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-separate border-spacing-0.5" style={{ minWidth: 520 }}>
-                <thead>
-                  <tr>
-                    <th className="text-left py-1.5 pr-3 text-slate-500 font-medium text-[11px] sticky left-0 bg-[#1e293b] z-10">
-                      Country
-                    </th>
-                    {heatmapData.sectors.map(s => (
-                      <th key={s} className="text-center pb-1.5 text-[10px] text-slate-500 font-medium whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[s] }} />
-                          <span className="truncate max-w-[56px]" title={s}>{s.replace(" & ", "/").replace("Grid/Storage", "Grid")}</span>
-                        </div>
-                      </th>
-                    ))}
-                    <th className="text-right py-1.5 pl-2 text-slate-500 font-medium text-[11px]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmapData.countries.map(country => {
-                    const rowTotal = heatmapData.sectors.reduce(
-                      (s, sector) => s + (heatmapData.cells[country]?.[sector]?.inv ?? 0),
-                      0
-                    );
-                    return (
-                      <tr key={country}>
-                        <td className="py-1 pr-3 text-slate-300 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-[#1e293b] z-10">
-                          {country}
-                        </td>
-                        {heatmapData.sectors.map(sector => {
-                          const cell = heatmapData.cells[country]?.[sector];
-                          const inv = cell?.inv ?? 0;
-                          return (
-                            <td key={sector} className="p-0.5">
-                              {inv > 0 ? (
-                                <button
-                                  onClick={() => navigate(`/deals?country=${encodeURIComponent(country)}&technology=${encodeURIComponent(sector)}`)}
-                                  className="w-full h-10 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105 hover:ring-1 hover:ring-white/20"
-                                  style={{ backgroundColor: heatmapCellColor(inv, heatmapData.globalMax) }}
-                                  title={`${country} · ${sector}: ${fmt(inv)} · ${cell?.count} deal${cell?.count !== 1 ? "s" : ""}`}
-                                >
-                                  <span className="text-[9px] font-mono font-bold text-white leading-none">{fmt(inv, 0)}</span>
-                                  <span className="text-[8px] text-white/50 leading-none">{cell?.count}×</span>
-                                </button>
-                              ) : (
-                                <div className="w-full h-10 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.02)" }} />
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="py-1 pl-2 text-right font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                          {fmt(rowTotal)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <p className="text-[10px] text-slate-600 mt-3">
-                Showing top 15 countries by total investment · Click any colored cell to filter the deal tracker
-              </p>
+        {/* ── Widget Grid (sortable in edit mode) ── */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <SortableContext items={displayOrder} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {displayOrder.map(id => (
+                <SortableWidget
+                  key={id}
+                  id={id}
+                  colSpan={WIDGET_META[id].colSpan}
+                  editMode={editMode}
+                  isHidden={false}
+                  canHide={visibleCount > 2}
+                  label={WIDGET_META[id].label}
+                  onToggleHide={() => toggleHideWidget(id)}
+                >
+                  {renderWidget(id)}
+                </SortableWidget>
+              ))}
             </div>
-          )}
-        </ChartCard>
+          </SortableContext>
+          <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+            {activeId ? (
+              <div className="bg-[#1e293b]/95 border-2 border-blue-500/40 rounded-2xl p-6 shadow-2xl backdrop-blur-sm opacity-90 cursor-grabbing">
+                <p className="text-sm font-semibold text-blue-400">{WIDGET_META[activeId].label}</p>
+                <p className="text-xs text-slate-500 mt-1">Drop to reorder</p>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+
+        {/* ── Hidden Widgets Panel (edit mode only) ── */}
+        {editMode && (editMode ? draftHidden.size : hiddenWidgets.size) > 0 && (
+          <div className="bg-white/[0.02] border border-white/8 rounded-2xl p-5">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Hidden Widgets — click Show to restore</p>
+            <div className="flex flex-wrap gap-3">
+              {[...(editMode ? draftHidden : hiddenWidgets)].map(id => (
+                <div key={id} className="flex items-center gap-3 bg-white/5 border border-white/8 rounded-xl px-4 py-2.5">
+                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="text-sm text-slate-400">{WIDGET_META[id].label}</span>
+                  <button
+                    onClick={() => toggleHideWidget(id)}
+                    className="text-xs text-[#00e676] hover:text-[#00e676]/70 font-medium transition-colors ml-1"
+                  >
+                    Show
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
 
         </div>
       </PageTransition>
