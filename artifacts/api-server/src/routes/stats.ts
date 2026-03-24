@@ -1,10 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
-import { sql, inArray, isNotNull } from "drizzle-orm";
+import { sql, inArray, isNotNull, eq, and, ne } from "drizzle-orm";
 
 const CANONICAL_REGIONS = [
   "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa",
 ];
+
+const APPROVED = eq(projectsTable.reviewStatus, "approved");
+const AFRICAN = ne(projectsTable.region, "Other");
 
 const router: IRouter = Router();
 
@@ -19,20 +22,23 @@ router.get("/stats/summary", async (_req, res) => {
           activeProjects: sql<number>`coalesce(sum(case when lower(status) in ('active', 'under construction', 'development') then 1 else 0 end), 0)::int`,
           completedProjects: sql<number>`coalesce(sum(case when lower(status) in ('operational', 'completed', 'commissioned') then 1 else 0 end), 0)::int`,
         })
-        .from(projectsTable),
-      db.selectDistinct({ technology: projectsTable.technology }).from(projectsTable),
+        .from(projectsTable)
+        .where(and(APPROVED, AFRICAN)),
+      db.selectDistinct({ technology: projectsTable.technology })
+        .from(projectsTable)
+        .where(and(APPROVED, AFRICAN)),
       db
         .select({
           stage: projectsTable.dealStage,
           count: sql<number>`count(*)::int`,
         })
         .from(projectsTable)
-        .where(isNotNull(projectsTable.dealStage))
+        .where(and(APPROVED, AFRICAN, isNotNull(projectsTable.dealStage)))
         .groupBy(projectsTable.dealStage),
       db
         .selectDistinct({ developer: projectsTable.developer })
         .from(projectsTable)
-        .where(isNotNull(projectsTable.developer)),
+        .where(and(APPROVED, AFRICAN, isNotNull(projectsTable.developer))),
     ]);
 
     const totalSectors = techResult.length;
@@ -63,6 +69,7 @@ router.get("/stats/by-country", async (_req, res) => {
         longitude: sql<number | null>`avg(longitude)`,
       })
       .from(projectsTable)
+      .where(and(APPROVED, AFRICAN))
       .groupBy(projectsTable.country, projectsTable.region)
       .orderBy(sql`sum(deal_size_usd_mn) desc nulls last`);
 
@@ -82,6 +89,7 @@ router.get("/stats/by-technology", async (_req, res) => {
         totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
       })
       .from(projectsTable)
+      .where(and(APPROVED, AFRICAN))
       .groupBy(projectsTable.technology)
       .orderBy(sql`sum(deal_size_usd_mn) desc nulls last`);
 
@@ -102,7 +110,7 @@ router.get("/stats/by-region", async (_req, res) => {
         countries: sql<number>`count(distinct country)::int`,
       })
       .from(projectsTable)
-      .where(inArray(projectsTable.region, CANONICAL_REGIONS))
+      .where(and(APPROVED, inArray(projectsTable.region, CANONICAL_REGIONS)))
       .groupBy(projectsTable.region)
       .orderBy(sql`sum(deal_size_usd_mn) desc nulls last`);
 
@@ -122,6 +130,7 @@ router.get("/stats/by-year", async (_req, res) => {
         totalInvestmentUsdMn: sql<number>`coalesce(sum(deal_size_usd_mn), 0)`,
       })
       .from(projectsTable)
+      .where(and(APPROVED, AFRICAN))
       .groupBy(projectsTable.announcedYear)
       .orderBy(projectsTable.announcedYear);
 

@@ -160,23 +160,33 @@ function MultiSelect({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  const isAll = selected.length === 0;
+
   const toggle = (opt: string) => {
     onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
   };
+
+  function Checkmark() {
+    return (
+      <svg className="w-2.5 h-2.5 text-[#0b0f1a]" fill="none" viewBox="0 0 12 12">
+        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
         className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
-          selected.length > 0
+          !isAll
             ? "bg-[#00e676]/10 border-[#00e676]/30 text-[#00e676]"
             : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20 hover:text-white"
         }`}
       >
         <Filter className="w-3.5 h-3.5" />
         {label}
-        {selected.length > 0 && (
+        {!isAll && (
           <span className="bg-[#00e676] text-[#0b0f1a] text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
             {selected.length}
           </span>
@@ -185,6 +195,20 @@ function MultiSelect({
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl py-2 min-w-44 max-h-64 overflow-y-auto">
+          {/* All option */}
+          <button
+            onClick={() => { onChange([]); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-white/5 cursor-pointer text-sm text-slate-300 hover:text-white text-left border-b border-white/5 mb-1"
+          >
+            <div
+              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                isAll ? "bg-[#00e676] border-[#00e676]" : "border-white/20"
+              }`}
+            >
+              {isAll && <Checkmark />}
+            </div>
+            <span className="font-medium">All {label}</span>
+          </button>
           {options.map(opt => (
             <button
               key={opt}
@@ -198,16 +222,12 @@ function MultiSelect({
                     : "border-white/20"
                 }`}
               >
-                {selected.includes(opt) && (
-                  <svg className="w-2.5 h-2.5 text-[#0b0f1a]" fill="none" viewBox="0 0 12 12">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+                {selected.includes(opt) && <Checkmark />}
               </div>
               <span className="truncate">{opt}</span>
             </button>
           ))}
-          {selected.length > 0 && (
+          {!isAll && (
             <div className="border-t border-white/5 mt-1 pt-1">
               <button
                 onClick={() => { onChange([]); setOpen(false); }}
@@ -602,7 +622,7 @@ export default function Dashboard() {
               onChange={setSelCountries}
             />
             <MultiSelect
-              label="Technologies"
+              label="Sectors"
               options={allTechs}
               selected={selTechs}
               onChange={setSelTechs}
