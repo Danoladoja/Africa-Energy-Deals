@@ -41,10 +41,10 @@ artifacts-monorepo/
 Main app at `/` — tracks publicly disclosed energy investment transactions across Africa.
 
 ### Features
-1. **Dashboard** — Summary KPIs (total investment, projects, countries, technologies), investment trajectory chart, technology breakdown donut, regional breakdown bar chart
+1. **Dashboard** — Summary KPIs (total investment, projects, countries, technologies), investment trajectory chart, technology breakdown donut, regional breakdown bar chart. Export as PDF (data-driven)/PNG/PPTX via ExportDropdown.
 2. **Deal Tracker** — Searchable/filterable table of all energy deals with project name, country, technology, deal size, investors, status. Pagination + detail modal.
 3. **Interactive Map** — Full-screen Leaflet map with choropleth + marker hybrid. GeoJSON Africa choropleth colors countries by total investment (dark→bright green log scale, source: codeforgermany CDN). Hover country for tooltip (name, investment, project count). Click country → `/countries/:name`. Layer toggle (Both/Choropleth/Markers) at top. Legend (investment gradient + sector dots) bottom-left. Zoom-to-fit button. Enhanced marker popups: project name, country, Deal Stage badge, Deal Size, Capacity, Year, investors, "View Details →" button navigates to `/deals/:id`.
-4. **Visualization Studio** — Select chart type (bar/line/pie), metric (investment $ or project count), grouping (country/technology/region/year). Download as PNG via html2canvas.
+4. **Visualization Studio** — Select chart type (bar/line/pie), metric (investment $ or project count), grouping (country/technology/region/year). Export as PNG/PDF/PPTX via ExportDropdown.
 5. **Countries** (`/countries`, `/countries/:name`) — Country index with sector-mix bars + sortable cards. Profile pages with bar/donut charts, developer table, paginated projects.
 6. **Investors** (`/developers`, `/developers/:entityName`) — Auto-generated profiles for all entities appearing in 2+ deals, parsed from the `investors` field (comma-separated). Index table sortable by investment/deals/countries. Profile page: portfolio map, by-country bar chart, by-technology donut, sortable deals table.
 7. **AI Discovery** — AI agent that scrapes 6 RSS feeds (ESI Africa, PV Magazine Africa, Recharge News, The Africa Report, African Business, Reuters) daily at 06:00 UTC. Uses OpenAI gpt-5.2 to extract structured deal data. New deals land in a review queue (pending/approved/rejected). Human approves before publishing to the site.
@@ -173,8 +173,17 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 
 **Skeleton Loaders** — `src/components/skeleton-card.tsx` exports `SkeletonCard`, `SkeletonStat`, `SkeletonTable`, `SkeletonChart`, `SkeletonText` components for use during data-fetching states.
 
+### Export System
+- `src/utils/export-utils.ts` — shared helpers: `captureToCanvas` (html2canvas), `exportToPng`, `exportImageToPdf` (jsPDF landscape A4), `exportImageToPptx` (pptxgenjs 16:9)
+- `src/utils/generate-dashboard-pdf.ts` — data-driven A4 PDF with KPIs, sector bars, transition split, country table
+- `src/utils/generate-dashboard-pptx.ts` — 4-slide data-driven PPTX (KPIs, transition overview, sector breakdown, top countries)
+- `src/components/export-dropdown.tsx` — reusable ExportDropdown component with PDF/PNG/PPTX options, loading state, toast feedback
+- Dashboard: PDF (data-driven) + PNG (html2canvas) + PPTX (data-driven 4 slides)
+- Visualization Studio: PNG + PDF (image embed) + PPTX (single slide)
+- Country Compare: PNG + PDF + PPTX (all image capture)
+
 ### Frontend Libraries
-- recharts (charts), react-leaflet + leaflet (map), html2canvas (PNG export), lucide-react (icons), framer-motion (animations), date-fns (date formatting), react-helmet-async (SEO meta tags)
+- recharts (charts), react-leaflet + leaflet (map), html2canvas (PNG export), jspdf + jspdf-autotable (PDF), pptxgenjs (PowerPoint), html-to-image (share image), lucide-react (icons), framer-motion (animations), date-fns (date formatting), react-helmet-async (SEO meta tags)
 
 ### AI Discovery Stack
 - `lib/integrations-openai-ai-server/` — OpenAI SDK wrapper (via Replit AI Integrations, no API key needed)

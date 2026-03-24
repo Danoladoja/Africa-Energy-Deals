@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { ShareButton } from "@/components/share-button";
+import { ExportDropdown } from "@/components/export-dropdown";
+import { exportImageToPdf, exportImageToPptx } from "@/utils/export-utils";
 
 const COLORS = [
   "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
@@ -541,17 +543,45 @@ export default function VizStudio() {
                 Embed
               </button>
             )}
-            <button
-              onClick={() => viewMode === "overview"
-                ? exportChart(chartRef, `${grouping}-${metric}`, setIsExporting)
-                : exportChart(spotlightRef, `spotlight-${selectedSpotlight}`, setIsExporting)
-              }
-              disabled={isExporting || isLoading || (viewMode === "spotlight" && !selectedSpotlight)}
-              className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
-            >
-              {isExporting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-              {viewMode === "overview" ? "Download Chart" : "Export Full Profile"}
-            </button>
+            <ExportDropdown
+              label={viewMode === "overview" ? "Download Chart" : "Export Profile"}
+              options={[
+                {
+                  id: "png",
+                  label: "PNG Image",
+                  description: "High-res chart screenshot",
+                  type: "png",
+                  onExport: async () => {
+                    const ref = viewMode === "overview" ? chartRef : spotlightRef;
+                    await exportChart(ref, viewMode === "overview" ? `${grouping}-${metric}` : `spotlight-${selectedSpotlight}`, setIsExporting);
+                  },
+                },
+                {
+                  id: "pdf",
+                  label: "PDF Document",
+                  description: "Chart embedded in A4 landscape",
+                  type: "pdf",
+                  onExport: async () => {
+                    const ref = viewMode === "overview" ? chartRef : spotlightRef;
+                    if (!ref.current) return;
+                    const title = viewMode === "overview" ? overviewTitle : `${selectedSpotlight} Energy Profile`;
+                    await exportImageToPdf(ref.current, title, `afrienergy-${viewMode === "overview" ? `${grouping}-${metric}` : `spotlight-${selectedSpotlight}`}.pdf`);
+                  },
+                },
+                {
+                  id: "pptx",
+                  label: "PowerPoint Slide",
+                  description: "Single branded slide with chart",
+                  type: "pptx",
+                  onExport: async () => {
+                    const ref = viewMode === "overview" ? chartRef : spotlightRef;
+                    if (!ref.current) return;
+                    const title = viewMode === "overview" ? overviewTitle : `${selectedSpotlight} Energy Profile`;
+                    await exportImageToPptx(ref.current, title, `afrienergy-${viewMode === "overview" ? `${grouping}-${metric}` : `spotlight-${selectedSpotlight}`}.pptx`);
+                  },
+                },
+              ]}
+            />
           </div>
         </header>
 

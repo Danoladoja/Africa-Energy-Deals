@@ -1,0 +1,80 @@
+Add PDF and PowerPoint (PPTX) export functionality to the Dashboard and Vis Studio pages.
+
+CURRENT STATE:
+- Dashboard has a "Share" button (generates shareable link) — no download/export
+- Vis Studio has "Share", "Embed", and "Download" buttons — Download likely exports PNG only
+- Deal Tracker has "Export" for CSV data — this is fine, leave it as-is
+
+REQUIREMENTS:
+
+1. INSTALL DEPENDENCIES:
+   npm install jspdf html2canvas pptxgenjs
+
+2. DASHBOARD EXPORT — Add an "Export" dropdown button next to the existing "Share" button:
+   - Dropdown options: "Download as PDF", "Download as PowerPoint", "Download as PNG"
+
+   PDF Export (jsPDF + html2canvas):
+   - Capture the entire dashboard content area (excluding sidebar) as a high-res canvas
+   - Convert to multi-page PDF if content exceeds one page
+   - PDF header: "AfriEnergy Tracker — Market Overview" + current date
+   - PDF footer: "Generated from afrienergytracker.io" + page number
+   - Paper size: A4 landscape (charts render better in landscape)
+   - Resolution: 2x for crisp charts
+
+   PowerPoint Export (pptxgenjs):
+   - Slide 1: Title slide — "Africa Energy Market Overview" + date + key stats (Total Investment, Projects, Countries)
+   - Slide 2: Energy Transition Overview — capture the Renewable/Fossil/Infrastructure split as a summary + the pie/donut data
+   - Slide 3: Capital Committed by Year — capture the bar+line chart as an image and embed it
+   - Slide 4: Deals by Technology — horizontal bar chart as image
+   - Slide 5: Top 10 Investors — bar chart as image
+   - Slide 6: Deal Pipeline Funnel — funnel data as a styled table or captured image
+   - Slide 7: Country × Sector Heatmap — captured as image (it's complex, better as screenshot)
+
+   For each chart slide:
+   - Use html2canvas to capture each chart container individually
+   - Embed the captured image centered on the slide
+   - Add a small title at the top of each slide
+   - Use dark slide background (#0b0f1a) with white text to match the app's aesthetic
+   - Slide dimensions: widescreen 16:9
+
+   PNG Export:
+   - Capture the full dashboard as a single high-res PNG
+   - Trigger browser download
+
+3. VIS STUDIO EXPORT — Enhance the existing "Download" button:
+   - Currently (assumed): downloads chart as PNG
+   - Add dropdown: "Download as PNG", "Download as PDF", "Download as PowerPoint"
+
+   PDF: Single-page PDF with the chart centered, title at top, AfriEnergy branding
+   PowerPoint: Single slide with the chart image + title + data source note
+   PNG: Keep existing behavior
+
+4. COMPARISON PAGE EXPORT — Add export to the Country Comparison page:
+   - "Export" button next to the existing "Share" button
+   - PDF: Multi-page with summary cards on page 1, each chart on subsequent pages
+   - PowerPoint: Same slide-per-chart approach as dashboard
+
+5. LOADING STATE — Show a progress indicator during export:
+   - "Generating PDF..." / "Generating PowerPoint..." with a spinner
+   - Disable the export button during generation to prevent double-clicks
+   - Show success toast when download starts
+
+6. FILE NAMING CONVENTION:
+   - Dashboard: "AfriEnergy_Dashboard_{YYYY-MM-DD}.pdf" / ".pptx"
+   - Vis Studio: "AfriEnergy_Chart_{chartType}_{YYYY-MM-DD}.pdf"
+   - Comparison: "AfriEnergy_Compare_{Country1}_vs_{Country2}_{date}.pdf"
+
+7. BRANDING ON EXPORTS:
+   - Include a small AfriEnergy logo/text watermark on each page/slide
+   - Footer text: "Source: AfriEnergy Tracker (afrienergytracker.io) · Data as of {date}"
+   - Use the app's color palette: #00e676 accent, #0b0f1a dark background, white text
+
+IMPLEMENTATION APPROACH:
+- Create a shared utility module: `lib/exportUtils.ts` (or similar)
+- Export functions: exportToPDF(element, options), exportToPPTX(slides, options), exportToPNG(element, filename)
+- Each page calls these utilities with its specific chart containers
+- Use html2canvas with scale: 2 for retina-quality captures
+- For PPTX, use pptxgenjs's addImage() with base64 data from canvas
+
+IMPORTANT: Test that charts with animations (if any) are fully rendered before capture. Add a small delay or use requestAnimationFrame to ensure all chart transitions complete before html2canvas captures.
+  

@@ -16,7 +16,10 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButton } from "@/components/share-button";
+import { ExportDropdown } from "@/components/export-dropdown";
 import { generateDashboardPdf } from "@/utils/generate-dashboard-pdf";
+import { generateDashboardPptx } from "@/utils/generate-dashboard-pptx";
+import { exportToPng } from "@/utils/export-utils";
 
 const API = "/api";
 
@@ -261,6 +264,8 @@ function FunnelViz({ data }: { data: { stage: string; count: number; investment:
 export default function Dashboard() {
   const [, navigate] = useLocation();
 
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // ── Filters ──
   const [yearRange, setYearRange] = useState<[number, number]>([2007, 2026]);
   const [selCountries, setSelCountries] = useState<string[]>([]);
@@ -455,6 +460,41 @@ export default function Dashboard() {
     });
   }, [filtered, summary, techCountData, transitionData, yearRange, selCountries, selTechs]);
 
+  /* ── PNG export ── */
+  const handleDownloadPng = useCallback(async () => {
+    if (!contentRef.current) return;
+    await exportToPng(
+      contentRef.current,
+      `afrienergy-dashboard-${new Date().toISOString().slice(0, 10)}.png`,
+    );
+  }, []);
+
+  /* ── PPTX export ── */
+  const handleDownloadPptx = useCallback(async () => {
+    const countryTotals: Record<string, { investment: number; count: number }> = {};
+    for (const p of filtered) {
+      if (!countryTotals[p.country]) countryTotals[p.country] = { investment: 0, count: 0 };
+      countryTotals[p.country].investment += p.dealSizeUsdMn ?? 0;
+      countryTotals[p.country].count++;
+    }
+    const countryRows = Object.entries(countryTotals)
+      .sort((a, b) => b[1].investment - a[1].investment)
+      .slice(0, 10)
+      .map(([country, v]) => ({ country, ...v }));
+
+    await generateDashboardPptx({
+      totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
+      totalProjects:        summary?.totalProjects ?? filtered.length,
+      totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
+      totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
+      sectors:              techCountData,
+      transition:           transitionData,
+      countries:            countryRows,
+      yearRange,
+      filters: { countries: selCountries, techs: selTechs },
+    });
+  }, [filtered, summary, techCountData, transitionData, yearRange, selCountries, selTechs]);
+
   const TransitionTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
@@ -475,7 +515,8 @@ export default function Dashboard() {
         url="/dashboard"
         jsonLd={datasetSchema()}
       />
-      <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div ref={contentRef} className="space-y-6">
 
         {/* ── Header ── */}
         <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -490,14 +531,41 @@ export default function Dashboard() {
               )}
             </p>
           </div>
-          <ShareButton
-            text={summary
-              ? `🌍 Africa Energy Investment: ${fmt(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries.`
-              : "🌍 Africa Energy Investment Tracker"}
-            variant="icon-label"
-            onDownloadPdf={handleDownloadPdf}
-            className="border border-white/10 rounded-xl px-3 py-2 bg-[#1e293b] hover:bg-white/10 self-start sm:self-auto"
-          />
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <ShareButton
+              text={summary
+                ? `🌍 Africa Energy Investment: ${fmt(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries.`
+                : "🌍 Africa Energy Investment Tracker"}
+              variant="icon-label"
+              className="border border-white/10 rounded-xl px-3 py-2 bg-[#1e293b] hover:bg-white/10"
+            />
+            <ExportDropdown
+              label="Export"
+              options={[
+                {
+                  id: "pdf",
+                  label: "PDF Report",
+                  description: "Data-driven A4 overview with charts",
+                  type: "pdf",
+                  onExport: async () => handleDownloadPdf(),
+                },
+                {
+                  id: "png",
+                  label: "PNG Screenshot",
+                  description: "Full dashboard as image",
+                  type: "png",
+                  onExport: handleDownloadPng,
+                },
+                {
+                  id: "pptx",
+                  label: "PowerPoint Deck",
+                  description: "4-slide branded presentation",
+                  type: "pptx",
+                  onExport: handleDownloadPptx,
+                },
+              ]}
+            />
+          </div>
         </header>
 
         {/* ── Global Filters ── */}
@@ -895,6 +963,7 @@ export default function Dashboard() {
           )}
         </ChartCard>
 
+        </div>
       </PageTransition>
     </Layout>
   );

@@ -1,6 +1,8 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { ExportDropdown } from "@/components/export-dropdown";
+import { exportToPng, exportImageToPdf, exportImageToPptx } from "@/utils/export-utils";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, LineChart, Line, Legend,
@@ -264,6 +266,7 @@ export default function ComparePage() {
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const [copied, setCopied] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [sortKey, setSortKey] = useState<SortKey>("dealSizeUsdMn");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -512,6 +515,7 @@ export default function ComparePage() {
   return (
     <Layout>
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div ref={contentRef}>
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
@@ -522,13 +526,55 @@ export default function ComparePage() {
             </p>
           </div>
           {hasComparison && (
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-sm text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all shrink-0"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-              {copied ? "Copied!" : "Share"}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-sm text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                {copied ? "Copied!" : "Share"}
+              </button>
+              <ExportDropdown
+                label="Export"
+                options={[
+                  {
+                    id: "png",
+                    label: "PNG Screenshot",
+                    description: "Full comparison as image",
+                    type: "png",
+                    onExport: async () => {
+                      if (!contentRef.current) return;
+                      const names = selected.join("-vs-").toLowerCase().replace(/\s+/g, "-");
+                      await exportToPng(contentRef.current, `afrienergy-compare-${names}.png`);
+                    },
+                  },
+                  {
+                    id: "pdf",
+                    label: "PDF Report",
+                    description: "A4 landscape with comparison charts",
+                    type: "pdf",
+                    onExport: async () => {
+                      if (!contentRef.current) return;
+                      const names = selected.join(" vs ");
+                      const filename = `afrienergy-compare-${selected.join("-vs-").toLowerCase().replace(/\s+/g, "-")}.pdf`;
+                      await exportImageToPdf(contentRef.current, `Country Comparison: ${names}`, filename);
+                    },
+                  },
+                  {
+                    id: "pptx",
+                    label: "PowerPoint Slide",
+                    description: "Branded slide with comparison",
+                    type: "pptx",
+                    onExport: async () => {
+                      if (!contentRef.current) return;
+                      const names = selected.join(" vs ");
+                      const filename = `afrienergy-compare-${selected.join("-vs-").toLowerCase().replace(/\s+/g, "-")}.pptx`;
+                      await exportImageToPptx(contentRef.current, `Country Comparison: ${names}`, filename);
+                    },
+                  },
+                ]}
+              />
+            </div>
           )}
         </div>
 
@@ -850,6 +896,7 @@ export default function ComparePage() {
             </div>
           </>
         )}
+        </div>
       </PageTransition>
     </Layout>
   );
