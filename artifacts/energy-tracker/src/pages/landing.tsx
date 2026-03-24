@@ -350,7 +350,7 @@ export default function Landing() {
     <div className="min-h-screen bg-[#0b0f1a] text-white flex flex-col">
       <SEOMeta
         title="Africa Energy Investment Database"
-        description="Track 123+ energy investment deals across 26 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse."
+        description="Track 360+ energy investment deals across 52 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse."
         url="/"
         jsonLd={[organizationSchema(), websiteSchema()]}
       />
@@ -500,7 +500,7 @@ export default function Landing() {
               <h3 className="font-semibold text-lg text-[#00e676]">Coverage</h3>
               <ul className="space-y-3 text-sm text-white/70">
                 {[
-                  "21 African countries across all major regions",
+                  "52 African countries across all major regions",
                   "8 sector types: Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear & Bioenergy",
                   "Projects ranging from early development to fully operational",
                   "Deal sizes from $10M to multi-billion dollar programmes",
