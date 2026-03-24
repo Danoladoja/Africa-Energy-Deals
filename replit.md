@@ -126,6 +126,23 @@ Main app at `/` — tracks publicly disclosed energy investment transactions acr
 - `GET /api/scraper/sources` — list source groups with feed counts and isRunning status
 - `GET /api/scraper/runs?limit=N` — run history with per-source aggregates
 - `POST /api/scraper/run/:source` — trigger a single source group (SSE stream)
+- `POST /api/scraper/seed` — import all 66 curated seed projects (SSE stream); auto-approved at confidence 95%
+- `POST /api/scraper/world-bank` — fetch live Africa energy projects from World Bank Projects API (SSE stream); results go to review queue
+
+**Seed Data Pipeline** (`artifacts/api-server/src/services/seeds/seed-data.ts`):
+- 66 verified curated projects for: Angola (10), Algeria (8), Namibia (6), Tunisia (5), Libya (4), Gabon (4), Equatorial Guinea (3), Ghana (4), Mauritania (2), Botswana (3), Burkina Faso (4+), Niger, Sudan, Djibouti, Congo Republic, Togo, Benin, Zimbabwe, Sierra Leone, Somalia, Malawi, Cape Verde, Madagascar, Mauritius
+- `runSeedImport()` function: exact-name dedup → fuzzy dedup → INSERT/UPDATE; logs all decisions; inserts with `review_status = 'approved'`, `confidence_score = 0.95`, `extraction_source = 'seed'`
+- Idempotent: re-running updates existing records with richer seed data
+
+**World Bank API Adapter** (`runWorldBankAdapter()` in scraper.ts):
+- Calls `search.worldbank.org/api/v3/projects` with `regionname=Africa&sectorname=Energy`
+- Deduplicates via exact-name + fuzzy match before inserting
+- New projects land in `review_status = 'pending'` queue with `extraction_source = 'world-bank-api'`
+
+**Database Scale** (as of seed import):
+- 170 approved projects (was 105)
+- 43 countries (was 26) — 17 new countries added
+- $224.9B tracked (was $103.8B)
 
 ### Embeddable Widgets
 - `GET /energy-tracker/embed/deals?technology=&country=&limit=&theme=` — compact deal card widget

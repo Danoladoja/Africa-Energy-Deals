@@ -1,0 +1,178 @@
+Build a comprehensive data expansion pipeline to grow the energy_projects database from 123 to 200+ projects and from 26 to 40+ African countries. This builds on the existing scraper module.
+
+CURRENT STATE:
+- 123 projects, 26 countries, $103.8B tracked
+- Major gaps: Angola, Algeria, Namibia, Tunisia, Libya, Gabon, Equatorial Guinea, Congo Republic, Sudan, Burkina Faso, Togo, Niger, Botswana, Mauritius, Djibouti
+- Underrepresented existing countries: Ghana (1 project), Mauritania (1), Cape Verde (1), Benin (1), Madagascar (1), Zimbabwe (1)
+- Sector gap: Oil & Gas is dominated by a few mega-deals — need more mid-size renewable projects
+
+REQUIREMENTS:
+
+1. SCRAPER SOURCE ADAPTERS — Create a modular architecture at `server/src/scrapers/` (or wherever the existing scraper lives). Each adapter exports an async function that returns an array of structured project objects. Build adapters for these sources IN PRIORITY ORDER:
+
+   a) AfDB Project Portal (https://projectsportal.afdb.org)
+      - Filter: Energy sector, status = Approved/Active/Completed
+      - Covers all African countries, especially underrepresented ones
+      - Extract: project name, country, sector, approval amount (as deal size), approval date, status
+
+   b) IFC Disclosure Portal (https://disclosures.ifc.org)
+      - Filter: Region = Sub-Saharan Africa + Middle East and North Africa, Sector = Power/Energy
+      - Extract: project name, country, total IFC investment, disclosure date, environmental category
+
+   c) World Bank Projects API (https://search.worldbank.org/api/v3/projects)
+      - Filter: regionname = "Africa", sector = Energy
+      - Excellent structured API — returns JSON
+      - Extract: project name, countryname, totalamt, boardapprovaldate, status
+
+   d) IRENA Project Navigator / Statistics
+      - Renewable capacity data by country
+      - Use to validate and enrich existing projects with capacity data
+
+   e) Global Energy Monitor (https://globalenergymonitor.org)
+      - African Gas Tracker, African Wind Power Tracker, African Solar Power Tracker
+      - Extract: project name, country, capacity, status, developer, coordinates
+
+   f) ESI Africa news (https://www.esi-africa.com)
+      - RSS/article scraping for deal announcements
+      - Use Claude to extract structured fields from article text
+
+   g) Zawya / Reuters Africa (project finance announcements)
+      - Filter for African energy project finance deals
+      - Extract: project name, country, deal size, developer, financiers
+
+   h) National regulatory sources (prioritize):
+      - South Africa REIPPPP rounds (all bid windows)
+      - Kenya EPRA feed-in tariff projects
+      - Nigeria NERC licensed projects
+      - Egypt NREA renewable energy projects
+      - Morocco MASEN project pipeline
+
+2. COUNTRY-SPECIFIC SEED DATA — For the highest-priority missing countries, create seed data files at `server/src/scrapers/seeds/` with KNOWN major projects that must be in the database. These are real, publicly documented projects:
+
+   ANGOLA (target: 10+ projects):
+   - Soyo Combined Cycle Gas Plant — $2B, Gas, Operational, GE/Chevron
+   - Laúca Hydroelectric Dam — $4.3B, Hydro, Operational, Odebrecht
+   - Cambambe Hydropower Expansion — $650M, Hydro, Operational
+   - Caculo Cabaça Hydropower — $4.5B, Hydro, Under Construction
+   - Angola LNG Plant — $10B, Oil & Gas, Operational, Chevron/Sonangol/BP/Total
+   - Block 15/06 (Agogo) — $6B, Oil & Gas, Operational, ENI
+   - Quilemba Solar Park — $38M, Solar, Development
+   - Namibe Wind Farm — Development, Wind
+   - Biocom Bioenergy (sugar ethanol) — $500M, Bioenergy, Operational
+   - Tombwa Solar Project — Solar, Announced
+
+   ALGERIA (target: 8+ projects):
+   - Hassi R'Mel Integrated Solar-Gas — $315M, Solar/Gas Hybrid, Operational
+   - Adrar Wind Farm — $81M, Wind, Operational, Sonelgaz
+   - Ghardaia Solar PV Plant — Solar, Operational
+   - In Salah Gas (BP/Sonatrach) — $3B, Oil & Gas, Operational
+   - Ain Beni Mathar Solar-Gas Hybrid — $470M (Morocco border, often co-listed)
+   - Tafouk 1 Solar (1GW programme) — $800M-1.6B, Solar, Development
+   - South-West Gas Pipeline — $4B, Oil & Gas, Construction
+   - Arzew LNG Expansion — Oil & Gas, Operational
+
+   NAMIBIA (target: 6+ projects):
+   - Hyphen Green Hydrogen Project — $10B, Grid & Storage, Development
+   - Daures Green Hydrogen Hub — $4.6B, Grid & Storage, Development
+   - Kudu Gas Field — $1.2B, Oil & Gas, Suspended
+   - Diaz Wind Farm — Wind, Development
+   - Khan Solar Park — Solar, Development
+   - Baynes Hydropower (with Angola) — $1.2B, Hydro, Development
+
+   TUNISIA (target: 5+ projects):
+   - TuNur Solar Export Project — $1.6B, Solar, Development
+   - Sidi Daoud Wind Farm — $60M, Wind, Operational
+   - Tozeur Solar PV Park — $15M, Solar, Operational
+   - Tataouine Wind Farm (Engie) — $200M, Wind, Development
+   - STEG 500MW Solar Tender — Solar, Announced
+
+   LIBYA (target: 4+ projects):
+   - Repsol/ENI Bahr Essalam Gas — $6B, Oil & Gas, Operational
+   - Waha Oil Concession (ConocoPhillips/Hess) — Oil & Gas, Operational
+   - Derna Wind Farm — $290M, Wind, Suspended
+   - Ubari Solar Plant — $600M, Solar, Development
+
+   GABON (target: 4+ projects):
+   - Grand Poubara Hydroelectric Dam — $328M, Hydro, Operational
+   - FE2 Onshore Oil Development (Perenco) — Oil & Gas, Operational
+   - Libreville Solar PV (Ausar Energy) — Solar, Development
+   - Alenha Hydropower — Hydro, Development
+
+   EQUATORIAL GUINEA (target: 3+ projects):
+   - Punta Europa LNG Complex — $1.4B, Oil & Gas, Operational, Marathon
+   - Gas Mega Hub — $2B+, Oil & Gas, Construction
+   - Sendje Ceiba Oil Field (Trident Energy) — Oil & Gas, Operational
+
+   Also enrich these EXISTING underrepresented countries:
+   - GHANA: Bui Hydro ($622M), Cenpower Kpone Thermal ($900M), Asogli Power ($330M), Volta River Authority solar
+   - MAURITANIA: Grand Tortue Ahmeyim LNG is already listed but add Aman green hydrogen ($40B announced), Nour solar
+   - BOTSWANA: Morupule B Coal ($1.1B), Sese Solar, BW Solar 1
+   - BURKINA FASO: Zagtouli Solar (33MW, AfDB), Kodeni Solar, Pa Solar
+
+3. STRUCTURED EXTRACTION FORMAT — Every scraped/seeded project must conform to this schema before insert:
+
+   {
+     projectName: string (required),
+     country: string (required — use standard country name, not ISO code),
+     region: string (required — "North Africa" | "West Africa" | "East Africa" | "Central Africa" | "Southern Africa"),
+     technology: string (required — "Solar" | "Wind" | "Hydro" | "Grid & Storage" | "Oil & Gas" | "Coal" | "Nuclear" | "Bioenergy"),
+     status: string (required — "Operational" | "Under Construction" | "Development" | "Announced" | "Suspended" | "Active"),
+     dealSizeUsdMn: number | null (in USD millions, e.g., 2000 for $2B),
+     capacityMw: number | null,
+     yearAnnounced: number | null,
+     description: string (1-2 sentence summary),
+     latitude: number | null,
+     longitude: number | null,
+     developer: string | null (lead developer/sponsor),
+     investors: string | null (comma-separated financiers),
+     newsUrl: string | null (source article URL),
+     sourceUrl: string | null (primary data source URL)
+   }
+
+4. DEDUPLICATION LOGIC:
+   - Before inserting any project, query existing DB for matches using:
+     a) Exact match: same projectName + same country
+     b) Fuzzy match: Levenshtein distance < 3 on projectName AND same country AND same technology
+   - If match found: UPDATE existing record with any new non-null fields (merge, don't duplicate)
+   - If no match: INSERT as new project
+   - Log all decisions: "INSERTED: [name]", "UPDATED: [name] (matched existing ID [x])", "SKIPPED: [name] (duplicate)"
+
+5. ADMIN SCRAPER DASHBOARD — Add an admin page at /energy-tracker/admin/scraper (behind API key auth) with:
+   - Source list with last run time, records found/inserted/updated/skipped
+   - "Run Source" button per adapter
+   - "Run All" button
+   - Manual review queue for low-confidence extractions
+   - Seed data import button (one-click insert of all seed files)
+
+6. API ENDPOINTS for the scraper:
+   POST /api/scraper/run/:source — Trigger a specific source adapter (requires API key)
+   POST /api/scraper/run-all — Trigger all adapters sequentially (requires API key)
+   POST /api/scraper/seed — Import all seed data files (requires API key)
+   GET /api/scraper/status — Return last run stats per source
+   GET /api/scraper/review-queue — Return low-confidence extractions pending review
+   POST /api/scraper/review/:id/approve — Approve a queued extraction
+   POST /api/scraper/review/:id/reject — Reject a queued extraction
+
+7. SCRAPER RUNS TABLE — Create a new DB table:
+   scraper_runs: id, source (string), startedAt (timestamp), completedAt (timestamp), recordsFound (int), recordsInserted (int), recordsUpdated (int), recordsSkipped (int), errors (text[]), status ("running" | "completed" | "failed")
+
+8. REGION MAPPING — Ensure the country-to-region mapping is comprehensive:
+   North Africa: Algeria, Egypt, Libya, Morocco, Sudan, Tunisia
+   West Africa: Benin, Burkina Faso, Cape Verde, Côte d'Ivoire, Gambia, Ghana, Guinea, Guinea-Bissau, Liberia, Mali, Mauritania, Niger, Nigeria, Senegal, Sierra Leone, Togo
+   East Africa: Burundi, Comoros, Djibouti, Eritrea, Ethiopia, Kenya, Madagascar, Malawi, Mauritius, Mozambique, Rwanda, Seychelles, Somalia, South Sudan, Tanzania, Uganda
+   Central Africa: Angola, Cameroon, Central African Republic, Chad, Congo Republic, DRC, Equatorial Guinea, Gabon, São Tomé & Príncipe
+   Southern Africa: Botswana, Eswatini, Lesotho, Namibia, South Africa, Zambia, Zimbabwe
+
+9. EXECUTION PRIORITY — Implement in this order:
+   Step 1: Seed data import (immediate 50-70 project boost from known deals)
+   Step 2: World Bank API adapter (structured API, easiest to parse, ~20-30 new projects)
+   Step 3: AfDB Portal adapter (~15-25 new projects)
+   Step 4: Global Energy Monitor (~10-20 new projects)
+   Step 5: ESI Africa / news scrapers (ongoing enrichment)
+
+10. GPS COORDINATES — For each seeded/scraped project, attempt to geocode using the project name + country. If a project location is known (e.g., "Laúca Dam, Angola"), look up approximate coordinates. For projects without a specific site, use the country capital coordinates as fallback. This ensures all new projects appear on the Interactive Map.
+
+IMPORTANT: Start with Step 1 (seed data) immediately so we get a visible jump from 123 → ~180 projects right away. The seed data in section 2 above contains real, verified projects — import them first, then build the automated adapters for ongoing enrichment.
+
+After implementing, run the seed import and report: total projects, total countries, and top 5 countries by project count.
+  

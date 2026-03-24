@@ -2,6 +2,7 @@ import Parser from "rss-parser";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable, scraperRunsTable } from "@workspace/db";
 import { eq, desc, or, ilike, and } from "drizzle-orm";
+import { SEED_PROJECTS } from "./seeds/seed-data.js";
 
 // ── PROXY FALLBACK ───────────────────────────────────────────────────────────
 const PROXY_URL = "https://api.allorigins.win/raw?url=";
@@ -759,4 +760,338 @@ export async function runScraper(
   }
 
   return combined;
+}
+
+// ── SEED DATA IMPORT ─────────────────────────────────────────────────────────
+export interface SeedImportResult {
+  total: number;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+  log: string[];
+}
+
+export async function runSeedImport(
+  onProgress?: (msg: string) => void,
+): Promise<SeedImportResult> {
+  const result: SeedImportResult = {
+    total: SEED_PROJECTS.length,
+    inserted: 0, updated: 0, skipped: 0,
+    errors: [], log: [],
+  };
+
+  const [runRow] = await db.insert(scraperRunsTable).values({
+    sourceName: "Seed Data Import",
+    startedAt: new Date(),
+    triggeredBy: "manual",
+  }).returning();
+
+  const existing = await db
+    .select({ id: projectsTable.id, projectName: projectsTable.projectName, country: projectsTable.country, technology: projectsTable.technology })
+    .from(projectsTable);
+
+  const existingNames = new Map(existing.map((p) => [p.projectName.toLowerCase(), p.id]));
+
+  for (const seed of SEED_PROJECTS) {
+    const name = seed.projectName.trim();
+    const country = seed.country.trim();
+    const technology = normalizeSector(seed.technology);
+
+    try {
+      // 1) Exact name match → UPDATE with non-null seed fields
+      if (existingNames.has(name.toLowerCase())) {
+        const existingId = existingNames.get(name.toLowerCase())!;
+        await db.update(projectsTable).set({
+          ...(seed.dealSizeUsdMn != null && { dealSizeUsdMn: seed.dealSizeUsdMn }),
+          ...(seed.capacityMw != null && { capacityMw: seed.capacityMw }),
+          ...(seed.developer && { developer: seed.developer }),
+          ...(seed.investors && { investors: seed.investors, financiers: seed.investors }),
+          ...(seed.description && { description: seed.description }),
+          ...(seed.latitude != null && { latitude: seed.latitude }),
+          ...(seed.longitude != null && { longitude: seed.longitude }),
+          ...(seed.sourceUrl && { sourceUrl: seed.sourceUrl }),
+          ...(seed.announcedYear != null && { announcedYear: seed.announcedYear }),
+          confidenceScore: 0.95,
+          extractionSource: "seed",
+        }).where(eq(projectsTable.id, existingId));
+        const msg = `UPDATED: ${name} (matched existing ID ${existingId})`;
+        result.log.push(msg); result.updated++;
+        onProgress?.(msg);
+        continue;
+      }
+
+      // 2) Fuzzy match → UPDATE existing
+      const fuzzy = findFuzzyMatch(name, country, technology, existing);
+      if (fuzzy) {
+        await db.update(projectsTable).set({
+          ...(seed.dealSizeUsdMn != null && { dealSizeUsdMn: seed.dealSizeUsdMn }),
+          ...(seed.capacityMw != null && { capacityMw: seed.capacityMw }),
+          ...(seed.developer && { developer: seed.developer }),
+          ...(seed.investors && { investors: seed.investors, financiers: seed.investors }),
+          ...(seed.description && { description: seed.description }),
+          ...(seed.latitude != null && { latitude: seed.latitude }),
+          ...(seed.longitude != null && { longitude: seed.longitude }),
+          ...(seed.sourceUrl && { sourceUrl: seed.sourceUrl }),
+          ...(seed.announcedYear != null && { announcedYear: seed.announcedYear }),
+          confidenceScore: 0.95,
+          extractionSource: "seed",
+        }).where(eq(projectsTable.id, fuzzy.id));
+        const msg = `UPDATED: ${name} (fuzzy match → ID ${fuzzy.id} "${fuzzy.projectName}")`;
+        result.log.push(msg); result.updated++;
+        onProgress?.(msg);
+        continue;
+      }
+
+      // 3) New project → INSERT
+      await db.insert(projectsTable).values({
+        projectName: name,
+        country,
+        region: seed.region ?? inferRegion(country),
+        technology,
+        status: seed.status ?? "Development",
+        dealSizeUsdMn: seed.dealSizeUsdMn ?? null,
+        capacityMw: seed.capacityMw ?? null,
+        announcedYear: seed.announcedYear ?? null,
+        description: seed.description ?? null,
+        latitude: seed.latitude ?? null,
+        longitude: seed.longitude ?? null,
+        developer: seed.developer ?? null,
+        investors: seed.investors ?? null,
+        financiers: seed.investors ?? null,
+        sourceUrl: seed.sourceUrl ?? null,
+        newsUrl: seed.sourceUrl ?? null,
+        isAutoDiscovered: false,
+        reviewStatus: "approved",
+        discoveredAt: new Date(),
+        confidenceScore: 0.95,
+        extractionSource: "seed",
+      });
+      existingNames.set(name.toLowerCase(), -1);
+      existing.push({ id: -1, projectName: name, country, technology });
+      const msg = `INSERTED: ${name} (${country})`;
+      result.log.push(msg); result.inserted++;
+      onProgress?.(msg);
+    } catch (err) {
+      const msg = `ERROR: ${name} — ${err instanceof Error ? err.message : String(err)}`;
+      result.log.push(msg); result.errors.push(msg);
+      onProgress?.(msg);
+    }
+  }
+
+  await db.update(scraperRunsTable).set({
+    completedAt: new Date(),
+    recordsFound: result.total,
+    recordsInserted: result.inserted,
+    recordsUpdated: result.updated,
+    flaggedForReview: 0,
+    errors: result.errors.length > 0 ? JSON.stringify(result.errors.slice(0, 10)) : null,
+  }).where(eq(scraperRunsTable.id, runRow.id));
+
+  return result;
+}
+
+// ── WORLD BANK API ADAPTER ───────────────────────────────────────────────────
+const WB_AFRICA_COUNTRY_CODES = [
+  "DZ","AO","BJ","BW","BF","BI","CM","CV","CF","TD","KM","CD","CG","CI","DJ",
+  "EG","GQ","ER","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW",
+  "ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SL","SO","ZA","SS",
+  "SD","SZ","TZ","TG","TN","UG","ZM","ZW",
+];
+
+const WB_ENERGY_SECTOR_CODES = [
+  "EX", // Energy and Extractives
+  "EG", // Other Energy and Extractives  
+  "EP", // Energy (general)
+];
+
+interface WBProject {
+  id: string;
+  project_name: string;
+  countryname: string;
+  country_code: string;
+  totalamt: number;
+  boardapprovaldate: string;
+  status: string;
+  sector1?: { Name: string };
+  sector_exact?: string[];
+  objective?: string;
+}
+
+export async function runWorldBankAdapter(
+  onProgress?: (msg: string) => void,
+): Promise<SeedImportResult> {
+  const result: SeedImportResult = {
+    total: 0, inserted: 0, updated: 0, skipped: 0, errors: [], log: [],
+  };
+
+  const [runRow] = await db.insert(scraperRunsTable).values({
+    sourceName: "World Bank API",
+    startedAt: new Date(),
+    triggeredBy: "manual",
+  }).returning();
+
+  try {
+    onProgress?.("Fetching World Bank Africa energy projects...");
+
+    const WB_API = "https://search.worldbank.org/api/v3/projects";
+    const params = new URLSearchParams({
+      format: "json",
+      fl: "id,project_name,countryname,country_code,totalamt,boardapprovaldate,status,sector1,objective",
+      regionname: "Africa",
+      sectorname: "Energy",
+      rows: "250",
+      os: "0",
+    });
+
+    let projects: WBProject[] = [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch(`${WB_API}?${params}`, {
+        headers: { "Accept": "application/json", "User-Agent": "AfriEnergyTracker/1.0" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json() as { projects?: { [key: string]: WBProject } };
+        if (data.projects) {
+          projects = Object.values(data.projects).filter(
+            (p) => p && p.project_name && p.countryname
+          );
+        }
+      } else {
+        throw new Error(`World Bank API returned ${res.status}`);
+      }
+    } catch (fetchErr) {
+      const msg = `World Bank API fetch failed: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`;
+      result.errors.push(msg);
+      onProgress?.(msg);
+    }
+
+    result.total = projects.length;
+    onProgress?.(`Found ${projects.length} World Bank energy projects in Africa`);
+
+    if (projects.length === 0) {
+      await db.update(scraperRunsTable).set({
+        completedAt: new Date(),
+        recordsFound: 0, recordsInserted: 0, recordsUpdated: 0, flaggedForReview: 0,
+        errors: result.errors.length > 0 ? JSON.stringify(result.errors) : null,
+      }).where(eq(scraperRunsTable.id, runRow.id));
+      return result;
+    }
+
+    const existing = await db
+      .select({ id: projectsTable.id, projectName: projectsTable.projectName, country: projectsTable.country, technology: projectsTable.technology })
+      .from(projectsTable);
+    const existingNames = new Map(existing.map((p) => [p.projectName.toLowerCase(), p.id]));
+
+    for (const p of projects) {
+      const name = (p.project_name ?? "").trim();
+      const country = (p.countryname ?? "").replace(/\s*\([^)]*\)/g, "").trim();
+      if (!name || !country || name.length < 5) continue;
+
+      // Derive technology from sector name
+      const sectorRaw = p.sector1?.Name ?? p.sector_exact?.[0] ?? "";
+      const technology = normalizeSector(sectorRaw || "Solar");
+
+      // Deal size: World Bank amounts are in USD thousands → convert to millions
+      const dealSizeUsdMn = p.totalamt && p.totalamt > 0 ? Math.round(p.totalamt / 1000) : null;
+
+      // Status mapping
+      const statusMap: Record<string, string> = {
+        "Active": "Under Construction",
+        "Closed": "Operational",
+        "Pipeline": "Announced",
+        "Dropped": "Suspended",
+      };
+      const status = statusMap[p.status ?? ""] ?? "Development";
+
+      const announcedYear = p.boardapprovaldate
+        ? parseInt(p.boardapprovaldate.slice(0, 4), 10)
+        : null;
+
+      const description = p.objective
+        ? p.objective.slice(0, 300)
+        : `World Bank ${status.toLowerCase()} energy project in ${country}.`;
+
+      try {
+        if (existingNames.has(name.toLowerCase())) {
+          const eid = existingNames.get(name.toLowerCase())!;
+          await db.update(projectsTable).set({
+            ...(dealSizeUsdMn != null && { dealSizeUsdMn }),
+            investors: "World Bank",
+            dfiInvolvement: "World Bank",
+            confidenceScore: 0.80,
+            extractionSource: "world-bank-api",
+          }).where(eq(projectsTable.id, eid));
+          result.log.push(`UPDATED: ${name} (WB ID ${p.id})`);
+          result.updated++;
+          onProgress?.(`UPDATED: ${name}`);
+          continue;
+        }
+
+        const fuzzy = findFuzzyMatch(name, country, technology, existing);
+        if (fuzzy) {
+          await db.update(projectsTable).set({
+            ...(dealSizeUsdMn != null && { dealSizeUsdMn }),
+            investors: "World Bank",
+            dfiInvolvement: "World Bank",
+            confidenceScore: 0.80,
+            extractionSource: "world-bank-api",
+          }).where(eq(projectsTable.id, fuzzy.id));
+          result.log.push(`UPDATED: ${name} (fuzzy → ID ${fuzzy.id})`);
+          result.updated++;
+          onProgress?.(`UPDATED (fuzzy): ${name}`);
+          continue;
+        }
+
+        await db.insert(projectsTable).values({
+          projectName: name,
+          country,
+          region: inferRegion(country),
+          technology,
+          status,
+          dealSizeUsdMn,
+          announcedYear: Number.isNaN(announcedYear ?? NaN) ? null : announcedYear,
+          description,
+          investors: "World Bank",
+          financiers: "World Bank",
+          dfiInvolvement: "World Bank",
+          isAutoDiscovered: true,
+          reviewStatus: "pending",
+          discoveredAt: new Date(),
+          confidenceScore: 0.80,
+          extractionSource: "world-bank-api",
+          sourceUrl: `https://projects.worldbank.org/en/projects-operations/project-detail/${p.id}`,
+          newsUrl: `https://projects.worldbank.org/en/projects-operations/project-detail/${p.id}`,
+        });
+        existingNames.set(name.toLowerCase(), -1);
+        existing.push({ id: -1, projectName: name, country, technology });
+        result.log.push(`INSERTED: ${name} (${country})`);
+        result.inserted++;
+        onProgress?.(`INSERTED: ${name} (${country})`);
+      } catch (err) {
+        const msg = `ERROR: ${name} — ${err instanceof Error ? err.message : String(err)}`;
+        result.errors.push(msg);
+        result.skipped++;
+        onProgress?.(msg);
+      }
+    }
+  } catch (outerErr) {
+    const msg = `World Bank adapter error: ${outerErr instanceof Error ? outerErr.message : String(outerErr)}`;
+    result.errors.push(msg);
+    onProgress?.(msg);
+  }
+
+  await db.update(scraperRunsTable).set({
+    completedAt: new Date(),
+    recordsFound: result.total,
+    recordsInserted: result.inserted,
+    recordsUpdated: result.updated,
+    flaggedForReview: result.inserted, // WB inserts go to review
+    errors: result.errors.length > 0 ? JSON.stringify(result.errors.slice(0, 10)) : null,
+  }).where(eq(scraperRunsTable.id, runRow.id));
+
+  return result;
 }

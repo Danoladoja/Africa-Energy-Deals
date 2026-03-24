@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable, scraperRunsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { runScraper, runSourceGroup, getScraperStatus, getFeedList, getSourceGroups } from "../services/scraper.js";
+import { runScraper, runSourceGroup, getScraperStatus, getFeedList, getSourceGroups, runSeedImport, runWorldBankAdapter } from "../services/scraper.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 import { checkWatchesAndNotify } from "../services/notifications.js";
 
@@ -202,6 +202,72 @@ router.post("/scraper/review-all", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── SEED DATA IMPORT (SSE streaming) ─────────────────────────────────────────
+router.post("/scraper/seed", async (_req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: unknown) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    send({ stage: "start", message: "Starting seed data import..." });
+    const result = await runSeedImport((msg) => {
+      send({ stage: "progress", message: msg });
+    });
+    send({
+      stage: "complete",
+      result: {
+        total: result.total,
+        inserted: result.inserted,
+        updated: result.updated,
+        skipped: result.skipped,
+        errors: result.errors.length,
+        log: result.log.slice(-20), // last 20 log lines
+      },
+    });
+  } catch (err) {
+    send({ stage: "error", message: String(err) });
+  } finally {
+    res.end();
+  }
+});
+
+// ── WORLD BANK API ADAPTER (SSE streaming) ────────────────────────────────────
+router.post("/scraper/world-bank", async (_req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: unknown) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    send({ stage: "start", message: "Fetching World Bank Africa energy projects..." });
+    const result = await runWorldBankAdapter((msg) => {
+      send({ stage: "progress", message: msg });
+    });
+    send({
+      stage: "complete",
+      result: {
+        total: result.total,
+        inserted: result.inserted,
+        updated: result.updated,
+        skipped: result.skipped,
+        errors: result.errors.length,
+        log: result.log.slice(-20),
+      },
+    });
+  } catch (err) {
+    send({ stage: "error", message: String(err) });
+  } finally {
+    res.end();
   }
 });
 

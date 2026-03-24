@@ -4,7 +4,7 @@ import { getAdminToken } from "@/contexts/admin-auth";
 import {
   Database, Play, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
-  FileSearch, Activity, BarChart2, Filter,
+  FileSearch, Activity, BarChart2, Filter, Download, Globe,
 } from "lucide-react";
 
 const API = "/api";
@@ -115,7 +115,11 @@ export default function AdminScraperPage() {
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
   const [reviewActions, setReviewActions] = useState<Record<number, "approve" | "reject" | "loading">>({});
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [specialRunning, setSpecialRunning] = useState<string | null>(null);
+  const [specialLog, setSpecialLog] = useState<{ msg: string; ok: boolean }[]>([]);
+  const [specialResult, setSpecialResult] = useState<{ total: number; inserted: number; updated: number; skipped: number; errors: number } | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const specialLogEndRef = useRef<HTMLDivElement>(null);
 
   async function loadData() {
     try {
@@ -159,6 +163,68 @@ export default function AdminScraperPage() {
       logEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [runLog]);
+
+  useEffect(() => {
+    if (specialLogEndRef.current) {
+      specialLogEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [specialLog]);
+
+  async function runSpecial(endpoint: string, label: string) {
+    if (specialRunning || runningSource) return;
+    setSpecialRunning(label);
+    setSpecialLog([{ msg: `Starting ${label}...`, ok: true }]);
+    setSpecialResult(null);
+
+    try {
+      const res = await fetch(`${API}/scraper/${endpoint}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              if (parsed.stage === "progress") {
+                const msg = parsed.message as string;
+                const ok = !msg.startsWith("ERROR");
+                setSpecialLog((prev) => [...prev, { msg, ok }]);
+              } else if (parsed.stage === "complete" && parsed.result) {
+                setSpecialResult(parsed.result);
+                setSpecialLog((prev) => [...prev, {
+                  msg: `✓ Done — ${parsed.result.inserted} inserted, ${parsed.result.updated} updated, ${parsed.result.skipped} skipped, ${parsed.result.errors} errors`,
+                  ok: true,
+                }]);
+              } else if (parsed.stage === "error") {
+                setSpecialLog((prev) => [...prev, { msg: `✗ ${parsed.message}`, ok: false }]);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setSpecialLog((prev) => [...prev, { msg: `✗ ${String(err)}`, ok: false }]);
+    } finally {
+      setSpecialRunning(null);
+      await loadData();
+      await loadQueue();
+    }
+  }
 
   async function runSource(sourceName: string) {
     if (runningSource) return;
@@ -295,6 +361,81 @@ export default function AdminScraperPage() {
                 <div className="text-2xl font-bold text-foreground">{value.toLocaleString()}</div>
               </div>
             ))}
+          </div>
+
+          {/* Curated Data Sources */}
+          <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+              <Download className="w-4 h-4 text-primary" />
+              <h2 className="font-semibold text-foreground">Curated Data Sources</h2>
+              <span className="text-xs text-muted-foreground ml-1">Structured imports that run immediately and bypass AI extraction</span>
+            </div>
+
+            <div className="divide-y divide-border">
+              {[
+                {
+                  endpoint: "seed",
+                  label: "Import Seed Data",
+                  description: "66 verified projects — Angola, Algeria, Namibia, Tunisia, Libya, Gabon, Equatorial Guinea, Ghana, Mauritania, Botswana, Burkina Faso + 12 more countries. Auto-approved, confidence 95%.",
+                  icon: <Download className="w-4 h-4" />,
+                  color: "text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20",
+                },
+                {
+                  endpoint: "world-bank",
+                  label: "World Bank API",
+                  description: "Fetches live African energy projects from the World Bank Projects API (search.worldbank.org). Results go into the review queue.",
+                  icon: <Globe className="w-4 h-4" />,
+                  color: "text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20",
+                },
+              ].map(({ endpoint, label, description, icon, color }) => {
+                const isRunning = specialRunning === label;
+                return (
+                  <div key={endpoint} className="px-6 py-4 flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-foreground text-sm">{label}</span>
+                        {isRunning && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{description}</p>
+                    </div>
+                    <button
+                      onClick={() => runSpecial(endpoint, label)}
+                      disabled={!!specialRunning || !!runningSource}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${color}`}
+                    >
+                      {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : icon}
+                      {isRunning ? "Running..." : "Run"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Special run log */}
+            {specialLog.length > 0 && (
+              <div className="border-t border-border p-4 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                {specialLog.map((entry, i) => (
+                  <div key={i} className={entry.ok ? "text-muted-foreground" : "text-red-400"}>
+                    {entry.msg}
+                  </div>
+                ))}
+                <div ref={specialLogEndRef} />
+              </div>
+            )}
+
+            {/* Summary result */}
+            {specialResult && !specialRunning && (
+              <div className="border-t border-border px-6 py-3 bg-green-500/5 flex items-center gap-6 text-xs">
+                <span className="text-green-400 font-semibold">Import complete</span>
+                <span className="text-muted-foreground">Total: <span className="text-foreground">{specialResult.total}</span></span>
+                <span className="text-muted-foreground">Inserted: <span className="text-green-400 font-medium">{specialResult.inserted}</span></span>
+                <span className="text-muted-foreground">Updated: <span className="text-blue-400 font-medium">{specialResult.updated}</span></span>
+                <span className="text-muted-foreground">Skipped: <span className="text-foreground">{specialResult.skipped}</span></span>
+                {specialResult.errors > 0 && (
+                  <span className="text-muted-foreground">Errors: <span className="text-red-400 font-medium">{specialResult.errors}</span></span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Source Groups Table */}
