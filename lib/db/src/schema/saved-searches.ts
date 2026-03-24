@@ -9,6 +9,7 @@ export const savedSearchesTable = pgTable("saved_searches", {
     technology?: string;
     status?: string;
     country?: string;
+    dealSizePreset?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),

@@ -1,0 +1,57 @@
+Wire up the "My Searches" feature on the Deal Tracker page. There is already a "My Searches" section visible in the UI — it needs backend support and functional save/recall logic.
+
+REQUIREMENTS:
+
+1. DATABASE TABLE — Create a new `saved_searches` table:
+   - id: serial primary key
+   - userId: text (use email or a session identifier — for now, use localStorage as the user identity since there's no full auth)
+   - name: text (user-provided label, e.g. "Solar deals over $100M")
+   - filters: jsonb (stores the complete filter state)
+   - createdAt: timestamp
+   - lastUsedAt: timestamp (updated each time the search is loaded)
+
+   The `filters` JSON should capture ALL current Deal Tracker filter state:
+   {
+     sector: "Solar" | null,
+     status: "Operational" | null,
+     dealSizeMin: 0 | null,
+     dealSizeMax: 50 | null,
+     dealSizeBucket: "$0-50M" | "$50-200M" | "$200M-1B" | "$1B+" | null,
+     searchQuery: "string" | null,
+     sortField: "dealSizeUsdMn" | "projectName" | etc,
+     sortDirection: "asc" | "desc"
+   }
+
+2. API ENDPOINTS:
+   POST /api/saved-searches — Create a new saved search (body: { name, filters })
+   GET /api/saved-searches — List all saved searches for the current user
+   DELETE /api/saved-searches/:id — Delete a saved search
+   PATCH /api/saved-searches/:id/use — Update lastUsedAt timestamp
+
+3. UI ON DEAL TRACKER:
+
+   a) "Save Current Search" button — appears next to the existing filter controls:
+      - Only enabled when at least one filter is active
+      - Clicking opens a small modal/popover: "Name this search:" with a text input and Save/Cancel buttons
+      - After saving, show a brief success toast: "Search saved!"
+
+   b) "My Searches" section — already exists in the UI, wire it up:
+      - Show a list of saved searches, sorted by lastUsedAt (most recent first)
+      - Each item shows: search name, a summary of filters (e.g., "Solar · Operational · $200M-1B"), and a small X button to delete
+      - Clicking a saved search immediately applies all its filters to the Deal Tracker
+      - Maximum 10 saved searches per user (show a message if limit reached)
+
+   c) Empty state — When no searches are saved:
+      "No saved searches yet. Apply filters and click 'Save Search' to bookmark your favourite queries."
+
+4. PERSISTENCE STRATEGY:
+   - For now, use localStorage to store a user ID (generate a UUID on first visit)
+   - Pass this ID as a query param or header when calling saved search API endpoints
+   - This allows saved searches to persist across browser sessions without requiring login
+   - Later, when full auth is added, migrate localStorage searches to the authenticated user
+
+5. URL SYNC — When a saved search is loaded, update the browser URL with query params:
+   /energy-tracker/deals?sector=Solar&status=Operational&size=200M-1B
+   This makes saved search results shareable via URL copy-paste too.
+
+STYLING: Match the existing dark theme. The "My Searches" chips/list items should use the same style as filter tags elsewhere in the app.

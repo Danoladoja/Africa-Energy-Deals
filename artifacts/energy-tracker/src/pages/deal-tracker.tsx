@@ -376,6 +376,7 @@ function SaveSearchModal({
   const { isAuthenticated } = useAuth();
   const [name, setName] = useState(() => buildDefaultName(filters));
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.select(); }, []);
@@ -383,6 +384,7 @@ function SaveSearchModal({
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await authedFetch("/api/saved-searches", {
         method: "POST",
@@ -390,9 +392,14 @@ function SaveSearchModal({
         body: JSON.stringify({ name: name.trim(), filters }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setSaveError(data.error ?? "Failed to save search. Please try again.");
+        return;
+      }
       if (data.savedSearch) onSaved(data.savedSearch);
-    } catch {}
-    finally { setSaving(false); }
+    } catch {
+      setSaveError("Failed to save search. Please try again.");
+    } finally { setSaving(false); }
   }
 
   return (
@@ -436,6 +443,11 @@ function SaveSearchModal({
                 placeholder="e.g. Solar deals in Kenya"
                 maxLength={80}
               />
+              {saveError && (
+                <div className="mb-3 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 leading-relaxed">
+                  {saveError}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   data-testid="save-search-submit-btn"
@@ -465,13 +477,14 @@ function SaveSearchModal({
 function MySavedSearchesDropdown({
   searches,
   onApply,
-  onViewAll,
+  onDelete,
 }: {
   searches: SavedSearch[];
   onApply: (s: SavedSearch) => void;
-  onViewAll: () => void;
+  onDelete: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -482,7 +495,18 @@ function MySavedSearchesDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const recent = searches.slice(0, 5);
+  async function handleDelete(e: React.MouseEvent, id: number) {
+    e.stopPropagation();
+    setDeletingId(id);
+    try {
+      await authedFetch(`/api/saved-searches/${id}`, { method: "DELETE" });
+      onDelete(id);
+    } catch {}
+    finally { setDeletingId(null); }
+  }
+
+  const MAX = 10;
+  const atLimit = searches.length >= MAX;
 
   return (
     <div ref={ref} className="relative">
@@ -501,45 +525,50 @@ function MySavedSearchesDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 z-50 bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-64 max-w-80">
-          <div className="px-4 py-2.5 border-b border-white/5">
+        <div className="absolute left-0 top-full mt-2 z-50 bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-72 max-w-sm">
+          <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Saved Searches</p>
+            {atLimit && (
+              <span className="text-[10px] text-amber-400 font-medium">{searches.length}/{MAX} limit reached</span>
+            )}
           </div>
-          {recent.length === 0 ? (
-            <div className="px-4 py-5 text-center">
+          {searches.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <Bookmark className="w-6 h-6 text-slate-700 mx-auto mb-2" />
               <p className="text-sm text-slate-500">No saved searches yet.</p>
-              <p className="text-xs text-slate-600 mt-1">Apply filters, then save them with the bookmark button.</p>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Apply filters and click "Save Search" to bookmark your favourite queries.
+              </p>
             </div>
           ) : (
-            <>
-              {recent.map((s) => (
-                <button
+            <div className="max-h-72 overflow-y-auto">
+              {searches.map((s) => (
+                <div
                   key={s.id}
-                  onClick={() => { onApply(s); setOpen(false); }}
-                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 group"
+                  className="flex items-center gap-1 border-b border-white/5 last:border-0 group hover:bg-white/5 transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <button
+                    onClick={() => { onApply(s); setOpen(false); }}
+                    className="flex-1 px-4 py-3 text-left"
+                  >
                     <p className="text-sm font-medium text-slate-200 group-hover:text-white line-clamp-1">{s.name}</p>
-                    <ChevRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 mt-0.5" />
-                  </div>
-                  <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{filterSummary(s.filters)}</p>
-                </button>
-              ))}
-              {searches.length > 5 && (
-                <div className="px-4 py-2.5 border-t border-white/5">
-                  <p className="text-xs text-slate-600">+{searches.length - 5} more saved searches</p>
+                    <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{filterSummary(s.filters)}</p>
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(e, s.id)}
+                    disabled={deletingId === s.id}
+                    className="shrink-0 mr-3 p-1 rounded text-slate-700 hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-40"
+                    title="Delete saved search"
+                  >
+                    {deletingId === s.id
+                      ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      : <XIcon className="w-3.5 h-3.5" />
+                    }
+                  </button>
                 </div>
-              )}
-            </>
+              ))}
+            </div>
           )}
-          <div className="px-4 py-2.5 border-t border-white/5 bg-white/[0.02]">
-            <button
-              onClick={() => { onViewAll(); setOpen(false); }}
-              className="text-xs text-[#00e676] hover:underline font-medium"
-            >
-              Manage all saved searches →
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -1152,7 +1181,7 @@ export default function DealTracker() {
             <MySavedSearchesDropdown
               searches={savedSearches}
               onApply={applySearch}
-              onViewAll={() => navigate("/watches")}
+              onDelete={(id) => setSavedSearches((prev) => prev.filter((s) => s.id !== id))}
             />
             {hasActiveFilters && (
               <button

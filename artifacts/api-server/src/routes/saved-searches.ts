@@ -38,10 +38,20 @@ router.post("/saved-searches", async (req: AuthenticatedRequest, res) => {
   }
 
   const cleanFilters: Record<string, string> = {};
-  for (const key of ["search", "technology", "status", "country"]) {
+  for (const key of ["search", "technology", "status", "country", "dealSizePreset"]) {
     if (filters[key] && typeof filters[key] === "string" && filters[key].trim()) {
       cleanFilters[key] = filters[key].trim();
     }
+  }
+
+  // Enforce 10 saved searches per user
+  const existing = await db
+    .select({ id: savedSearchesTable.id })
+    .from(savedSearchesTable)
+    .where(eq(savedSearchesTable.userEmail, req.userEmail!));
+  if (existing.length >= 10) {
+    res.status(400).json({ error: "You have reached the maximum of 10 saved searches. Delete one to save a new search." });
+    return;
   }
 
   try {
