@@ -229,11 +229,14 @@ export default function AdminScraperPage() {
   async function runSource(sourceName: string) {
     if (runningSource) return;
     setRunningSource(sourceName);
-    setRunLogSource(sourceName);
-    setRunLog([{ stage: "fetching", message: `Starting "${sourceName}"...` }]);
+    setRunLogSource(sourceName === "__all__" ? "All Sources" : sourceName);
+    setRunLog([{ stage: "fetching", message: sourceName === "__all__" ? "Starting all source groups..." : `Starting "${sourceName}"...` }]);
 
     try {
-      const res = await fetch(`${API}/scraper/run/${encodeURIComponent(sourceName)}`, {
+      const url = sourceName === "__all__"
+        ? `${API}/scraper/run`
+        : `${API}/scraper/run/${encodeURIComponent(sourceName)}`;
+      const res = await fetch(url, {
         method: "POST",
         headers: authHeaders(),
       });
@@ -446,6 +449,15 @@ export default function AdminScraperPage() {
                 <h2 className="font-semibold text-foreground">Source Groups</h2>
                 <span className="text-xs text-muted-foreground ml-1">({sources.length} groups, scheduled daily with 30-min stagger)</span>
               </div>
+              <button
+                onClick={() => runSource("__all__")}
+                disabled={!!runningSource || !!specialRunning}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Run all source groups at once"
+              >
+                {runningSource === "__all__" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                {runningSource === "__all__" ? "Running All..." : "Run All Sources"}
+              </button>
             </div>
 
             <div className="divide-y divide-border">

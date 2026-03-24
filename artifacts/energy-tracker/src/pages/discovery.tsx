@@ -228,6 +228,7 @@ export default function DiscoveryPage() {
   const [status, setStatus] = useState<ScraperStatus | null>(null);
   const [queue, setQueue] = useState<Project[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [reviewing, setReviewing] = useState<Record<number, boolean>>({});
   const [tab, setTab] = useState<"pending" | "all">("pending");
@@ -247,6 +248,12 @@ export default function DiscoveryPage() {
       setQueue(data);
     } catch {}
   }, [tab]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([fetchStatus(), fetchQueue()]);
+    setIsRefreshing(false);
+  }, [fetchStatus, fetchQueue]);
 
   useEffect(() => {
     fetchStatus();
@@ -343,23 +350,34 @@ export default function DiscoveryPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleRunScraper}
-            disabled={isRunning}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Scanning...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Run Now
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing || isRunning}
+              title="Refresh queue and status"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-card transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={handleRunScraper}
+              disabled={isRunning || isRefreshing}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  Run All Sources
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Stats row */}
@@ -526,7 +544,7 @@ export default function DiscoveryPage() {
               <p className="text-sm mt-1 opacity-70">
                 {tab === "pending"
                   ? "Run the scraper to discover new energy investment deals"
-                  : "Click 'Run Now' to have the AI agent scan for new deals"}
+                  : "Click 'Run All Sources' to have the AI agent scan for new deals"}
               </p>
             </div>
           ) : (
