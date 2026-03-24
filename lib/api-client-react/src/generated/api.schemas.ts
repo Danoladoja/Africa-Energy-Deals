@@ -29,7 +29,25 @@ export interface Project {
   announcedYear?: number | null;
   closedYear?: number | null;
   sourceUrl?: string | null;
+  newsUrl?: string | null;
   createdAt: string;
+  dealStage?: string | null;
+  developer?: string | null;
+  financiers?: string | null;
+  dfiInvolvement?: string | null;
+  offtaker?: string | null;
+  financialCloseDate?: string | null;
+  commissioningDate?: string | null;
+  announcementDate?: string | null;
+  debtEquitySplit?: string | null;
+  grantComponent?: number | null;
+  financingType?: string | null;
+  financingSubTypes?: string | null;
+  concessionalTerms?: string | null;
+  ppaTermYears?: number | null;
+  ppaTariffUsdKwh?: number | null;
+  guarantor?: string | null;
+  climateFinanceTag?: string | null;
 }
 
 export interface CreateProjectInput {
@@ -125,4 +143,8 @@ export type ListProjectsParams = {
   maxDealSize?: number;
   page?: number;
   limit?: number;
+  financingType?: string;
+  climateFinanceTag?: string;
+  hasPPA?: boolean;
+  hasGrant?: boolean;
 };

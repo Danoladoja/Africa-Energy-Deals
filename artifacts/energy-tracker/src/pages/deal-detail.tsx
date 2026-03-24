@@ -8,6 +8,7 @@ import {
   ArrowLeft, MapPin, ExternalLink, Calendar, DollarSign,
   Zap, Activity, Building2, Users, Landmark, ShoppingCart,
   GitBranch, Gift, Map, GitCompareArrows,
+  Layers, Shield, Leaf, Clock, Percent, Tag,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { WatchButton } from "@/components/watch-button";
@@ -40,6 +41,28 @@ const COUNTRY_FLAGS: Record<string, string> = {
 };
 
 const DEAL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned"];
+
+const FINANCING_TYPE_COLORS: Record<string, string> = {
+  "Project Finance":       "#3b82f6",
+  "Blended Finance":       "#06b6d4",
+  "Concessional Loan":     "#f59e0b",
+  "Grant / Donor Funding": "#10b981",
+  "Corporate Finance":     "#8b5cf6",
+  "Sovereign Lending":     "#ef4444",
+  "IPP / Concession":      "#ec4899",
+  "PPP / Public-Private":  "#f97316",
+  "Green / Climate Bond":  "#22c55e",
+  "Equity Investment":     "#a855f7",
+  "Export Credit":         "#64748b",
+  "Bilateral Aid / ODA":   "#14b8a6",
+};
+
+const CLIMATE_TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  "Mitigation":   { bg: "bg-emerald-500/10",  text: "text-emerald-400",  border: "border-emerald-500/25" },
+  "Adaptation":   { bg: "bg-sky-500/10",       text: "text-sky-400",      border: "border-sky-500/25" },
+  "Cross-Cutting":{ bg: "bg-violet-500/10",    text: "text-violet-400",   border: "border-violet-500/25" },
+  "Non-Climate":  { bg: "bg-slate-500/10",     text: "text-slate-400",    border: "border-slate-500/25" },
+};
 
 function formatDealSize(mn: number | null | undefined): string {
   if (!mn) return "Undisclosed";
@@ -174,8 +197,15 @@ export default function DealDetail() {
   const hasFinancing = project && (
     project.developer || project.financiers || project.dfiInvolvement ||
     project.offtaker || project.debtEquitySplit || project.grantComponent ||
-    project.announcementDate || project.financialCloseDate || project.commissioningDate
+    project.announcementDate || project.financialCloseDate || project.commissioningDate ||
+    project.financingType || project.concessionalTerms || project.ppaTermYears ||
+    project.ppaTariffUsdKwh || project.guarantor || project.climateFinanceTag
   );
+
+  const financingSubTypesParsed: string[] = (() => {
+    try { return project?.financingSubTypes ? JSON.parse(project.financingSubTypes) : []; }
+    catch { return []; }
+  })();
 
   const dealSizeStr = project?.dealSizeUsdMn
     ? (project.dealSizeUsdMn >= 1000
@@ -291,14 +321,59 @@ export default function DealDetail() {
             {/* Financing Section */}
             {hasFinancing && (
               <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5 md:p-6">
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-5">
                   Financing & Counterparties
                 </h2>
+
+                {/* Financing Type + Climate Tag header badges */}
+                {(project.financingType || project.climateFinanceTag) && (
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {project.financingType && (() => {
+                      const color = FINANCING_TYPE_COLORS[project.financingType] ?? "#64748b";
+                      return (
+                        <span
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border"
+                          style={{
+                            backgroundColor: `${color}18`,
+                            color,
+                            borderColor: `${color}40`,
+                          }}
+                        >
+                          <Layers className="w-3 h-3" />
+                          {project.financingType}
+                        </span>
+                      );
+                    })()}
+                    {project.climateFinanceTag && (() => {
+                      const c = CLIMATE_TAG_COLORS[project.climateFinanceTag] ?? CLIMATE_TAG_COLORS["Non-Climate"];
+                      return (
+                        <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${c.bg} ${c.text} ${c.border}`}>
+                          <Leaf className="w-3 h-3" />
+                          {project.climateFinanceTag}
+                        </span>
+                      );
+                    })()}
+                    {financingSubTypesParsed.map((sub) => (
+                      <span key={sub} className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10">
+                        {sub}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                   <div>
                     {project.developer && <InfoRow label="Developer" value={project.developer} />}
                     {project.financiers && <InfoRow label="Financiers" value={project.financiers} />}
                     {project.offtaker && <InfoRow label="Offtaker" value={project.offtaker} />}
+                    {project.guarantor && (
+                      <div className="flex items-start justify-between gap-4 py-3 border-b border-white/5">
+                        <span className="text-sm text-slate-400 shrink-0 flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5" />Guarantor
+                        </span>
+                        <span className="text-sm font-medium text-slate-100 text-right">{project.guarantor}</span>
+                      </div>
+                    )}
                     {project.dfiInvolvement && (
                       <div className="flex items-start justify-between gap-4 py-3 border-b border-white/5">
                         <span className="text-sm text-slate-400 shrink-0 flex items-center gap-1.5">
@@ -316,6 +391,14 @@ export default function DealDetail() {
                     {project.grantComponent && (
                       <InfoRow label="Grant Component" value={formatDealSize(project.grantComponent)} />
                     )}
+                    {project.concessionalTerms && (
+                      <div className="flex items-start justify-between gap-4 py-3 border-b border-white/5">
+                        <span className="text-sm text-slate-400 shrink-0 flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5" />Concessional Terms
+                        </span>
+                        <span className="text-sm font-medium text-slate-100 text-right max-w-[60%]">{project.concessionalTerms}</span>
+                      </div>
+                    )}
                   </div>
                   <div>
                     {project.announcementDate && (
@@ -328,9 +411,32 @@ export default function DealDetail() {
                       <InfoRow label="Commissioning Date" value={new Date(project.commissioningDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} />
                     )}
                     {project.debtEquitySplit && (
-                      <div className="py-3 border-b border-white/5 last:border-0">
+                      <div className="py-3 border-b border-white/5">
                         <p className="text-sm text-slate-400 mb-2">Debt / Equity Split</p>
                         <DebtEquityBar split={project.debtEquitySplit} />
+                      </div>
+                    )}
+                    {(project.ppaTermYears || project.ppaTariffUsdKwh) && (
+                      <div className="py-3 border-b border-white/5">
+                        <p className="text-sm text-slate-400 mb-3 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />PPA Details
+                        </p>
+                        <div className="flex gap-4">
+                          {project.ppaTermYears && (
+                            <div className="bg-white/5 rounded-xl px-4 py-2.5 flex-1 text-center">
+                              <p className="text-xs text-slate-500 mb-0.5">Term</p>
+                              <p className="text-base font-bold text-white font-mono">{project.ppaTermYears} yrs</p>
+                            </div>
+                          )}
+                          {project.ppaTariffUsdKwh && (
+                            <div className="bg-white/5 rounded-xl px-4 py-2.5 flex-1 text-center">
+                              <p className="text-xs text-slate-500 mb-0.5">Tariff</p>
+                              <p className="text-base font-bold text-white font-mono">
+                                ${project.ppaTariffUsdKwh.toFixed(3)}<span className="text-xs text-slate-400 font-normal">/kWh</span>
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

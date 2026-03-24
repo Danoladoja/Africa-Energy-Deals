@@ -37,6 +37,24 @@ export const projectsTable = pgTable("energy_projects", {
   debtEquitySplit: text("debt_equity_split"),
   grantComponent: doublePrecision("grant_component"),
 
+  // ── Financing Structure ───────────────────────────────────────────────────
+  // Financing type: "Project Finance" | "Blended Finance" | "Concessional Loan" | "Grant / Donor Funding" |
+  //   "Corporate Finance" | "Sovereign Lending" | "IPP / Concession" | "PPP / Public-Private" |
+  //   "Green / Climate Bond" | "Equity Investment" | "Export Credit" | "Bilateral Aid / ODA"
+  financingType: text("financing_type"),
+  // JSON-serialised array of sub-types, e.g. '["DFI Debt","Equity","Concessional Tranche"]'
+  financingSubTypes: text("financing_sub_types"),
+  // Free-text description of concessional terms (grace period, blended rates, etc.)
+  concessionalTerms: text("concessional_terms"),
+  // PPA term length in years
+  ppaTermYears: integer("ppa_term_years"),
+  // PPA tariff in USD / kWh
+  ppaTariffUsdKwh: doublePrecision("ppa_tariff_usd_kwh"),
+  // Guarantee provider (e.g. MIGA, World Bank PRG, USAID DCA)
+  guarantor: text("guarantor"),
+  // Climate finance classification: "Mitigation" | "Adaptation" | "Cross-Cutting" | "Non-Climate"
+  climateFinanceTag: text("climate_finance_tag"),
+
   // ── AI Extraction Metadata ────────────────────────────────────────────────
   confidenceScore: doublePrecision("confidence_score"),
   extractionSource: text("extraction_source"),

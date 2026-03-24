@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, projectsTable, insertProjectSchema } from "@workspace/db";
-import { ilike, and, gte, lte, eq, sql, desc } from "drizzle-orm";
+import { ilike, and, gte, lte, eq, sql, desc, isNotNull } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -20,6 +20,9 @@ const ALLOWED_UPDATE_FIELDS = [
   "dealStage", "developer", "financiers", "dfiInvolvement", "offtaker",
   "financialCloseDate", "commissioningDate", "announcementDate",
   "debtEquitySplit", "grantComponent",
+  // Financing structure fields
+  "financingType", "financingSubTypes", "concessionalTerms",
+  "ppaTermYears", "ppaTariffUsdKwh", "guarantor", "climateFinanceTag",
 ];
 
 // Map incoming field aliases to the exact Drizzle column property names on projectsTable.
@@ -53,6 +56,7 @@ router.get("/projects", async (req, res) => {
       country, region, technology, status,
       minDealSize, maxDealSize, search,
       developer, dealStage, dfiInvolvement,
+      financingType, climateFinanceTag, hasPPA, hasGrant,
       page = "1", limit = "50",
     } = req.query;
 
@@ -67,6 +71,10 @@ router.get("/projects", async (req, res) => {
     if (developer) conditions.push(ilike(projectsTable.developer, `%${String(developer)}%`));
     if (dealStage) conditions.push(ilike(projectsTable.dealStage, String(dealStage)));
     if (dfiInvolvement) conditions.push(ilike(projectsTable.dfiInvolvement, `%${String(dfiInvolvement)}%`));
+    if (financingType) conditions.push(ilike(projectsTable.financingType, String(financingType)));
+    if (climateFinanceTag) conditions.push(ilike(projectsTable.climateFinanceTag, String(climateFinanceTag)));
+    if (hasPPA === "true") conditions.push(isNotNull(projectsTable.ppaTermYears));
+    if (hasGrant === "true") conditions.push(isNotNull(projectsTable.grantComponent));
 
     const offset = (Number(page) - 1) * Number(limit);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

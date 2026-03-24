@@ -336,7 +336,7 @@ interface SavedSearch {
   lastUsedAt: string;
 }
 
-type ActiveFilters = { search: string; technology: string; status: string; country: string; dealSizePreset: string };
+type ActiveFilters = { search: string; technology: string; status: string; country: string; dealSizePreset: string; financingType: string };
 
 function buildDefaultName(f: ActiveFilters): string {
   const parts: string[] = [];
@@ -777,6 +777,7 @@ export default function DealTracker() {
   const [status, setStatus]           = useState("");
   const [technology, setTechnology]   = useState(initialTechnology);
   const [dealSizePreset, setDealSizePreset] = useState<DealSizePresetId>("");
+  const [financingType, setFinancingType] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   // NLQ state
@@ -906,10 +907,11 @@ export default function DealTracker() {
     country: country || undefined,
     minDealSize: activeSizePreset.min,
     maxDealSize: activeSizePreset.max,
+    financingType: financingType || undefined,
   });
 
-  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country, dealSizePreset };
-  const hasActiveFilters = !!(debouncedSearch || technology || status || country || dealSizePreset);
+  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country, dealSizePreset, financingType };
+  const hasActiveFilters = !!(debouncedSearch || technology || status || country || dealSizePreset || financingType);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -1149,6 +1151,55 @@ export default function DealTracker() {
             })}
           </div>
 
+          {/* Financing Type filter chips */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Financing</span>
+            {[
+              { id: "", label: "All Types", color: "" },
+              { id: "Project Finance", label: "Project Finance", color: "#3b82f6" },
+              { id: "Blended Finance", label: "Blended Finance", color: "#06b6d4" },
+              { id: "Concessional Loan", label: "Concessional", color: "#f59e0b" },
+              { id: "Grant / Donor Funding", label: "Grant / Donor", color: "#10b981" },
+              { id: "IPP / Concession", label: "IPP / Concession", color: "#ec4899" },
+              { id: "Corporate Finance", label: "Corporate", color: "#8b5cf6" },
+              { id: "Green / Climate Bond", label: "Green Bond", color: "#22c55e" },
+              { id: "Sovereign Lending", label: "Sovereign", color: "#ef4444" },
+            ].map(({ id, label, color }) => {
+              const isActive = financingType === id;
+              if (id === "") {
+                return (
+                  <button
+                    key="all"
+                    onClick={() => { setFinancingType(""); setPage(1); }}
+                    className={[
+                      "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                      isActive
+                        ? "bg-[#00e676] text-[#0b0f1a] border-[#00e676]"
+                        : "bg-transparent text-[#94a3b8] border-[#334155] hover:border-[#00e676]/50 hover:text-white",
+                    ].join(" ")}
+                  >
+                    {label}
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={id}
+                  onClick={() => { setFinancingType(financingType === id ? "" : id); setPage(1); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                  style={isActive
+                    ? { backgroundColor: color, color: "#0b0f1a", borderColor: color }
+                    : { backgroundColor: "transparent", color: "#94a3b8", borderColor: "#334155" }
+                  }
+                  onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = `${color}80`; e.currentTarget.style.color = color; } }}
+                  onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = "#334155"; e.currentTarget.style.color = "#94a3b8"; } }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Active filter chips (from URL params / heatmap navigation) */}
           {(country || (initialTechnology && technology === initialTechnology)) && (
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1299,6 +1350,7 @@ export default function DealTracker() {
                   <th className="font-semibold py-4 px-6">Sector</th>
                   <th className="font-semibold py-4 px-6">Deal Size</th>
                   <th className="font-semibold py-4 px-6">Status</th>
+                  <th className="font-semibold py-4 px-6 hidden xl:table-cell">Financing</th>
                   <th className="font-semibold py-4 px-6 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1312,6 +1364,7 @@ export default function DealTracker() {
                       <td className="py-4 px-6"><div className="h-5 bg-muted rounded w-24 animate-pulse"></div></td>
                       <td className="py-4 px-6"><div className="h-5 bg-muted rounded w-20 animate-pulse"></div></td>
                       <td className="py-4 px-6"><div className="h-6 bg-muted rounded-full w-24 animate-pulse"></div></td>
+                      <td className="py-4 px-6 hidden xl:table-cell"><div className="h-5 bg-muted rounded-full w-28 animate-pulse"></div></td>
                       <td className="py-4 px-6"></td>
                     </tr>
                   ))
@@ -1356,6 +1409,31 @@ export default function DealTracker() {
                           <Badge variant="outline" className={getStatusColor(project.status)}>
                             {project.status}
                           </Badge>
+                        </td>
+                        <td className="py-4 px-6 hidden xl:table-cell">
+                          {(project as any).financingType ? (() => {
+                            const FCOLORS: Record<string, string> = {
+                              "Project Finance": "#3b82f6",
+                              "Blended Finance": "#06b6d4",
+                              "Concessional Loan": "#f59e0b",
+                              "Grant / Donor Funding": "#10b981",
+                              "Corporate Finance": "#8b5cf6",
+                              "Sovereign Lending": "#ef4444",
+                              "IPP / Concession": "#ec4899",
+                              "PPP / Public-Private": "#f97316",
+                              "Green / Climate Bond": "#22c55e",
+                            };
+                            const ft = (project as any).financingType as string;
+                            const c = FCOLORS[ft] ?? "#64748b";
+                            return (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap"
+                                style={{ backgroundColor: `${c}18`, color: c, borderColor: `${c}40` }}
+                              >
+                                {ft}
+                              </span>
+                            );
+                          })() : <span className="text-muted-foreground/40 text-xs">—</span>}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-1">

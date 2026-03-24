@@ -55,30 +55,31 @@ const FUNNEL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction
 const FUNNEL_COLORS = ["#94a3b8", "#facc15", "#22d3ee", "#38bdf8", "#00e676"];
 
 // ── Layout customisation ───────────────────────────────────────────────────────
-type WidgetId = "energy-transition" | "capital-by-year" | "deals-by-tech" | "top-investors" | "pipeline-funnel" | "country-heatmap";
+type WidgetId = "energy-transition" | "capital-by-year" | "deals-by-tech" | "top-investors" | "pipeline-funnel" | "country-heatmap" | "financing-overview";
 
 const DEFAULT_ORDER: WidgetId[] = [
   "energy-transition", "capital-by-year", "deals-by-tech",
-  "top-investors", "pipeline-funnel", "country-heatmap",
+  "top-investors", "pipeline-funnel", "country-heatmap", "financing-overview",
 ];
 
 const WIDGET_META: Record<WidgetId, { label: string; colSpan: 1 | 2; icon: React.ComponentType<any>; color: string }> = {
-  "energy-transition": { label: "Energy Transition Overview", colSpan: 2, icon: Leaf,       color: "#00e676" },
-  "capital-by-year":   { label: "Capital Committed by Year",  colSpan: 2, icon: TrendingUp, color: "#38bdf8" },
-  "deals-by-tech":     { label: "Deals by Technology",        colSpan: 1, icon: Zap,        color: "#facc15" },
-  "top-investors":     { label: "Top 10 Investors",           colSpan: 1, icon: Briefcase,  color: "#fb923c" },
-  "pipeline-funnel":   { label: "Deal Pipeline Funnel",       colSpan: 2, icon: Activity,   color: "#38bdf8" },
-  "country-heatmap":   { label: "Country × Sector Heatmap",   colSpan: 2, icon: Globe,      color: "#38bdf8" },
+  "energy-transition":  { label: "Energy Transition Overview", colSpan: 2, icon: Leaf,       color: "#00e676" },
+  "capital-by-year":    { label: "Capital Committed by Year",  colSpan: 2, icon: TrendingUp, color: "#38bdf8" },
+  "deals-by-tech":      { label: "Deals by Technology",        colSpan: 1, icon: Zap,        color: "#facc15" },
+  "top-investors":      { label: "Top 10 Investors",           colSpan: 1, icon: Briefcase,  color: "#fb923c" },
+  "pipeline-funnel":    { label: "Deal Pipeline Funnel",       colSpan: 2, icon: Activity,   color: "#38bdf8" },
+  "country-heatmap":    { label: "Country × Sector Heatmap",   colSpan: 2, icon: Globe,      color: "#38bdf8" },
+  "financing-overview": { label: "Financing Structure Overview", colSpan: 2, icon: DollarSign, color: "#a78bfa" },
 };
 
 const PRESETS: Record<string, { order: WidgetId[]; hidden: WidgetId[] }> = {
   "Full Overview":    { order: [...DEFAULT_ORDER], hidden: [] },
   "Investor Focus":   {
-    order: ["energy-transition", "top-investors", "pipeline-funnel", "country-heatmap", "capital-by-year", "deals-by-tech"],
+    order: ["energy-transition", "top-investors", "pipeline-funnel", "country-heatmap", "capital-by-year", "deals-by-tech", "financing-overview"],
     hidden: ["capital-by-year", "deals-by-tech"],
   },
   "Country Analyst":  {
-    order: ["capital-by-year", "deals-by-tech", "country-heatmap", "energy-transition", "top-investors", "pipeline-funnel"],
+    order: ["capital-by-year", "deals-by-tech", "country-heatmap", "energy-transition", "top-investors", "pipeline-funnel", "financing-overview"],
     hidden: ["energy-transition", "top-investors", "pipeline-funnel"],
   },
 };
@@ -472,6 +473,19 @@ export default function Dashboard() {
   const { data: projectsData, isLoading: loadingProjects } = useQuery<{ projects: Project[] }>({
     queryKey: ["dashboard-all-projects"],
     queryFn: () => fetch(`${API}/projects?limit=500`).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: financingStats, isLoading: loadingFinancing } = useQuery<{
+    byFinancingType: { type: string; count: number; totalInvestmentUsdMn: number; share: number }[];
+    byClimateTag: { tag: string; count: number; totalInvestmentUsdMn: number }[];
+    ppaStats: { projectsWithPPA: number; avgPPATermYears: number | null; avgPPATariffUsdKwh: number | null; totalPPACapacityMw: number };
+    blendedFinanceStats: { projectsWithGrant: number; totalGrantUsdMn: number; totalInvestmentUsdMn: number };
+    dfiStats: { projectsWithDFI: number; totalInvestmentUsdMn: number };
+    topOfftakers: { name: string; count: number; totalMw: number }[];
+  }>({
+    queryKey: ["financing-stats"],
+    queryFn: () => fetch(`${API}/stats/financing`).then(r => r.json()),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -912,6 +926,167 @@ export default function Dashboard() {
           )}
         </ChartCard>
       );
+
+      case "financing-overview": {
+        const FCOLORS: Record<string, string> = {
+          "Project Finance":       "#3b82f6",
+          "Blended Finance":       "#06b6d4",
+          "Concessional Loan":     "#f59e0b",
+          "Grant / Donor Funding": "#10b981",
+          "Corporate Finance":     "#8b5cf6",
+          "Sovereign Lending":     "#ef4444",
+          "IPP / Concession":      "#ec4899",
+          "PPP / Public-Private":  "#f97316",
+          "Green / Climate Bond":  "#22c55e",
+          "Equity Investment":     "#a855f7",
+          "Export Credit":         "#64748b",
+          "Bilateral Aid / ODA":   "#14b8a6",
+        };
+        const CTAG_COLORS: Record<string, string> = {
+          "Mitigation":    "#00e676",
+          "Adaptation":    "#38bdf8",
+          "Cross-Cutting": "#a78bfa",
+          "Non-Climate":   "#64748b",
+        };
+        const fsLoading = loadingFinancing;
+        const byType = financingStats?.byFinancingType ?? [];
+        const byClimate = financingStats?.byClimateTag ?? [];
+        const totalDeals = byType.reduce((s, r) => s + r.count, 0);
+        const totalInv = byType.reduce((s, r) => s + r.totalInvestmentUsdMn, 0);
+        const donutData = byType.slice(0, 8).map(r => ({
+          name: r.type ?? "Unknown",
+          value: r.totalInvestmentUsdMn,
+          count: r.count,
+          fill: FCOLORS[r.type ?? ""] ?? "#64748b",
+        }));
+
+        return (
+          <ChartCard title="Financing Structure Overview" subtitle="Deal count and capital by financing type · DFI participation · PPA benchmarks" icon={DollarSign} iconColor="#a78bfa">
+            {fsLoading ? <Skeleton className="h-64 w-full rounded-xl" /> : (
+              <div className="space-y-5">
+                {/* Donut + Legend */}
+                <div className="flex flex-col md:flex-row items-start gap-6">
+                  <div className="w-full md:w-48 h-48 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={88} paddingAngle={2} strokeWidth={0}>
+                          {donutData.map(d => <Cell key={d.name} fill={d.fill} />)}
+                        </Pie>
+                        <RechartsTooltip content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
+                              <p className="font-semibold mb-1.5" style={{ color: d.fill }}>{d.name}</p>
+                              <p className="text-white">{d.count} deals</p>
+                              <p className="text-slate-400 font-mono">{fmt(d.value)}</p>
+                            </div>
+                          );
+                        }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    {byType.slice(0, 8).map(r => {
+                      const c = FCOLORS[r.type ?? ""] ?? "#64748b";
+                      const pct = totalInv > 0 ? (r.totalInvestmentUsdMn / totalInv) * 100 : 0;
+                      return (
+                        <div key={r.type} className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs font-medium text-slate-300 truncate">{r.type}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[10px] text-slate-500">{r.count} deals</span>
+                                <span className="font-mono text-xs font-bold text-white">{fmt(r.totalInvestmentUsdMn)}</span>
+                              </div>
+                            </div>
+                            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c, opacity: 0.75 }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* KPI row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-white/5">
+                  <div className="bg-white/[0.03] rounded-xl p-3">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">DFI-backed deals</p>
+                    <p className="text-xl font-bold text-white font-mono">{financingStats?.dfiStats.projectsWithDFI ?? "—"}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{fmt(financingStats?.dfiStats.totalInvestmentUsdMn ?? 0)} total</p>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-xl p-3">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Grant-component deals</p>
+                    <p className="text-xl font-bold text-white font-mono">{financingStats?.blendedFinanceStats.projectsWithGrant ?? "—"}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{fmt(financingStats?.blendedFinanceStats.totalGrantUsdMn ?? 0)} grants</p>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-xl p-3">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Deals with PPA</p>
+                    <p className="text-xl font-bold text-white font-mono">{financingStats?.ppaStats.projectsWithPPA ?? "—"}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {financingStats?.ppaStats.avgPPATermYears ? `Avg ${financingStats.ppaStats.avgPPATermYears} yr term` : "Term data pending"}
+                    </p>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-xl p-3">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Avg PPA tariff</p>
+                    <p className="text-xl font-bold text-white font-mono">
+                      {financingStats?.ppaStats.avgPPATariffUsdKwh
+                        ? `$${financingStats.ppaStats.avgPPATariffUsdKwh.toFixed(3)}`
+                        : "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">per kWh</p>
+                  </div>
+                </div>
+
+                {/* Climate Finance split + Top Offtakers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Climate Finance Classification</p>
+                    <div className="space-y-1.5">
+                      {byClimate.map(r => {
+                        const c = CTAG_COLORS[r.tag ?? ""] ?? "#64748b";
+                        const totalC = byClimate.reduce((s, x) => s + x.count, 0);
+                        const pct = totalC > 0 ? Math.round((r.count / totalC) * 100) : 0;
+                        return (
+                          <div key={r.tag} className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                            <span className="text-xs text-slate-300 w-28 shrink-0">{r.tag}</span>
+                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c, opacity: 0.7 }} />
+                            </div>
+                            <span className="text-[10px] text-slate-500 w-8 text-right">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {(financingStats?.topOfftakers.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Top Offtakers</p>
+                      <div className="space-y-1">
+                        {financingStats!.topOfftakers.slice(0, 6).map(o => (
+                          <div key={o.name} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-300 truncate max-w-[60%]">{o.name}</span>
+                            <div className="flex items-center gap-3 text-slate-500">
+                              <span>{o.count} deals</span>
+                              {o.totalMw > 0 && <span className="font-mono">{o.totalMw.toFixed(0)} MW</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-slate-600">Financing type classification derived from DFI involvement, grant components, and deal stage data.</p>
+              </div>
+            )}
+          </ChartCard>
+        );
+      }
 
       default: return null;
     }
