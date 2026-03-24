@@ -10,7 +10,7 @@ import {
   MapPin, ExternalLink, Download, ChevronDown,
   FileText, Sheet, FileJson, Sparkles, X as XIcon,
   GitCompareArrows, Check, Bookmark, BookmarkPlus, BookmarkCheck,
-  Clock, ChevronRight as ChevRight,
+  Clock, ChevronRight as ChevRight, Share2, CheckCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
@@ -591,6 +591,7 @@ function ComparisonPanel({
   onClose: () => void;
   onNavigate: (id: number) => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const sizes = deals.map((d) => d.dealSizeUsdMn ?? null).filter(Boolean) as number[];
   const maxSize = sizes.length ? Math.max(...sizes) : null;
   const minSize = sizes.length > 1 ? Math.min(...sizes) : null;
@@ -600,6 +601,15 @@ function ComparisonPanel({
     if (val === maxSize) return { color: "#00e676" };
     if (val === minSize) return { color: "#475569" };
     return {};
+  }
+
+  function shareComparison() {
+    const ids = deals.map((d) => d.id).join(",");
+    const url = `${window.location.origin}${window.location.pathname.replace(/\/deals.*/, "/deals")}?ids=${ids}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
   }
 
   return (
@@ -622,6 +632,13 @@ function ComparisonPanel({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={shareComparison}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all"
+            >
+              {copied ? <CheckCheck className="w-3.5 h-3.5 text-[#00e676]" /> : <Share2 className="w-3.5 h-3.5" />}
+              {copied ? "Link copied!" : "Share comparison"}
+            </button>
             <button
               onClick={() => exportComparisonCSV(deals)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all"
@@ -797,6 +814,35 @@ export default function DealTracker() {
       setSelectedDeals((prev) => new Map(prev).set(preSelectProject.id, preSelectProject));
     }
   }, [preSelectProject]);
+
+  // Deep-link: ?ids=1,5,23 — fetch all those deals, populate tray, auto-open comparison
+  const deepLinkIds = params.get("ids")
+    ? params.get("ids")!.split(",").map(Number).filter((n) => !isNaN(n) && n > 0).slice(0, 3)
+    : [];
+  const { data: deepLinkProjects } = useQuery({
+    queryKey: ["project-deeplink", deepLinkIds.join(",")],
+    queryFn: async () => {
+      if (!deepLinkIds.length) return [];
+      const results = await Promise.all(
+        deepLinkIds.map(async (id) => {
+          const r = await fetch(`/api/projects/${id}`);
+          return r.ok ? r.json() : null;
+        })
+      );
+      return results.filter(Boolean);
+    },
+    enabled: deepLinkIds.length > 0,
+    staleTime: Infinity,
+  });
+  const deepLinkApplied = useRef(false);
+  useEffect(() => {
+    if (!deepLinkProjects || deepLinkProjects.length === 0 || deepLinkApplied.current) return;
+    deepLinkApplied.current = true;
+    const map = new Map<number, AnyProject>();
+    deepLinkProjects.forEach((p: AnyProject) => map.set(p.id, p));
+    setSelectedDeals(map);
+    if (deepLinkProjects.length >= 2) setCompareOpen(true);
+  }, [deepLinkProjects]);
 
   const toggleSelect = useCallback((project: AnyProject, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1333,23 +1379,42 @@ export default function DealTracker() {
 
         {/* Floating action bar — appears when deals are selected */}
         {selectedDeals.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-3 bg-[#0b0f1a] border border-[#00e676]/30 rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-sm">
-            <span className="text-sm font-medium text-slate-300">
-              <span className="text-[#00e676] font-bold">{selectedDeals.size}</span>{" "}
-              deal{selectedDeals.size !== 1 ? "s" : ""} selected
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-3 bg-[#1e293b] border border-t-[#334155] border-[#334155] rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-sm max-w-[90vw]">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              {selectedDeals.size} selected
             </span>
-            <div className="w-px h-5 bg-white/10" />
+            <div className="flex items-center gap-1.5 flex-wrap max-w-xs">
+              {Array.from(selectedDeals.values()).map((deal) => (
+                <span
+                  key={deal.id}
+                  className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-white/5 border border-white/10 text-slate-300 whitespace-nowrap max-w-[140px]"
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: SECTOR_COLORS[deal.technology] ?? FALLBACK_SECTOR_COLOR }}
+                  />
+                  <span className="truncate">{deal.projectName}</span>
+                  <button
+                    onClick={() => setSelectedDeals((prev) => { const n = new Map(prev); n.delete(deal.id); return n; })}
+                    className="ml-0.5 text-slate-500 hover:text-red-400 transition-colors shrink-0"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="w-px h-5 bg-white/10 shrink-0" />
             <button
               onClick={() => setCompareOpen(true)}
               disabled={selectedDeals.size < 2}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-[#00e676] text-[#0b0f1a] hover:bg-[#00e676]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-[#00e676] text-[#0b0f1a] hover:bg-[#00e676]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
               <GitCompareArrows className="w-4 h-4" />
               Compare
             </button>
             <button
               onClick={() => setSelectedDeals(new Map())}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
             >
               <XIcon className="w-3.5 h-3.5" />
               Clear
@@ -1360,7 +1425,7 @@ export default function DealTracker() {
         {/* Max-3 toast */}
         {maxToast && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-400 shadow-xl whitespace-nowrap">
-            Select up to 3 deals to compare
+            Maximum 3 deals for comparison. Deselect one first.
           </div>
         )}
 

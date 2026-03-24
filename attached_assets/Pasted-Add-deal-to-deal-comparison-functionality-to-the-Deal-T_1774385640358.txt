@@ -1,0 +1,65 @@
+Add deal-to-deal comparison functionality to the Deal Tracker page. Users should be able to select 2-3 deals via checkboxes and compare them side-by-side in a modal or slide-out panel.
+
+CURRENT STATE:
+- The Deal Tracker at /energy-tracker/deals has a data table with columns: Project Name, Country, Sector, Deal Size, Status, Actions
+- The Country Comparison page at /energy-tracker/compare already exists and works well — use it as the design reference for the deal comparison UI
+
+REQUIREMENTS:
+
+1. CHECKBOX COLUMN — Add a checkbox as the first column in the Deal Tracker table:
+   - Unchecked by default
+   - When a user checks a deal, it gets added to a "comparison tray"
+   - Maximum 3 deals can be selected at once
+   - If user tries to select a 4th, show a toast: "Maximum 3 deals for comparison. Deselect one first."
+   - Checked rows should have a subtle highlight (e.g., left border accent #00e676 or light background tint)
+
+2. COMPARISON TRAY — A sticky bottom bar that appears when 1+ deals are selected:
+   - Shows: "[N] deals selected" with mini chips showing deal names
+   - "Compare" button (enabled when 2-3 selected, disabled when only 1)
+   - "Clear" button to deselect all
+   - Styled to match the app's dark theme: background #1e293b, border-top #334155
+   - Stays visible as user scrolls the table
+
+3. COMPARISON MODAL — Opens when user clicks "Compare":
+   - Full-screen modal or slide-out panel (match the dark theme)
+   - Close button (X) top right
+   - Side-by-side card layout for each selected deal
+
+   Each deal card shows:
+   - Project name (bold, as card header)
+   - Country + flag emoji
+   - Sector (with colored tag matching the sector colors used elsewhere)
+   - Deal size ($XXM or $X.XB formatted)
+   - Capacity (MW, if available)
+   - Status (with colored badge)
+   - Year announced
+   - Deal stage pipeline (visual, like the one on deal detail pages)
+   - Developer (if available)
+   - Investors (if available)
+
+   Below the cards, add a COMPARISON TABLE:
+   | Field        | Deal A        | Deal B        | Deal C (if 3) |
+   |-------------|---------------|---------------|---------------|
+   | Country     | ...           | ...           | ...           |
+   | Sector      | ...           | ...           | ...           |
+   | Deal Size   | ...           | ...           | ...           |
+   | Capacity    | ...           | ...           | ...           |
+   | Status      | ...           | ...           | ...           |
+   | Year        | ...           | ...           | ...           |
+   | Developer   | ...           | ...           | ...           |
+   | Investors   | ...           | ...           | ...           |
+
+   Highlight the "winner" in numeric fields (largest deal size in green, highest capacity in green)
+
+4. DEEP LINK SUPPORT — Add a "Share comparison" button that generates a URL like:
+   /energy-tracker/deals/compare?ids=1,5,23
+   Loading this URL should auto-select those deals and open the comparison modal
+
+5. STYLING — Match the existing dark editorial theme:
+   - Background: #0b0f1a (page), #1e293b (cards/panels)
+   - Accent: #00e676 for highlights and CTAs
+   - Text: white / #94a3b8 (muted)
+   - Borders: #334155
+   - Use the same card border-radius and spacing as the Country Comparison page
+
+IMPORTANT: The checkbox state should persist as the user applies filters or changes pages in the Deal Tracker. If a user filters by "Solar" and selects 2 deals, then switches to "Wind", the Solar selections should remain in the tray.
