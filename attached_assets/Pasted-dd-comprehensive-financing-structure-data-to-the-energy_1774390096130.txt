@@ -1,0 +1,188 @@
+dd comprehensive financing structure data to the energy_projects schema, API, Deal Tracker filters, deal detail pages, and dashboard analytics.
+
+CURRENT STATE:
+- The deal detail page shows: Deal Size, Capacity, Sector, Year Announced, Description, Deal Pipeline, Sources
+- No financing type, debt/equity split, grant component, offtaker, PPA, or concessional terms are tracked or displayed
+- The Drizzle ORM schema has: id, projectName, country, region, technology, status, dealSizeUsdMn, capacityMw, yearAnnounced, latitude, longitude, description, newsUrl, sourceUrl, plus dealStage, developer, financiers (investors), dfiInvolvement
+- The schema may already have debtEquitySplit (text) and grantComponent (numeric) columns from Prompt 1, but they are not surfaced in any UI
+
+REQUIREMENTS:
+
+1. DATABASE SCHEMA — Add these columns to the energy_projects table (all nullable, use a Drizzle migration):
+
+   financingType: text
+   — Primary financing structure. One of:
+   "Project Finance" | "Corporate Finance" | "Sovereign Lending" | "Concessional Loan" | "Grant / Donor Funding" | "Blended Finance" | "IPP / Concession" | "PPP / Public-Private" | "Green / Climate Bond" | "Equity Investment" | "Export Credit" | "Bilateral Aid / ODA" | "Unknown"
+
+   financingSubTypes: text (JSON array stored as string)
+   — Secondary/additional financing types when a deal uses multiple structures
+   e.g., '["Concessional Loan", "Grant / Donor Funding"]' for a blended deal with DFI loan + grant top-up
+
+   debtEquitySplit: text (if not already present)
+   — e.g., "70/30", "80/20", "100/0" (for pure debt), "0/100" (for pure equity)
+
+   grantComponent: numeric (if not already present)
+   — Grant amount in USD millions, separate from the main deal size
+
+   concessionalTerms: text
+   — Description of soft terms, e.g., "IDA terms: 40yr maturity, 10yr grace, 0.75% interest"
+
+   offtaker: text (if not already present)
+   — Power purchaser or government entity, e.g., "KPLC", "ESKOM", "SENELEC", "ONEE"
+
+   ppaTermYears: integer
+   — Power Purchase Agreement duration in years, e.g., 20, 25
+
+   ppaTariffUsdKwh: numeric
+   — PPA tariff rate in USD per kWh, e.g., 0.058
+
+   guarantor: text
+   — Entity providing sovereign or partial risk guarantee, e.g., "MIGA", "Government of Kenya", "GuarantCo"
+
+   climateFinanceTag: text
+   — Climate finance classification: "Mitigation" | "Adaptation" | "Cross-cutting" | null
+
+2. API UPDATES:
+
+   GET /api/projects — Return all new financing fields in the response
+
+   GET /api/projects filters — Add these query params:
+   ?financingType= (exact match or comma-separated for multiple)
+   ?hasGrant=true (filter for projects with grantComponent > 0)
+   ?hasPPA=true (filter for projects with ppaTermYears not null)
+   ?offtaker= (text search)
+
+   PATCH /api/projects/:id — Accept all new financing fields
+
+   NEW ENDPOINT: GET /api/stats/financing — Return aggregated financing analytics:
+   {
+     byFinancingType: [{ type: "Project Finance", count: 45, totalInvestment: 32500 }, ...],
+     avgDebtEquitySplit: { debt: 68, equity: 32 },
+     totalGrantComponent: 1250,
+     projectsWithPPA: 67,
+     avgPPATariff: 0.072,
+     avgPPATerm: 22,
+     topOfftakers: [{ name: "KPLC", deals: 8, totalMw: 2400 }, ...],
+     topGuarantors: [{ name: "MIGA", deals: 12 }, ...],
+     climateFinanceBreakdown: { mitigation: 45, adaptation: 8, crossCutting: 12 },
+     blendedFinanceDeals: { count: 18, totalInvestment: 4200, avgGrantShare: 15 }
+   }
+
+3. DEAL DETAIL PAGE — Add a "Financing Structure" section below the existing deal info:
+
+   FINANCING STRUCTURE (section header)
+
+   Financing Type        [Project Finance]  ← colored tag
+   Sub-Types             [Concessional Loan] [Grant]  ← smaller tags if present
+   Debt / Equity Split   [====70%====|==30%=]  ← visual bar, dark green for debt, light green for equity
+   Grant Component       $45M (2.3% of deal)
+   Offtaker              KPLC (Kenya Power)
+   PPA Term              25 years
+   PPA Tariff            $0.058 / kWh
+   Guarantor             MIGA Partial Risk Guarantee
+   Climate Finance       Mitigation  ← green tag
+   Concessional Terms    IDA: 40yr maturity, 10yr grace period, 0.75% service charge
+
+   If a field is null/empty, don't show it (no "N/A" placeholders — keep the card clean)
+
+4. DEAL TRACKER FILTERS — Add a new "Financing" filter section on the Deal Tracker page:
+
+   FINANCING TYPE (filter group, multi-select checkboxes):
+   □ Project Finance
+   □ Corporate Finance
+   □ Sovereign Lending
+   □ Concessional Loan
+   □ Grant / Donor Funding
+   □ Blended Finance
+   □ IPP / Concession
+   □ PPP / Public-Private
+   □ Green / Climate Bond
+   □ Equity Investment
+   □ Export Credit
+   □ Bilateral Aid / ODA
+
+   Place this filter section AFTER the existing Status filters and BEFORE the Deal Size filters.
+
+   Also add a "Financing Type" column to the deal table (between Sector and Deal Size):
+   - Show as a compact tag (same color coding as the detail page)
+   - If too wide, abbreviate: "Proj. Finance", "Conc. Loan", "Blended", "IPP", "PPP", "Green Bond"
+
+5. DASHBOARD ANALYTICS — Add a new "Financing Overview" widget to the Dashboard:
+
+   a) FINANCING MIX PIE/DONUT CHART:
+      - Slices: each financing type, sized by total investment volume
+      - Hover: show type name, deal count, and total $ volume
+      - Color coding: use a distinct palette (not the same as sector colors)
+        - Project Finance: #3b82f6 (blue)
+        - Corporate Finance: #8b5cf6 (purple)
+        - Sovereign Lending: #ef4444 (red)
+        - Concessional Loan: #f59e0b (amber)
+        - Grant: #10b981 (green)
+        - Blended Finance: #06b6d4 (cyan)
+        - IPP / Concession: #ec4899 (pink)
+        - PPP: #f97316 (orange)
+        - Green Bond: #22c55e (bright green)
+        - Equity: #a855f7 (violet)
+        - Export Credit: #64748b (slate)
+        - Bilateral Aid: #14b8a6 (teal)
+
+   b) DFI PARTICIPATION GAUGE:
+      - Show: "X% of deals involve DFI financing"
+      - Circular gauge or percentage bar
+      - Subtitle: "$X.XB in DFI-supported deals"
+
+   c) BLENDED FINANCE SPOTLIGHT:
+      - Card showing: number of blended finance deals, total investment, average grant share (%)
+      - "Blended finance accounts for X% of total investment"
+
+   Place the Financing Overview widget after the "Energy Transition Overview" widget on the dashboard.
+
+6. SEED DATA — Populate financingType for existing projects using intelligent defaults based on known deal characteristics:
+
+   RULES FOR AUTO-CLASSIFICATION:
+   - If investors include "IFC", "AfDB", "World Bank", "EIB", "KfW", "DBSA" → likely "Blended Finance" or "Concessional Loan"
+   - If investors include "Chinese Exim Bank" → "Export Credit"
+   - If developer is the same as the country's national oil company (NNPC, Sonatrach, Petrosen) → "Corporate Finance"
+   - If status is "Operational" AND sector is "Solar" or "Wind" AND country is South Africa → likely "IPP / Concession" (REIPPPP)
+   - If deal has a single large corporate developer (Dangote, BP, Total, ENI, ExxonMobil) → "Corporate Finance"
+   - If deal has multiple DFI financiers → "Blended Finance"
+   - If unable to determine → "Unknown"
+
+   Apply these rules via a one-time migration script that updates existing records.
+   Set financingType = "Unknown" for any project that doesn't match any rule.
+
+   Also set reasonable PPA defaults:
+   - Solar/Wind IPP projects: ppaTermYears = 20 (industry standard in Africa)
+   - Hydro concessions: ppaTermYears = 25-30
+
+   Also map known offtakers:
+   - Kenya projects → offtaker = "KPLC"
+   - South Africa projects → offtaker = "Eskom"
+   - Nigeria projects → offtaker = "TCN/DisCos"
+   - Morocco projects → offtaker = "ONEE"
+   - Egypt projects → offtaker = "EETC"
+   - Senegal projects → offtaker = "SENELEC"
+   - Ethiopia projects → offtaker = "EEU"
+   - Uganda projects → offtaker = "UETCL"
+   - Ghana projects → offtaker = "ECG"
+   - Cameroon projects → offtaker = "ENEO"
+   - Tanzania projects → offtaker = "TANESCO"
+   - Côte d'Ivoire projects → offtaker = "CIE"
+   - Zambia projects → offtaker = "ZESCO"
+
+7. INVESTOR PAGE ENHANCEMENT — On the Investors page, add a "Financing Approach" column:
+   - For each investor, show the most common financing type they participate in
+   - e.g., IFC → "Blended Finance (18 deals)", NNPC → "Corporate Finance (2 deals)"
+   - This connects the financing layer to the investor profiles
+
+8. EXPORT SUPPORT — Include all financing fields in:
+   - The Deal Tracker CSV/data export
+   - The API response for all project endpoints
+   - The Vis Studio chart builder (add "Financing Type" as a new GROUP BY option)
+
+IMPORTANT NOTES:
+- All new columns are nullable — no existing data should break
+- The auto-classification in step 6 is a best-guess starting point; add an "Edit" affordance on the deal detail page so financing data can be manually corrected later
+- The financing type filter on the Deal Tracker should work in combination with existing sector/status/size filters (AND logic)
+- Display the financing color tags consistently across Deal Tracker table, deal detail page, and dashboard charts
+  

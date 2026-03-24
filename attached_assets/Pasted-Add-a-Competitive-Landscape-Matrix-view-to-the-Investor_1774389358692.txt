@@ -1,0 +1,75 @@
+Add a Competitive Landscape Matrix view to the Investors page. Currently the page shows a flat ranked table. Add a "Matrix View" toggle that shows investors compared across multiple dimensions.
+
+CURRENT STATE:
+- Investors page at /energy-tracker/developers shows:
+  - 39 entities tracked, $107B capital
+  - Table with columns: Entity Name, Total Investment, Deals, Countries, Top Sector
+  - Flat ranking by total investment
+  - No way to compare investors across dimensions like sector focus, geography, or deal stage
+
+REQUIREMENTS:
+
+1. VIEW TOGGLE — Add a toggle at the top of the Investors page:
+   - "Table View" (current default) | "Matrix View" (new)
+   - Styled as a segmented control / tab switch
+   - Table View stays exactly as-is
+
+2. MATRIX VIEW — When toggled, show an interactive competitive landscape with these sections:
+
+   a) SECTOR × INVESTOR BUBBLE CHART:
+      - X-axis: Sector categories (Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear, Bioenergy)
+      - Y-axis: Top 15 investors by total investment
+      - Bubble size: total investment in that sector for that investor
+      - Bubble color: number of deals (lighter = 1 deal, darker = 5+ deals)
+      - Hover: show tooltip with investor name, sector, deal count, total investment
+      - This lets users instantly see: "IFC focuses on Solar across many small deals, while NNPC has fewer but massive Oil & Gas deals"
+
+   b) GEOGRAPHY × INVESTOR HEATMAP:
+      - Rows: Top 15 investors
+      - Columns: African regions (North, West, East, Central, Southern)
+      - Cell color intensity: investment volume in that region
+      - Cell text: "$X.XB" or "—" if zero
+      - This reveals geographic concentration vs. diversification
+
+   c) INVESTOR COMPARISON CARDS — Let users select 2-3 investors for deep comparison:
+      - Multi-select dropdown at the top: "Compare investors..."
+      - When 2-3 selected, show side-by-side cards:
+
+        For each investor:
+        - Name (header)
+        - Total investment ($X.XB)
+        - Number of deals
+        - Countries active in (with flags)
+        - Sector breakdown (mini horizontal stacked bar)
+        - Average deal size
+        - Largest single deal (name + size)
+        - Deal stage distribution (pie/donut: how many announced vs. operational vs. under construction)
+        - Timeline of deals (mini sparkline showing when their deals were announced)
+
+      - Below the cards, a comparison table (like the Country Compare page) highlighting differences
+
+   d) INVESTOR TYPE CLASSIFICATION — Add a filter/grouping by investor type:
+      - DFI / Multilateral (IFC, AfDB, World Bank, EIB, KfW, DBSA)
+      - State / Sovereign (NNPC, Petrosen, Government of Zambia, Chinese Exim Bank)
+      - Private / Commercial (BP, Total Energies, Adani Group, ENI, ExxonMobil, Dangote)
+      - Show type as a colored tag next to each investor name
+      - Allow filtering the matrix by investor type
+
+3. DATA SOURCE — All data should come from existing API endpoints:
+   - Use /api/projects or /api/developers to aggregate:
+     - Per investor: total investment, deal count, countries, sectors, deal stages
+     - Group by sector, region, investor type
+   - If a dedicated /api/investors/matrix endpoint would be cleaner, create one that returns pre-aggregated data
+
+4. EXPORT — Add "Export Matrix" button:
+   - CSV export of the full investor × sector and investor × geography matrices
+   - PNG export of each chart (using html2canvas, reusing the export utility from Prompt 4)
+
+5. STYLING:
+   - Bubble chart: use Recharts ScatterChart or a custom SVG
+   - Heatmap: CSS Grid with dynamic background-color based on value (match the Country × Sector heatmap style on the Dashboard)
+   - Cards: match the Country Comparison page's card design
+   - Dark theme throughout: #0b0f1a background, #1e293b cards, #00e676 accent, #334155 borders
+
+IMPORTANT: The matrix should work even with the current 39 investors. It will be even more valuable once the dataset grows to 80+ investors via the scraper expansion. Design it to scale gracefully.
+  
