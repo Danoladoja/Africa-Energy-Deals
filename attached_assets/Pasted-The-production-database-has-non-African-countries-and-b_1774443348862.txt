@@ -1,0 +1,54 @@
+The production database has non-African countries and bad country names that the scraper pulled in by mistake. Africa has exactly 54 countries. Fix the Replit database AND regenerate the migration file.
+STEP 1: DELETE all projects that are NOT in Africa. These non-African countries were scraped from World Bank data by mistake:
+sqlDELETE FROM energy_projects WHERE country IN (
+  'Hashemite Kingdom of Jordan',
+  'Islamic  Republic of Afghanistan',
+  'Islamic Republic of Pakistan',
+  'Lebanese Republic',
+  'Republic of Iraq',
+  'Republic of Yemen',
+  'Syrian Arab Republic',
+  'West Bank and Gaza'
+);
+Print how many rows were deleted.
+STEP 2: DELETE all projects that use regional labels instead of a real country name:
+sqlDELETE FROM energy_projects WHERE country IN (
+  'Africa (multi-country)',
+  'Central Africa',
+  'East Africa II',
+  'Eastern and Southern Africa',
+  'Multiple African Countries',
+  'Other'
+);
+Print how many rows were deleted.
+STEP 3: Fix duplicate country names — merge variants into the standard name:
+sqlUPDATE energy_projects SET country = 'Cabo Verde' WHERE country = 'Cape Verde';
+UPDATE energy_projects SET country = 'Democratic Republic of the Congo' WHERE country = 'DRC';
+Print how many rows were updated.
+STEP 4: Verify the cleanup. Run this query and print the full results:
+sqlSELECT country, COUNT(*) as projects
+FROM energy_projects
+GROUP BY country
+ORDER BY country;
+```
+
+The country count should now be between 45 and 54 (all valid African nations). Print the total unique country count.
+
+STEP 5: Regenerate `migration-to-production.sql` in the project root. Query ALL remaining projects from the cleaned database and write a new migration file using:
+- Table name: `energy_projects`
+- All column names in snake_case: `project_name`, `country`, `region`, `technology`, `deal_size_usd_mn`, `investors`, `status`, `description`, `latitude`, `longitude`, `capacity_mw`, `announced_year`, `closed_year`, `source_url`, `news_url`, `is_auto_discovered`, `review_status`, `deal_stage`, `developer`, `financiers`, `dfi_involvement`, `offtaker`, `financial_close_date`, `commissioning_date`, `announcement_date`, `debt_equity_split`, `grant_component`
+- Use BEGIN/COMMIT, CREATE UNIQUE INDEX IF NOT EXISTS on (project_name, country), INSERT with ON CONFLICT DO UPDATE SET using COALESCE
+- Escape single quotes by doubling them
+
+STEP 6: Print a final summary:
+```
+=== COUNTRY AUDIT SUMMARY ===
+Non-African projects deleted: [count]
+Regional label projects deleted: [count]
+Duplicate names fixed: [count]
+Projects remaining: [count]
+Countries remaining: [count]
+Migration file regenerated: Yes
+STEP 7: Push everything to GitHub:
+bashgit add migration-to-production.sql && git commit -m "Fix country data: remove non-African projects, merge duplicates, regenerate migration" && git push origin master
+Do NOT modify any app code. Only work with the database and the migration SQL file.
