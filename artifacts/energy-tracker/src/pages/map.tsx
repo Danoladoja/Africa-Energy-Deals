@@ -608,7 +608,7 @@ export default function MapPage() {
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
         {/* ── Left column: toolbar + map ── */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 flex flex-col h-full">
 
           {/* ── Toolbar ── */}
           <div className="shrink-0 bg-[#0b0f1a] border-b border-white/6 px-4 py-2 flex items-center gap-2.5 flex-wrap md:flex-nowrap">
