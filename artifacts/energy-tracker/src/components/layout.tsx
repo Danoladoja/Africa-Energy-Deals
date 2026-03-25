@@ -16,11 +16,12 @@ import {
   Code2,
   Database,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
 import { useAuth, authedFetch } from "@/contexts/auth";
 import { EmailGateModal } from "./email-gate-modal";
+import { AiAssistant } from "./ai-assistant";
 
 const homeItem = { name: "Home", href: "/", icon: House };
 
@@ -85,9 +86,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [bellCount, setBellCount] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout } = useAuth();
   const [, navigate] = useLocation();
+
+  // Global keyboard shortcut: Cmd+K / Ctrl+K to open AI assistant
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      setAiOpen((v) => !v);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   const navItems = isAdmin
     ? [...publicNavItems, adminNavItem, adminScraperNavItem]
@@ -160,6 +175,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )}
         </nav>
         
+        {/* Ask AI button */}
+        <div className="px-4 pb-3">
+          <button
+            onClick={() => setAiOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 hover:border-[#00e676]/35 transition-all group"
+          >
+            <Sparkles className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-semibold flex-1 text-left">Ask AI</span>
+            <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
+          </button>
+        </div>
+
         <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
           {isAuthenticated ? (
             <div className="flex items-center gap-3">
@@ -271,6 +298,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
+                {/* Ask AI — mobile drawer */}
+                <button
+                  onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all mb-2"
+                >
+                  <Sparkles className="w-5 h-5 shrink-0" />
+                  <span className="text-base font-semibold">Ask AI</span>
+                </button>
+
                 <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
                 <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
                   Analytics & Tools
@@ -333,6 +369,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Auth Modal */}
       <EmailGateModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
+      {/* AI Assistant Panel (global) */}
+      <AiAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative pt-14 md:pt-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none -z-10" />
@@ -340,6 +379,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Floating Ask AI button — mobile only */}
+      <AnimatePresence>
+        {!aiOpen && (
+          <motion.button
+            key="fab"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28 }}
+            onClick={() => setAiOpen(true)}
+            className="md:hidden fixed bottom-6 right-5 z-[1300] flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#00e676] text-[#0b0f1a] font-bold text-sm shadow-[0_4px_20px_rgba(0,230,118,0.4)] hover:shadow-[0_6px_28px_rgba(0,230,118,0.55)] transition-shadow"
+          >
+            <Sparkles className="w-4 h-4" />
+            Ask AI
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
