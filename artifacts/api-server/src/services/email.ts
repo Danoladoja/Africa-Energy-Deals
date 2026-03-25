@@ -1,32 +1,24 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-function createTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-    return nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT ?? 587),
-      secure: Number(SMTP_PORT ?? 587) === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-  }
-
-  return null;
-}
+const FROM = process.env.SMTP_FROM ?? "AfriEnergy Tracker <onboarding@resend.dev>";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const from = process.env.SMTP_FROM ?? "AfriEnergy Tracker <noreply@afrienergypulse.com>";
-  const transport = createTransport();
-
-  if (!transport) {
-    console.log(`[Email] (no SMTP configured — would send to ${to})`);
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[Email] (no RESEND_API_KEY configured — would send to ${to})`);
     console.log(`[Email] Subject: ${subject}`);
     console.log(`[Email] HTML: ${html.replace(/<[^>]+>/g, " ").trim().slice(0, 300)}`);
     return;
   }
 
-  await transport.sendMail({ from, to, subject, html });
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+
+  if (error) {
+    console.error(`[Email] Failed to send to ${to}:`, error);
+    throw new Error(error.message);
+  }
+
   console.log(`[Email] Sent to ${to}: ${subject}`);
 }
 
