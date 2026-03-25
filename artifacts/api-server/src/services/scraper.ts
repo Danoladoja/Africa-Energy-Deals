@@ -220,21 +220,103 @@ const AFRICA_TERMS = [
 ];
 
 const ENERGY_KEYWORDS = [
-  "solar", "wind", "hydro", "geothermal", "energy", "power", "electricity",
-  "megawatt", " mw ", "renewable", "gas", "lng", "lpg", "investment", "financing",
-  "ipp", "utility", "grid", "power plant", "project finance", "deal", "fund",
-  "coal", "oil", "petroleum", "minigrids", "mini-grid", "off-grid",
-  "battery", "storage", "transmission", "distribution", "electrification",
-  "clean energy", "climate finance", "carbon", "emissions",
-  "electric vehicle", "electric bus", "electric motorcycle", "e-mobility",
-  "e-moto", "ev charging", "electric mobility", "emobility", "bev", "e-bus",
-  "electric fleet", "ev infrastructure", "charging station", "battery swap",
+  "solar", "wind", "hydro", "hydropower", "geothermal", "power plant",
+  "power station", "electricity", "megawatt", " mw ", "renewable energy",
+  "gas plant", "gas turbine", "lng terminal", "lng plant", "lpg",
+  "ipp", "independent power", "utility scale", "grid connection",
+  "power purchase", "ppa", "coal plant", "oil refinery", "petroleum",
+  "minigrids", "mini-grid", "off-grid", "battery storage", "energy storage",
+  "transmission line", "distribution network", "electrification",
+  "clean energy", "photovoltaic", "wind farm", "solar farm", "solar park",
+  "wind park", "nuclear power", "biomass", "biogas", "tidal energy",
+  "wave energy", "hydrogen plant", "green hydrogen", "ev charging",
+  "electric vehicle charging",
 ];
 
 const EXCLUDE_KEYWORDS = [
   "obituary", "sports", "fashion", "celebrity", "lifestyle", "entertainment",
-  "recipe", "travel guide", "horoscope", "crossword",
+  "recipe", "travel guide", "horoscope", "crossword", "opinion:", "editorial:",
+  "book review", "movie review", "music review", "podcast", "tv show",
+  "wedding", "divorce", "scandal", "arrest", "murder", "robbery",
+  "football", "soccer", "cricket", "rugby", "tennis", "basketball",
+  "stock price", "share price", "market close", "trading update",
 ];
+
+// ── AFRICAN COUNTRY WHITELIST ─────────────────────────────────────────────────
+const VALID_AFRICAN_COUNTRIES = new Set([
+  "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
+  "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros",
+  "Congo", "Côte d'Ivoire", "Democratic Republic of the Congo",
+  "Djibouti", "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini",
+  "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau",
+  "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi",
+  "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia",
+  "Niger", "Nigeria", "Rwanda", "São Tomé and Príncipe", "Senegal",
+  "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
+  "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
+]);
+
+const COUNTRY_ALIASES: Record<string, string> = {
+  "drc": "Democratic Republic of the Congo",
+  "dr congo": "Democratic Republic of the Congo",
+  "dem. rep. congo": "Democratic Republic of the Congo",
+  "congo-kinshasa": "Democratic Republic of the Congo",
+  "ivory coast": "Côte d'Ivoire",
+  "cote d'ivoire": "Côte d'Ivoire",
+  "republic of congo": "Congo",
+  "congo-brazzaville": "Congo",
+  "swaziland": "Eswatini",
+  "cabo verde": "Cape Verde",
+  "the gambia": "Gambia",
+};
+
+function normalizeCountry(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (VALID_AFRICAN_COUNTRIES.has(trimmed)) return trimmed;
+  const alias = COUNTRY_ALIASES[trimmed.toLowerCase()];
+  if (alias) return alias;
+  return null;
+}
+
+// ── DEAL SIZE SANITY ──────────────────────────────────────────────────────────
+const MAX_DEAL_SIZE_USD_MN = 5000;
+const MIN_DEAL_SIZE_USD_MN = 0.1;
+
+function sanitizeDealSize(value: unknown): number | null {
+  if (typeof value !== "number" || isNaN(value)) return null;
+  if (value <= 0) return null;
+  if (value < MIN_DEAL_SIZE_USD_MN) return null;
+  if (value > MAX_DEAL_SIZE_USD_MN) {
+    console.warn(`[SCRAPER] Deal size $${value}M exceeds $5B cap — setting to null for manual review`);
+    return null;
+  }
+  return Math.round(value * 100) / 100;
+}
+
+// ── NON-ENERGY EXCLUSION ──────────────────────────────────────────────────────
+const NON_ENERGY_KEYWORDS = [
+  "social protection", "skills training", "skills for", "poultry",
+  "aquaculture", "livestock", "agriculture program", "education program",
+  "health program", "health system", "covid-19", "covid response",
+  "urban transformation", "water supply", "sanitation", "road",
+  "highway", "bridge construction", "housing program", "food security",
+  "nutrition", "vaccination", "immunization", "school", "university program",
+  "governance", "judicial", "public sector reform", "digital identity",
+  "social safety net", "cash transfer", "microfinance", "textile",
+  "garment", "tourism development", "fisheries management",
+];
+
+function isLikelyNonEnergy(projectName: string, description: string): boolean {
+  const text = `${projectName} ${description}`.toLowerCase();
+  return NON_ENERGY_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+// ── TECHNOLOGY VALIDATION ─────────────────────────────────────────────────────
+const VALID_TECHNOLOGIES = new Set([
+  "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas",
+  "Battery Storage", "Transmission", "Mini-Grid", "Nuclear",
+  "Biomass", "Other Renewables",
+]);
 
 function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
   const text = `${item.title ?? ""} ${item.contentSnippet ?? ""}`.toLowerCase();
@@ -344,41 +426,56 @@ function findFuzzyMatch(
 }
 
 // ── CLAUDE EXTRACTION ────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are an expert analyst specialising in Africa energy investment and project finance.
-Extract structured investment deal data from news article summaries.
+const SYSTEM_PROMPT = `You are an expert analyst specialising in African energy infrastructure investment and project finance.
+Extract ONLY genuine energy/power infrastructure projects from news article summaries.
 
-PRIORITY: Articles from 2023, 2024, 2025, and 2026 are especially valuable — extract all qualifying deals thoroughly.
+STRICT EXTRACTION RULES:
+1. ONLY extract projects that involve physical energy infrastructure: power plants, solar farms, wind parks, hydroelectric dams, gas pipelines, transmission lines, battery storage facilities, mini-grids, EV charging networks, refineries, LNG terminals.
 
-Only extract articles that describe:
-- Specific energy project announcements (solar farms, wind parks, hydro, gas plants, battery storage, mini-grids, etc.)
-- Investment / financing / lending deals (loans, equity, grants, PPAs, bond issuances)
-- Government energy procurement, tender awards, or regulatory approvals for African energy projects
-- Development bank / fund disbursements or approvals for African energy projects (AfDB, IFC, World Bank, DFC, Proparco, BII, etc.)
-- COP28/COP29 climate finance commitments linked to specific African energy projects
-- Just Energy Transition Partnership (JET-P) funded projects in African countries
+2. NEVER extract:
+   - General development programs (World Bank/IDA social programs, skills training, education, health, agriculture, water/sanitation)
+   - Policy announcements without a specific named project
+   - Climate finance commitments without a specific project
+   - Opinion pieces, market commentary, or price news
+   - Fuel subsidy programs or tariff changes
+   - Programs where energy is mentioned incidentally but is not the core focus
 
-Skip: opinion pieces, general policy commentary, energy price news, fuel subsidies unless linked to a specific named project, duplicate projects already in the batch.
+3. COUNTRY RULE: The project MUST be physically located in an African country. Use the full country name (e.g., "Nigeria", not "West Africa"). Regional labels like "Sub-Saharan Africa" or "East Africa" are NOT valid — you must identify the specific country.
+
+4. DEAL SIZE RULE: The dealSizeUsdMn field must be the value IN MILLIONS OF US DOLLARS.
+   - If an article says "$500 million", return dealSizeUsdMn: 500
+   - If an article says "$1.2 billion", return dealSizeUsdMn: 1200
+   - If an article says "$50,000", return dealSizeUsdMn: 0.05
+   - If the amount is ambiguous or not clearly stated, return null
+   - NEVER return values above 5000 ($5 billion) — no single African energy project exceeds this
+   - If the article mentions a multi-country program budget, return null (not the total program cost)
+
+5. TECHNOLOGY RULE: Must be one of: "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas", "Battery Storage", "Transmission", "Mini-Grid", "Nuclear", "Biomass", "Other Renewables"
+   - If the project is NOT energy infrastructure, do NOT force-fit it into a category
+   - If you cannot determine the technology, skip the project entirely
 
 Return a JSON array where each object has:
-- projectName: string — specific, unique project name (e.g. "Lake Turkana Wind Power Phase 2"); never generic
-- country: string — African country name only
+- projectName: string — specific, unique project name (e.g., "Turkana Wind Power Phase 2"); NEVER generic names like "Energy Program" or "Development Project"
+- country: string — single African country name (NEVER a region, NEVER non-African)
 - region: string — one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string — one of exactly these 8 canonical sectors: "Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy". Use "Grid & Storage" for battery storage, transmission/grid projects, green hydrogen, EVs, and mini-grids. Use "Bioenergy" for biomass, geothermal, and waste-to-energy. Use "Oil & Gas" for all oil, gas, LNG, and petroleum projects.
-- dealSizeUsdMn: number | null — deal/investment value in USD millions; null if not stated
+- technology: string — from the list above
+- dealSizeUsdMn: number | null — value in USD millions; null if unclear or above $5B
 - developer: string | null — project developer or sponsor
-- financiers: string | null — comma-separated lenders, equity investors, donors, or development banks
+- financiers: string | null — comma-separated investor names
 - dfiInvolvement: string | null — specific DFI names if any (AfDB, IFC, World Bank, etc.)
 - offtaker: string | null — electricity off-taker or buyer if mentioned
 - dealStage: string | null — one of: "Announced", "Mandated", "Financial Close", "Construction", "Commissioned", "Suspended"
 - status: string — one of: "announced", "under construction", "financing closed", "operational", "tender"
-- description: string — 2–3 factual sentences covering what the project is, who is involved, and its significance
-- capacityMw: number | null — generation or storage capacity in MW; null if not stated
-- announcedYear: number | null — year of announcement or deal closure
+- description: string — 2-3 factual sentences about the energy project specifically
+- capacityMw: number | null — generation/storage capacity in MW; null if not stated
+- announcedYear: number | null — year of announcement
 - financialCloseDate: string | null — ISO date (YYYY-MM-DD) of financial close if mentioned
-- sourceUrl: string | null — full URL of the article
-- confidence: number — 0.0 to 1.0 confidence in the extraction quality (1.0 = all key fields clearly stated; 0.5 = several fields inferred; 0.3 = mostly uncertain)
+- sourceUrl: string | null — article URL
+- newsUrl: string | null — same as sourceUrl
+- confidence: number — 0.0 to 1.0 extraction confidence
 
-Return ONLY a valid JSON array. No markdown fences, no explanation outside the array.`;
+If NO articles contain genuine African energy infrastructure projects, return an empty array: []
+Return ONLY a valid JSON array. No markdown fences, no explanation.`;
 
 interface ExtractedProject {
   projectName: string;
@@ -592,17 +689,40 @@ export async function runSourceGroup(
 
       for (const project of allProjects) {
         const name = String(project.projectName ?? "").trim();
-        const country = String(project.country ?? "").trim();
-        if (!name || !country || name.length < 5) continue;
+        const rawCountry = String(project.country ?? "").trim();
+        const description = String(project.description ?? "");
 
-        const technology = normalizeSector(String(project.technology ?? "Solar"));
+        // Basic field validation
+        if (!name || name.length < 5) {
+          console.log(`[SCRAPER] Rejected: Name too short — "${name}"`);
+          continue;
+        }
+
         const confidence = typeof project.confidence === "number" ? project.confidence : 0.7;
         const isLowConfidence = confidence < 0.7;
-        const reviewStatus = isLowConfidence ? "pending" : "pending"; // all auto-discovered go to review
+
+        // Country validation (all paths)
+        const country = normalizeCountry(rawCountry);
+        if (!country) {
+          console.log(`[SCRAPER] Rejected: Non-African country "${rawCountry}" for project "${name}"`);
+          continue;
+        }
+
+        // Non-energy exclusion
+        if (isLikelyNonEnergy(name, description)) {
+          console.log(`[SCRAPER] Rejected: Non-energy project "${name}"`);
+          continue;
+        }
+
+        // Technology: use the new AI taxonomy then normalise to stored sector
+        const rawTech = String(project.technology ?? "Other Renewables");
+        const technology = normalizeSector(rawTech);
+
+        // Sanitized deal size
+        const cleanDealSize = sanitizeDealSize(project.dealSizeUsdMn);
 
         // Check exact name match first
         if (existingNames.has(name.toLowerCase())) {
-          // Update with new data if we have richer info
           const existingId = existingNames.get(name.toLowerCase())!;
           try {
             await db.update(projectsTable).set({
@@ -613,7 +733,7 @@ export async function runSourceGroup(
               ...(project.dealStage && { dealStage: project.dealStage }),
               ...(project.financialCloseDate && { financialCloseDate: project.financialCloseDate }),
               ...(project.sourceUrl && { newsUrl: project.sourceUrl }),
-              ...(typeof project.dealSizeUsdMn === "number" && { dealSizeUsdMn: project.dealSizeUsdMn }),
+              ...(cleanDealSize !== null && { dealSizeUsdMn: cleanDealSize }),
               ...(typeof project.capacityMw === "number" && { capacityMw: project.capacityMw }),
               confidenceScore: confidence,
               extractionSource: groupName,
@@ -628,7 +748,6 @@ export async function runSourceGroup(
         // Fuzzy match check
         const fuzzyMatch = findFuzzyMatch(name, country, technology, existing);
         if (fuzzyMatch) {
-          // Merge into existing
           try {
             await db.update(projectsTable).set({
               ...(project.developer && { developer: project.developer }),
@@ -638,7 +757,7 @@ export async function runSourceGroup(
               ...(project.dealStage && { dealStage: project.dealStage }),
               ...(project.financialCloseDate && { financialCloseDate: project.financialCloseDate }),
               ...(project.sourceUrl && { newsUrl: project.sourceUrl }),
-              ...(typeof project.dealSizeUsdMn === "number" && { dealSizeUsdMn: project.dealSizeUsdMn }),
+              ...(cleanDealSize !== null && { dealSizeUsdMn: cleanDealSize }),
               ...(typeof project.capacityMw === "number" && { capacityMw: project.capacityMw }),
               confidenceScore: confidence,
               extractionSource: groupName,
@@ -650,17 +769,17 @@ export async function runSourceGroup(
           continue;
         }
 
-        // New project — insert
+        // New project — insert with all validations passed
         try {
           await db.insert(projectsTable).values({
             projectName: name,
             country,
             region: String(project.region ?? inferRegion(country)),
             technology,
-            dealSizeUsdMn: typeof project.dealSizeUsdMn === "number" ? project.dealSizeUsdMn : null,
+            dealSizeUsdMn: cleanDealSize,
             investors: project.financiers ?? null,
             status: String(project.status ?? "announced"),
-            description: typeof project.description === "string" ? project.description : null,
+            description: description || null,
             capacityMw: typeof project.capacityMw === "number" ? project.capacityMw : null,
             announcedYear: typeof project.announcedYear === "number" ? project.announcedYear : new Date().getFullYear(),
             closedYear: null,
@@ -669,7 +788,7 @@ export async function runSourceGroup(
             sourceUrl: typeof project.sourceUrl === "string" ? project.sourceUrl : null,
             newsUrl: typeof project.sourceUrl === "string" ? project.sourceUrl : null,
             isAutoDiscovered: true,
-            reviewStatus,
+            reviewStatus: "pending",
             discoveredAt: new Date(),
             developer: project.developer ?? null,
             financiers: project.financiers ?? null,

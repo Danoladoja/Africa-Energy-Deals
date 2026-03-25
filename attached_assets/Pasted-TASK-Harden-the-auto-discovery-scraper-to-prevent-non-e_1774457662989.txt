@@ -1,0 +1,282 @@
+TASK: Harden the auto-discovery scraper to prevent non-energy projects, non-African countries, and inflated deal sizes from entering the database. The current scraper is in the scraper service file. Apply ALL of the following changes.
+
+=== 1. ADD STRICT AFRICAN COUNTRY WHITELIST (post-extraction validation) ===
+
+After the AI extracts projects, validate every project's country against this exact whitelist BEFORE inserting into the database. Reject any project whose country is not on this list.
+
+// 54 recognised African countries (AU member states)
+const VALID_AFRICAN_COUNTRIES = new Set([
+  "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
+  "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros",
+  "Congo", "Côte d'Ivoire", "Democratic Republic of the Congo",
+  "Djibouti", "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini",
+  "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau",
+  "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi",
+  "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia",
+  "Niger", "Nigeria", "Rwanda", "São Tomé and Príncipe", "Senegal",
+  "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
+  "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+]);
+
+// Also accept common aliases
+// Common aliases and abbreviations → canonical name
+const COUNTRY_ALIASES: Record<string, string> = {
+  "drc": "Democratic Republic of the Congo",
+  "dr congo": "Democratic Republic of the Congo",
+  "dem. rep. congo": "Democratic Republic of the Congo",
+  "congo-kinshasa": "Democratic Republic of the Congo",
+  "ivory coast": "Côte d'Ivoire",
+  "cote d'ivoire": "Côte d'Ivoire",
+  "republic of congo": "Congo",
+  "congo-brazzaville": "Congo",
+  "swaziland": "Eswatini",
+  "cabo verde": "Cape Verde",
+  "the gambia": "Gambia",
+};
+
+function normalizeCountry(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (VALID_AFRICAN_COUNTRIES.has(trimmed)) return trimmed;
+  const alias = COUNTRY_ALIASES[trimmed.toLowerCase()];
+  if (alias) return alias;
+  return null; // REJECT — not a valid African country
+}
+
+In the saving loop, BEFORE inserting each project:
+  const normalizedCountry = normalizeCountry(String(project.country ?? ""));
+  if (!normalizedCountry) continue; // Skip non-African countries silently
+Then use normalizedCountry for the insert.
+
+=== 2. ADD DEAL SIZE SANITY CHECKS ===
+
+Add these validation rules BEFORE inserting each project:
+
+const MAX_DEAL_SIZE_USD_MN = 5000; // $5 billion — no single African energy deal exceeds this
+const MIN_DEAL_SIZE_USD_MN = 0.1;  // $100,000 minimum
+
+function sanitizeDealSize(value: unknown): number | null {
+  if (typeof value !== "number" || isNaN(value)) return null;
+  if (value <= 0) return null;
+  if (value < MIN_DEAL_SIZE_USD_MN) return null;
+  if (value > MAX_DEAL_SIZE_USD_MN) {
+    // Flag for review but don't insert the inflated number
+    console.warn(`[SCRAPER] Deal size $${value}M exceeds $5B cap — setting to null for manual review`);
+    return null;
+  }
+  return Math.round(value * 100) / 100; // Round to 2 decimal places
+}
+
+Use sanitizeDealSize(project.dealSizeUsdMn) when inserting.
+
+=== 3. ADD NON-ENERGY PROJECT EXCLUSION ===
+
+Add a rejection list that catches development programs misclassified as energy:
+
+const NON_ENERGY_KEYWORDS = [
+  "social protection", "skills training", "skills for", "poultry",
+  "aquaculture", "livestock", "agriculture program", "education program",
+  "health program", "health system", "covid-19", "covid response",
+  "urban transformation", "water supply", "sanitation", "road",
+  "highway", "bridge construction", "housing program", "food security",
+  "nutrition", "vaccination", "immunization", "school", "university program",
+  "governance", "judicial", "public sector reform", "digital identity",
+  "social safety net", "cash transfer", "microfinance", "textile",
+  "garment", "tourism development", "fisheries management",
+];
+
+function isLikelyNonEnergy(projectName: string, description: string): boolean {
+  const text = `${projectName} ${description}`.toLowerCase();
+  return NON_ENERGY_KEYWORDS.some(kw => text.includes(kw));
+}
+
+Before inserting, check:
+  if (isLikelyNonEnergy(name, String(project.description ?? ""))) continue;
+
+=== 4. TIGHTEN THE ENERGY_KEYWORDS LIST ===
+
+Replace the current ENERGY_KEYWORDS with a stricter version that removes overly generic financial terms:
+
+const ENERGY_KEYWORDS = [
+  "solar", "wind", "hydro", "hydropower", "geothermal", "power plant",
+  "power station", "electricity", "megawatt", " mw ", "renewable energy",
+  "gas plant", "gas turbine", "lng terminal", "lng plant", "lpg",
+  "ipp", "independent power", "utility scale", "grid connection",
+  "power purchase", "ppa", "coal plant", "oil refinery", "petroleum",
+  "minigrids", "mini-grid", "off-grid", "battery storage", "energy storage",
+  "transmission line", "distribution network", "electrification",
+  "clean energy", "photovoltaic", "wind farm", "solar farm", "solar park",
+  "wind park", "nuclear power", "biomass", "biogas", "tidal energy",
+  "wave energy", "hydrogen plant", "green hydrogen", "ev charging",
+  "electric vehicle charging",
+];
+
+REMOVED from old list: "energy" (too generic), "power" (too generic), "investment", "financing", "deal", "fund", "project finance", "carbon", "emissions", "climate finance" — these match any development program.
+
+=== 5. STRENGTHEN THE AI SYSTEM PROMPT ===
+
+Replace the existing SYSTEM_PROMPT with this hardened version:
+
+const SYSTEM_PROMPT = `You are an expert analyst specialising in African energy infrastructure investment and project finance.
+Extract ONLY genuine energy/power infrastructure projects from news article summaries.
+
+STRICT EXTRACTION RULES:
+1. ONLY extract projects that involve physical energy infrastructure: power plants, solar farms, wind parks, hydroelectric dams, gas pipelines, transmission lines, battery storage facilities, mini-grids, EV charging networks, refineries, LNG terminals.
+
+2. NEVER extract:
+   - General development programs (World Bank/IDA social programs, skills training, education, health, agriculture, water/sanitation)
+   - Policy announcements without a specific named project
+   - Climate finance commitments without a specific project
+   - Opinion pieces, market commentary, or price news
+   - Fuel subsidy programs or tariff changes
+   - Programs where energy is mentioned incidentally but is not the core focus
+
+3. COUNTRY RULE: The project MUST be physically located in an African country. Use the full country name (e.g., "Nigeria", not "West Africa"). Regional labels like "Sub-Saharan Africa" or "East Africa" are NOT valid — you must identify the specific country.
+
+4. DEAL SIZE RULE: The dealSizeUsdMn field must be the value IN MILLIONS OF US DOLLARS.
+   - If an article says "$500 million", return dealSizeUsdMn: 500
+   - If an article says "$1.2 billion", return dealSizeUsdMn: 1200
+   - If an article says "$50,000", return dealSizeUsdMn: 0.05
+   - If the amount is ambiguous or not clearly stated, return null
+   - NEVER return values above 5000 ($5 billion) — no single African energy project exceeds this
+   - If the article mentions a multi-country program budget, return null (not the total program cost)
+
+5. TECHNOLOGY RULE: Must be one of: "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas", "Battery Storage", "Transmission", "Mini-Grid", "Nuclear", "Biomass", "Other Renewables"
+   - If the project is NOT energy infrastructure, do NOT force-fit it into a category
+   - If you cannot determine the technology, skip the project entirely
+
+Return a JSON array where each object has:
+- projectName: string — specific, unique project name (e.g., "Turkana Wind Power Phase 2"); NEVER generic names like "Energy Program" or "Development Project"
+- country: string — single African country name (NEVER a region, NEVER non-African)
+- region: string — one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
+- technology: string — from the list above
+- dealSizeUsdMn: number | null — value in USD millions; null if unclear or above $5B
+- investors: string | null — comma-separated investor names
+- status: string — one of: "announced", "under construction", "financing closed", "operational", "tender"
+- description: string — 2-3 factual sentences about the energy project specifically
+- capacityMw: number | null — generation/storage capacity in MW; null if not stated
+- announcedYear: number | null — year of announcement
+- sourceUrl: string | null — article URL
+- newsUrl: string | null — same as sourceUrl
+
+If NO articles contain genuine African energy infrastructure projects, return an empty array: []
+Return ONLY a valid JSON array. No markdown fences, no explanation.`;
+
+=== 6. ADD TECHNOLOGY VALIDATION ===
+
+const VALID_TECHNOLOGIES = new Set([
+  "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas",
+  "Battery Storage", "Transmission", "Mini-Grid", "Nuclear",
+  "Biomass", "Other Renewables"
+]);
+
+When saving, validate:
+  const tech = String(project.technology ?? "");
+  if (!VALID_TECHNOLOGIES.has(tech)) {
+    // Don't default to "Other Renewables" — mark for review
+    project.technology = "Other Renewables";
+    project.reviewStatus = "needs_review";
+  }
+
+=== 7. EXPAND THE EXCLUDE_KEYWORDS LIST ===
+
+Replace the existing EXCLUDE_KEYWORDS:
+
+const EXCLUDE_KEYWORDS = [
+  "obituary", "sports", "fashion", "celebrity", "lifestyle", "entertainment",
+  "recipe", "travel guide", "horoscope", "crossword", "opinion:", "editorial:",
+  "book review", "movie review", "music review", "podcast", "tv show",
+  "wedding", "divorce", "scandal", "arrest", "murder", "robbery",
+  "football", "soccer", "cricket", "rugby", "tennis", "basketball",
+  "stock price", "share price", "market close", "trading update",
+];
+
+=== 8. ADD A VALIDATED INSERT WRAPPER ===
+
+Create a single function that runs ALL validations before inserting:
+
+async function validateAndInsert(
+  project: Record<string, unknown>,
+  existingNames: Set<string>,
+): Promise<{ inserted: boolean; reason?: string }> {
+  const name = String(project.projectName ?? "").trim();
+  const rawCountry = String(project.country ?? "").trim();
+  const description = String(project.description ?? "");
+
+  // Basic field validation
+  if (!name || name.length < 5) return { inserted: false, reason: "Name too short" };
+  if (existingNames.has(name.toLowerCase())) return { inserted: false, reason: "Duplicate" };
+
+  // Country validation
+  const country = normalizeCountry(rawCountry);
+  if (!country) return { inserted: false, reason: `Non-African country: ${rawCountry}` };
+
+  // Non-energy exclusion
+  if (isLikelyNonEnergy(name, description)) return { inserted: false, reason: `Non-energy project: ${name}` };
+
+  // Deal size sanity
+  const dealSize = sanitizeDealSize(project.dealSizeUsdMn);
+
+  // Technology validation
+  const tech = String(project.technology ?? "Other Renewables");
+  const validTech = VALID_TECHNOLOGIES.has(tech) ? tech : "Other Renewables";
+
+  try {
+    await db.insert(projectsTable).values({
+      projectName: name,
+      country,
+      region: String(project.region ?? inferRegion(country)),
+      technology: validTech,
+      dealSizeUsdMn: dealSize,
+      investors: typeof project.investors === "string" ? project.investors : null,
+      status: String(project.status ?? "announced"),
+      description: description || null,
+      capacityMw: typeof project.capacityMw === "number" ? project.capacityMw : null,
+      announcedYear: typeof project.announcedYear === "number" ? project.announcedYear : new Date().getFullYear(),
+      closedYear: null,
+      latitude: null,
+      longitude: null,
+      sourceUrl: typeof project.sourceUrl === "string" ? project.sourceUrl : null,
+      newsUrl: typeof project.newsUrl === "string" ? project.newsUrl : null,
+      isAutoDiscovered: true,
+      reviewStatus: "pending",
+      discoveredAt: new Date(),
+    });
+    existingNames.add(name.toLowerCase());
+    return { inserted: true };
+  } catch (err) {
+    return { inserted: false, reason: `DB error: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+Replace the current saving loop with:
+  for (const project of allProjects) {
+    const result = await validateAndInsert(project, existingNames);
+    if (result.inserted) {
+      discovered++;
+    } else {
+      console.log(`[SCRAPER] Rejected: ${result.reason}`);
+    }
+  }
+
+=== 9. FIX THE allProjects ARRAY INITIALIZATION BUG ===
+
+CRITICAL BUG: In the current scraper code, the allProjects array is initialized with Google News feed configs accidentally mixed in:
+
+  const allProjects: Record<string, unknown>[] = [
+    { name: "Google News - Africa Energy", url: "...", ... },
+    ...
+  ];
+
+This should be:
+  const allProjects: Record<string, unknown>[] = [];
+
+The Google News feeds should be in RSS_FEEDS, not in allProjects. Fix this.
+
+=== 10. DO NOT MODIFY ===
+- Do NOT change the Dockerfile CMD
+- Do NOT create or modify run-migration.mjs
+- Do NOT change the database schema
+- Keep the RSS_FEEDS list as-is (the feeds are fine; the problem was in filtering and validation)
+
+After making all changes, commit and push to GitHub with message: "Harden scraper: add country whitelist, deal size cap, non-energy filter, stricter AI prompt"
+```
