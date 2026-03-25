@@ -421,6 +421,20 @@ export default function MapPage() {
   const [zoom, setZoom] = useState(3);
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function handler(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [exportMenuOpen]);
 
   const { data: projectsData, isLoading } = useQuery<{ projects: Project[] }>({
     queryKey: ["all-projects-map"],
@@ -595,83 +609,27 @@ export default function MapPage() {
       />
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
-        {/* ── Map Area ── */}
-        <div className="flex-1 h-full relative z-0" ref={mapWrapRef}>
-          <MapContainer
-            bounds={AFRICA_BOUNDS}
-            boundsOptions={{ padding: [10, 10] }}
-            style={{ height: "100%", width: "100%", zIndex: 0 }}
-            zoomControl={false}
-            maxZoom={10}
-            minZoom={2}
-          >
-            <MapController mapRef={mapRef} onZoomChange={setZoom} />
+        {/* ── Left column: toolbar + map ── */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
 
-            <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; OpenStreetMap &copy; CARTO'
-            />
+          {/* ── Toolbar ── */}
+          <div className="shrink-0 bg-[#0b0f1a] border-b border-white/6 px-4 py-2 flex items-center gap-2.5 flex-wrap md:flex-nowrap">
 
-            {/* Choropleth */}
-            {showChoropleth && geoJson && countryStats && (
-              <GeoJSON
-                key={geoKey}
-                data={geoJson}
-                style={geoStyle}
-                onEachFeature={onEachFeature}
-              />
-            )}
-
-            {/* Country name labels */}
-            {showChoropleth && geoJson && (
-              <CountryNamesLayer geoJson={geoJson} zoom={zoom} />
-            )}
-
-            {/* Project markers — smaller radius to fit within countries */}
-            {showMarkers && mapProjects.map(p => (
-              <CircleMarker
-                key={p.id}
-                center={[p.latitude!, p.longitude!]}
-                radius={p.dealSizeUsdMn
-                  ? Math.max(3, Math.min(11, Math.sqrt(p.dealSizeUsdMn) * 0.55))
-                  : 4}
-                pathOptions={{
-                  color: activeProject?.id === p.id ? "#ffffff" : SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
-                  fillColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
-                  fillOpacity: 0.9,
-                  weight: activeProject?.id === p.id ? 2.5 : 1,
-                }}
-                eventHandlers={{ click: () => setActiveProject(p) }}
-              >
-                <Popup className="custom-popup" maxWidth={310} minWidth={270}>
-                  <EnhancedPopup project={p} navigate={navigate} />
-                </Popup>
-              </CircleMarker>
-            ))}
-          </MapContainer>
-
-          {/* ── Map title overlay (top-left, below filters) ── */}
-          <div
-            className="absolute top-4 left-4 z-[999] pointer-events-none"
-            data-no-export
-          >
-            <div className="bg-[#0b0f1a]/80 backdrop-blur border border-white/8 rounded-xl px-4 py-2.5 shadow-lg">
-              <p className="text-sm font-bold text-white leading-tight">{mapTitle}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                {filteredProjects.length} deals · {Object.keys(countryStatsMap).length} markets
+            {/* Title (left) */}
+            <div className="flex-1 min-w-0 mr-1">
+              <p className="text-[13px] font-bold text-white leading-tight truncate">{mapTitle}</p>
+              <p className="text-[10px] text-slate-500 leading-none mt-0.5">
+                {isLoading ? "Loading…" : `${filteredProjects.length} deals · ${Object.keys(countryStatsMap).length} markets`}
               </p>
             </div>
-          </div>
 
-          {/* ── Controls bar (top-center) ── */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto flex items-center gap-2">
-            {/* Layer mode toggle */}
-            <div className="flex items-center gap-0.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-1 shadow-xl">
+            {/* Layer toggle */}
+            <div className="flex items-center gap-0.5 bg-white/5 border border-white/8 rounded-lg p-0.5 shrink-0">
               {(["both", "choropleth", "markers"] as LayerMode[]).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setLayerMode(mode)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors capitalize ${
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors capitalize ${
                     layerMode === mode
                       ? "bg-[#00e676] text-[#0b0f1a]"
                       : "text-slate-400 hover:text-white hover:bg-white/8"
@@ -682,139 +640,182 @@ export default function MapPage() {
               ))}
             </div>
 
-            {/* Sector filter */}
-            <FilterDropdown
-              label="Sector"
-              value={sectorFilter}
-              options={sectors}
-              onChange={setSectorFilter}
-            />
-
-            {/* Financing filter */}
-            <FilterDropdown
-              label="Financing"
-              value={financingFilter}
-              options={financingTypes}
-              onChange={setFinancingFilter}
-            />
-          </div>
-
-          {/* ── Action buttons (top-right) ── */}
-          <div className="absolute top-4 right-4 z-[1000] flex items-center gap-2">
-            <button
-              onClick={handleShare}
-              title="Share map link"
-              className="flex items-center gap-1.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl px-3 py-2 shadow-xl hover:bg-white/10 transition-colors text-xs text-slate-300 font-semibold"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-[#00e676]" /> : <Share2 className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline">{copied ? "Copied!" : "Share"}</span>
-            </button>
-            <button
-              onClick={handleDownload}
-              disabled={exporting}
-              title="Download map as PNG"
-              className="flex items-center gap-1.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl px-3 py-2 shadow-xl hover:bg-white/10 transition-colors text-xs text-slate-300 font-semibold disabled:opacity-60"
-            >
-              {exporting
-                ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                : <Download className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline">{exporting ? "Exporting…" : "Download"}</span>
-            </button>
-          </div>
-
-          {/* ── Zoom-to-fit ── */}
-          <button
-            onClick={handleZoomFit}
-            title="Fit Africa"
-            className="absolute bottom-20 right-4 md:bottom-6 md:right-6 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
-          >
-            <Maximize2 className="w-4 h-4 text-slate-300" />
-          </button>
-
-          {/* ── Mobile: toggle project list ── */}
-          <button
-            onClick={() => setShowProjects(true)}
-            className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-slate-200"
-          >
-            <ChevronUp className="w-4 h-4 text-[#00e676]" />
-            {isLoading ? "Loading…" : `${filteredProjects.length} Projects`}
-          </button>
-
-          {/* ── Legend ── */}
-          <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 z-[1000]">
-            <button
-              onClick={() => setLegendOpen(v => !v)}
-              className="md:hidden flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 px-3 py-2 rounded-xl text-xs font-semibold"
-            >
-              <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
-              {legendOpen ? "Hide legend" : "Legend"}
-            </button>
-
-            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[55vh] overflow-y-auto`}>
-              {/* Investment color scale — now blue */}
-              {showChoropleth && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
-                  <div
-                    className="h-2.5 w-28 rounded-full mb-1.5"
-                    style={{ background: "linear-gradient(to right, rgba(15,23,42,0.5), rgba(30,41,82,0.8), #3b82f6, #93c5fd)" }}
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500">
-                    <span>None</span>
-                    <span>{fmt(maxInvestment)}</span>
-                  </div>
-                  <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile</p>
-                </div>
-              )}
-
-              {/* Technology markers */}
-              {showMarkers && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Technologies</p>
-                  <div className="space-y-1.5">
-                    {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
-                      <div key={tech} className="flex items-center gap-2 text-xs text-slate-300">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                        {tech}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[9px] text-slate-600 mt-2">Marker size ∝ deal size</p>
-                </div>
-              )}
-
-              {/* Active filter summary */}
+            {/* Filters */}
+            <div className="flex items-center gap-2 shrink-0">
+              <FilterDropdown label="Sector" value={sectorFilter} options={sectors} onChange={setSectorFilter} />
+              <FilterDropdown label="Financing" value={financingFilter} options={financingTypes} onChange={setFinancingFilter} />
               {(sectorFilter !== "all" || financingFilter !== "all") && (
-                <div className="border-t border-white/8 pt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Active Filters</p>
-                  {sectorFilter !== "all" && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#00e676] mb-1">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[sectorFilter] ?? DEFAULT_COLOR }} />
-                      {sectorFilter}
-                    </div>
-                  )}
-                  {financingFilter !== "all" && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#60a5fa]">
-                      <div className="w-2 h-2 rounded-full bg-[#60a5fa]" />
-                      {financingFilter}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => { setSectorFilter("all"); setFinancingFilter("all"); }}
-                    className="mt-2 text-[10px] text-slate-500 hover:text-red-400 transition-colors"
-                  >
-                    Clear filters
-                  </button>
-                </div>
+                <button
+                  onClick={() => { setSectorFilter("all"); setFinancingFilter("all"); }}
+                  className="text-[11px] text-slate-500 hover:text-red-400 transition-colors px-1"
+                  title="Clear filters"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
               )}
+            </div>
+
+            {/* Export dropdown */}
+            <div className="relative shrink-0" ref={exportMenuRef}>
+              <button
+                onClick={() => setExportMenuOpen(v => !v)}
+                className="flex items-center gap-1.5 bg-white/5 border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors"
+              >
+                {exporting
+                  ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  : <Download className="w-3.5 h-3.5" />}
+                Export
+                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              <AnimatePresence>
+                {exportMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-full mt-1.5 w-48 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => { handleDownload(); setExportMenuOpen(false); }}
+                      disabled={exporting}
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-slate-200 hover:bg-white/6 transition-colors text-left disabled:opacity-60"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        <span className="font-semibold block">Download PNG</span>
+                        <span className="text-[10px] text-slate-500">With title + source</span>
+                      </span>
+                    </button>
+                    <div className="h-px bg-white/5 mx-3" />
+                    <button
+                      onClick={() => { handleShare(); setExportMenuOpen(false); }}
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-slate-200 hover:bg-white/6 transition-colors text-left"
+                    >
+                      {copied
+                        ? <Check className="w-3.5 h-3.5 text-[#00e676] shrink-0" />
+                        : <Share2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                      <span>
+                        <span className="font-semibold block">{copied ? "Copied!" : "Copy Share Link"}</span>
+                        <span className="text-[10px] text-slate-500">Includes active filters</span>
+                      </span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* ── Map ── */}
+          <div className="flex-1 relative overflow-hidden" ref={mapWrapRef}>
+            <MapContainer
+              bounds={AFRICA_BOUNDS}
+              boundsOptions={{ padding: [10, 10] }}
+              style={{ height: "100%", width: "100%", zIndex: 0 }}
+              zoomControl={false}
+              maxZoom={10}
+              minZoom={2}
+            >
+              <MapController mapRef={mapRef} onZoomChange={setZoom} />
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; OpenStreetMap &copy; CARTO'
+              />
+              {showChoropleth && geoJson && countryStats && (
+                <GeoJSON key={geoKey} data={geoJson} style={geoStyle} onEachFeature={onEachFeature} />
+              )}
+              {showChoropleth && geoJson && (
+                <CountryNamesLayer geoJson={geoJson} zoom={zoom} />
+              )}
+              {showMarkers && mapProjects.map(p => (
+                <CircleMarker
+                  key={p.id}
+                  center={[p.latitude!, p.longitude!]}
+                  radius={p.dealSizeUsdMn
+                    ? Math.max(2, Math.min(5, Math.sqrt(p.dealSizeUsdMn) * 0.22))
+                    : 3}
+                  pathOptions={{
+                    color: activeProject?.id === p.id ? "#ffffff" : SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
+                    fillColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
+                    fillOpacity: 0.9,
+                    weight: activeProject?.id === p.id ? 2 : 0.8,
+                  }}
+                  eventHandlers={{ click: () => setActiveProject(p) }}
+                >
+                  <Popup className="custom-popup" maxWidth={310} minWidth={270}>
+                    <EnhancedPopup project={p} navigate={navigate} />
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+
+            {/* Zoom-to-fit */}
+            <button
+              onClick={handleZoomFit}
+              title="Fit Africa"
+              className="absolute bottom-16 right-4 md:bottom-6 md:right-4 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
+            >
+              <Maximize2 className="w-4 h-4 text-slate-300" />
+            </button>
+
+            {/* Mobile: toggle project list */}
+            <button
+              onClick={() => setShowProjects(true)}
+              className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-slate-200"
+            >
+              <ChevronUp className="w-4 h-4 text-[#00e676]" />
+              {isLoading ? "Loading…" : `${filteredProjects.length} Projects`}
+            </button>
+
+            {/* Legend */}
+            <div className="absolute bottom-4 left-4 md:bottom-6 md:left-4 z-[1000]">
+              <button
+                onClick={() => setLegendOpen(v => !v)}
+                className="md:hidden flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 px-3 py-2 rounded-xl text-xs font-semibold"
+              >
+                <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
+                {legendOpen ? "Hide legend" : "Legend"}
+              </button>
+
+              <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[50vh] overflow-y-auto`}>
+                {showChoropleth && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
+                    <div
+                      className="h-2 w-28 rounded-full mb-1.5"
+                      style={{ background: "linear-gradient(to right, rgba(15,23,42,0.5), rgba(30,41,82,0.8), #3b82f6, #93c5fd)" }}
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>None</span>
+                      <span>{fmt(maxInvestment)}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile</p>
+                  </div>
+                )}
+                {showMarkers && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Technologies</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
+                        <div key={tech} className="flex items-center gap-2 text-[11px] text-slate-300">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                          {tech}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-slate-600 mt-2">Dot size ∝ deal size</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── Desktop Sidebar ── */}
-        <div className="hidden md:flex w-[300px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
-          <div className="p-5 border-b border-white/5 shrink-0">
-            <h2 className="text-base font-bold mb-0.5">Project Explorer</h2>
+        <div className="hidden md:flex w-[290px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
+          <div className="p-4 border-b border-white/5 shrink-0">
+            <h2 className="text-sm font-bold mb-0.5">Project Explorer</h2>
             <p className="text-xs text-slate-500">
               {isLoading
                 ? "Loading…"
