@@ -1,0 +1,35 @@
+I need you to clean up the project database and generate a SQL file I can use to update my production database. Follow these steps in order. Do NOT modify any app code or frontend files — this is a data-only task.
+STEP 1: Show me the current state of the database. Run this query and print the results:
+sqlSELECT COUNT(*) as total_projects, COUNT(DISTINCT country) as countries, SUM("dealSizeUsdMn") as total_investment_millions FROM projects;
+STEP 2: Fix deal sizes that are way too large. The column "dealSizeUsdMn" stores values in millions of USD. Any value over 100,000 (meaning over $100 billion) is a data entry error — the number was stored in raw USD instead of millions. Divide all of them by 1000:
+sqlUPDATE projects SET "dealSizeUsdMn" = "dealSizeUsdMn" / 1000 WHERE "dealSizeUsdMn" > 100000;
+Print how many rows were fixed.
+STEP 3: Delete all projects that are NOT energy-related. The scraper accidentally pulled in health, education, digital, water, road, transport, and agriculture projects. Find and delete them:
+sqlDELETE FROM projects
+WHERE "projectName" ILIKE '%health%'
+   OR "projectName" ILIKE '%digitalization%'
+   OR "projectName" ILIKE '%digital infrastructure%'
+   OR "projectName" ILIKE '%education%'
+   OR "projectName" ILIKE '%water supply%'
+   OR "projectName" ILIKE '%road%'
+   OR "projectName" ILIKE '%transport%'
+   OR "projectName" ILIKE '%agriculture%'
+   OR "projectName" ILIKE '%resilience project%';
+Also delete any projects where BOTH technology IS NULL AND "dealSizeUsdMn" IS NULL — these are empty records with no useful data.
+Print the names of every project you deleted.
+STEP 4: Remove duplicate projects. If two projects have the same "projectName" and same country, keep the one with more filled-in fields and delete the other. Print any duplicates you find and remove.
+STEP 5: Print the cleaned database stats:
+sqlSELECT COUNT(*) as total_projects, COUNT(DISTINCT country) as countries, COUNT(DISTINCT technology) as sectors, ROUND(SUM("dealSizeUsdMn")::numeric, 1) as total_investment_millions FROM projects;
+STEP 6: Generate a file called migration-to-production.sql in the project root. This file must contain SQL that I can run against a separate PostgreSQL database (my production database) to import all the cleaned projects. The production database has the same schema but only 77 of the older projects.
+The file should:
+
+Start with BEGIN;
+Create a unique index on ("projectName", country) if it doesn't exist
+Have one big INSERT INTO projects (...) VALUES (...), (...), (...) ... statement with a row for every project in the cleaned database
+Use ON CONFLICT ("projectName", country) DO UPDATE SET to update existing rows with COALESCE (keep existing data if the new value is null)
+End with COMMIT;
+
+Include these columns: "projectName", country, region, technology, "dealSizeUsdMn", investors, status, description, latitude, longitude, "capacityMw", "announcedYear", "closedYear", "sourceUrl", "newsUrl", "isAutoDiscovered", "reviewStatus", "dealStage", developer, financiers, "dfiInvolvement", offtaker, "financialCloseDate", "commissioningDate", "announcementDate", "debtEquitySplit", "grantComponent"
+Make sure to escape any single quotes in text values by doubling them ('').
+STEP 7: Print a final summary showing: projects before cleanup, projects removed, projects after cleanup, countries covered, total investment in billions, and confirm the migration file was created.
+That's it. Do not push to GitHub. Do not touch any code files. Just clean the data and create the migration SQL file.
