@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { GeoJSON, MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -7,12 +7,20 @@ import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta } from "@/components/seo-meta";
-import { MapPin, Zap, Maximize2, ChevronUp, X as XIcon } from "lucide-react";
+import { captureToCanvas } from "@/utils/export-utils";
+import {
+  MapPin, Zap, Maximize2, ChevronUp, X as XIcon, Download, Share2,
+  Check, ChevronDown,
+} from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
   "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
+
+// Africa bounds for default fit
+const AFRICA_BOUNDS: L.LatLngBoundsExpression = [[-38, -20], [38, 56]];
 
 const SECTOR_COLORS: Record<string, string> = {
   "Solar":          "#facc15",
@@ -25,6 +33,17 @@ const SECTOR_COLORS: Record<string, string> = {
   "Bioenergy":      "#4ade80",
 };
 const DEFAULT_COLOR = "#94a3b8";
+
+const FINANCING_COLORS: Record<string, string> = {
+  "Project Finance":   "#3b82f6",
+  "Blended Finance":   "#06b6d4",
+  "Concessional Loan": "#f59e0b",
+  "Grant/Donor":       "#10b981",
+  "Corporate":         "#8b5cf6",
+  "Sovereign":         "#ef4444",
+  "IPP/Concession":    "#ec4899",
+  "Green Bond":        "#22c55e",
+};
 
 const DB_TO_GEO: Record<string, string> = {
   "DRC":            "DR Congo",
@@ -40,13 +59,27 @@ function fmt(mn: number | null | undefined): string {
   return `$${mn.toFixed(0)}M`;
 }
 
+// ── Blue-slate choropleth color scale ────────────────────────────────────────
 function getCountryColor(investment: number, maxInvestment: number): string {
-  if (!investment) return "rgba(15, 23, 42, 0.6)";
+  if (!investment) return "rgba(15, 23, 42, 0.5)";
   const t = Math.log1p(investment) / Math.log1p(maxInvestment);
-  const g = Math.round(77 + (230 - 77) * t);
-  const b = Math.round(42 + (118 - 42) * t);
-  const alpha = 0.35 + 0.55 * t;
-  return `rgba(0,${g},${b},${alpha})`;
+  // Dark navy → mid-blue → bright blue
+  const r = Math.round(30  + (96  - 30)  * t);
+  const g = Math.round(41  + (165 - 41)  * t);
+  const b = Math.round(82  + (250 - 82)  * t);
+  const alpha = 0.30 + 0.60 * t;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Dynamic map title ─────────────────────────────────────────────────────────
+function getMapTitle(sectorFilter: string, financingFilter: string): string {
+  const hasSector = sectorFilter !== "all";
+  const hasFinancing = financingFilter !== "all";
+  if (hasSector && hasFinancing)
+    return `African ${sectorFilter} Energy — ${financingFilter} Financing`;
+  if (hasSector) return `African ${sectorFilter} Energy Investments`;
+  if (hasFinancing) return `African Energy Investment — ${financingFilter} Financing`;
+  return "African Energy Investment Landscape";
 }
 
 type LayerMode = "both" | "choropleth" | "markers";
@@ -64,6 +97,7 @@ interface Project {
   country: string;
   region: string;
   technology: string;
+  financingType?: string | null;
   dealSizeUsdMn?: number | null;
   capacityMw?: number | null;
   investors?: string | null;
@@ -76,24 +110,105 @@ interface Project {
   sourceUrl?: string | null;
 }
 
-function MapController({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+// ── Country name labels layer ────────────────────────────────────────────────
+
+function CountryNamesLayer({ geoJson, zoom }: { geoJson: GeoJsonObject | undefined; zoom: number }) {
   const map = useMap();
-  useEffect(() => { mapRef.current = map; }, [map, mapRef]);
+
+  useEffect(() => {
+    if (!geoJson || !map) return;
+
+    const labels: L.Marker[] = [];
+    const data = geoJson as any;
+
+    data.features?.forEach((feature: any) => {
+      const name: string = feature.properties?.name;
+      if (!name) return;
+
+      try {
+        const layer = L.geoJSON(feature);
+        const bounds = layer.getBounds();
+        if (!bounds.isValid()) return;
+        const center = bounds.getCenter();
+
+        // Shorten very long names to fit in smaller countries
+        const display = name
+          .replace("Democratic Republic of the", "DR")
+          .replace("Central African Republic", "CAR")
+          .replace("Equatorial Guinea", "Eq. Guinea")
+          .replace("Western Sahara", "W. Sahara")
+          .replace("São Tomé and Príncipe", "São Tomé")
+          .replace("Republic of the Congo", "Congo")
+          .replace("United Republic of Tanzania", "Tanzania");
+
+        const fontSize = zoom <= 4 ? 8 : zoom <= 5 ? 9 : 10;
+
+        const label = L.marker(center, {
+          icon: L.divIcon({
+            html: `<span style="
+              font-size:${fontSize}px;
+              color:rgba(255,255,255,0.82);
+              text-shadow:0 1px 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
+              font-weight:700;
+              white-space:nowrap;
+              pointer-events:none;
+              letter-spacing:0.04em;
+              font-family:inherit;
+            ">${display}</span>`,
+            className: "",
+            iconSize: [0, 0],
+            iconAnchor: [0, 6],
+          }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: -100,
+        });
+        label.addTo(map);
+        labels.push(label);
+      } catch {
+        // skip invalid features
+      }
+    });
+
+    return () => {
+      labels.forEach((l) => {
+        try { l.remove(); } catch {}
+      });
+    };
+  }, [geoJson, map, zoom]);
+
   return null;
 }
+
+function MapController({
+  mapRef,
+  onZoomChange,
+}: {
+  mapRef: React.MutableRefObject<L.Map | null>;
+  onZoomChange: (z: number) => void;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    onZoomChange(map.getZoom());
+    map.on("zoomend", () => onZoomChange(map.getZoom()));
+    return () => { map.off("zoomend"); };
+  }, [map, mapRef, onZoomChange]);
+  return null;
+}
+
+// ── Project popup ─────────────────────────────────────────────────────────────
 
 function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: string) => void }) {
   const color = SECTOR_COLORS[project.technology] ?? DEFAULT_COLOR;
   return (
-    <div style={{ fontFamily: "inherit", minWidth: 280, maxWidth: 310 }}>
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${color}18, transparent)`,
-          borderBottom: `2px solid ${color}40`,
-          padding: "10px 14px 8px",
-          marginBottom: 10,
-        }}
-      >
+    <div style={{ fontFamily: "inherit", minWidth: 270, maxWidth: 310 }}>
+      <div style={{
+        background: `linear-gradient(135deg, ${color}18, transparent)`,
+        borderBottom: `2px solid ${color}40`,
+        padding: "10px 14px 8px",
+        marginBottom: 10,
+      }}>
         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color, marginBottom: 3 }}>
           {project.technology}
         </div>
@@ -104,7 +219,7 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
 
       <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>📍 {project.country}, {project.region}</span>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>📍 {project.country}</span>
           <span style={{
             fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
             background: "rgba(100,116,139,0.15)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)",
@@ -134,15 +249,19 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
           )}
         </div>
 
+        {project.financingType && (
+          <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+            <span style={{ color: "#64748b" }}>Financing: </span>{project.financingType}
+          </div>
+        )}
         {project.developer && (
           <div style={{ fontSize: 11, color: "#cbd5e1" }}>
             <span style={{ color: "#64748b" }}>Developer: </span>{project.developer}
           </div>
         )}
-
         {project.investors && (
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Investors & Partners</div>
+            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Investors</div>
             <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>{project.investors}</div>
           </div>
         )}
@@ -183,6 +302,8 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
     </div>
   );
 }
+
+// ── Project list sidebar ──────────────────────────────────────────────────────
 
 function ProjectList({
   projects,
@@ -234,10 +355,7 @@ function ProjectList({
                     <MapPin className="w-2.5 h-2.5" /> {p.country}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Zap
-                      className="w-2.5 h-2.5"
-                      style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
-                    />
+                    <Zap className="w-2.5 h-2.5" style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }} />
                     {p.technology}
                   </span>
                 </p>
@@ -248,16 +366,61 @@ function ProjectList({
   );
 }
 
+// ── Filter dropdown ───────────────────────────────────────────────────────────
+
+function FilterDropdown({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none bg-[#1e293b]/95 backdrop-blur border border-white/10 text-slate-300 text-xs font-semibold rounded-xl pl-3 pr-7 py-2 outline-none cursor-pointer hover:border-white/20 transition-colors"
+        style={{ minWidth: 110 }}
+      >
+        <option value="all">{label}: All</option>
+        {options.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function MapPage() {
   const [, navigate] = useLocation();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
   const mapRef = useRef<L.Map | null>(null);
+  const mapWrapRef = useRef<HTMLDivElement>(null);
+  const searchStr = useSearch();
+  const initParams = useMemo(() => {
+    const p = new URLSearchParams(searchStr);
+    return { sector: p.get("sector") ?? "all", financing: p.get("financing") ?? "all" };
+  }, []);
+
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [layerMode, setLayerMode] = useState<LayerMode>("both");
   const [legendOpen, setLegendOpen] = useState(true);
   const [showProjects, setShowProjects] = useState(false);
+  const [sectorFilter, setSectorFilter] = useState(initParams.sector);
+  const [financingFilter, setFinancingFilter] = useState(initParams.financing);
+  const [zoom, setZoom] = useState(3);
+  const [exporting, setExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { data: projectsData, isLoading } = useQuery<{ projects: Project[] }>({
     queryKey: ["all-projects-map"],
@@ -277,9 +440,26 @@ export default function MapPage() {
     staleTime: 60 * 60 * 1000,
   });
 
+  // Filtered projects
+  const allProjects = projectsData?.projects ?? [];
+  const filteredProjects = useMemo(() => {
+    return allProjects.filter((p) => {
+      if (sectorFilter !== "all" && p.technology !== sectorFilter) return false;
+      if (financingFilter !== "all" && p.financingType !== financingFilter) return false;
+      return true;
+    });
+  }, [allProjects, sectorFilter, financingFilter]);
+
   const mapProjects = useMemo(
-    () => (projectsData?.projects ?? []).filter(p => p.latitude != null && p.longitude != null),
-    [projectsData]
+    () => filteredProjects.filter(p => p.latitude != null && p.longitude != null),
+    [filteredProjects]
+  );
+
+  // Unique sectors and financing types from data
+  const sectors = useMemo(() => [...new Set(allProjects.map(p => p.technology))].filter(Boolean).sort(), [allProjects]);
+  const financingTypes = useMemo(
+    () => [...new Set(allProjects.map(p => p.financingType).filter(Boolean))] as string[],
+    [allProjects]
   );
 
   const countryStatsMap = useMemo(() => {
@@ -300,10 +480,10 @@ export default function MapPage() {
     return {
       fillColor: stat?.totalInvestmentUsdMn
         ? getCountryColor(stat.totalInvestmentUsdMn, maxInvestment)
-        : "rgba(15, 23, 42, 0.55)",
+        : "rgba(15, 23, 42, 0.50)",
       fillOpacity: 1,
-      color: "#0f172a",
-      weight: 1,
+      color: "rgba(30,41,82,0.8)",
+      weight: 0.8,
     };
   }, [countryStatsMap, maxInvestment]);
 
@@ -315,15 +495,15 @@ export default function MapPage() {
       `<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.12);padding:8px 12px;border-radius:10px;min-width:140px;font-family:inherit;pointer-events:none;">
         <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">${name}</div>
         ${stat
-          ? `<div style="font-size:12px;color:#00e676;font-weight:600;font-family:monospace;">${fmt(stat.totalInvestmentUsdMn)}</div>
+          ? `<div style="font-size:12px;color:#60a5fa;font-weight:600;font-family:monospace;">${fmt(stat.totalInvestmentUsdMn)}</div>
              <div style="font-size:11px;color:#64748b;margin-top:2px;">${stat.projectCount} project${stat.projectCount !== 1 ? "s" : ""}</div>`
           : `<div style="font-size:11px;color:#475569;">No data tracked</div>`}
       </div>`,
-      { sticky: true, className: "leaflet-choropleth-tooltip", offset: [12, 0] }
+      { sticky: true, className: "leaflet-choropleth-tooltip", offset: [14, 0] }
     );
 
-    layer.on("mouseover", () => layer.setStyle({ weight: 2, color: "#00e676" }));
-    layer.on("mouseout", () => layer.setStyle({ weight: 1, color: "#0f172a" }));
+    layer.on("mouseover", () => layer.setStyle({ weight: 1.5, color: "#60a5fa" }));
+    layer.on("mouseout", () => layer.setStyle({ weight: 0.8, color: "rgba(30,41,82,0.8)" }));
     layer.on("click", () => {
       const dbName = GEO_TO_DB[name] ?? name;
       navigateRef.current(`/countries/${encodeURIComponent(dbName)}`);
@@ -339,29 +519,93 @@ export default function MapPage() {
   const showMarkers = layerMode === "both" || layerMode === "markers";
 
   function handleZoomFit() {
-    if (!mapRef.current || !mapProjects.length) return;
-    const bounds = L.latLngBounds(mapProjects.map(p => [p.latitude!, p.longitude!] as [number, number]));
-    mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+    if (!mapRef.current) return;
+    mapRef.current.fitBounds(AFRICA_BOUNDS, { padding: [20, 20], animate: true });
+  }
+
+  const mapTitle = getMapTitle(sectorFilter, financingFilter);
+
+  async function handleDownload() {
+    if (!mapWrapRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await captureToCanvas(mapWrapRef.current, 2);
+
+      // Draw title overlay on canvas
+      const ctx = canvas.getContext("2d")!;
+      const paddingX = 28;
+      const boxHeight = 80;
+
+      // Title backdrop
+      ctx.fillStyle = "rgba(11,15,26,0.88)";
+      ctx.beginPath();
+      const radius = 12;
+      ctx.moveTo(paddingX + radius, 16);
+      ctx.lineTo(paddingX + 520 - radius, 16);
+      ctx.arcTo(paddingX + 520, 16, paddingX + 520, 16 + radius, radius);
+      ctx.lineTo(paddingX + 520, 16 + boxHeight - radius);
+      ctx.arcTo(paddingX + 520, 16 + boxHeight, paddingX + 520 - radius, 16 + boxHeight, radius);
+      ctx.lineTo(paddingX + radius, 16 + boxHeight);
+      ctx.arcTo(paddingX, 16 + boxHeight, paddingX, 16 + boxHeight - radius, radius);
+      ctx.lineTo(paddingX, 16 + radius);
+      ctx.arcTo(paddingX, 16, paddingX + radius, 16, radius);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.font = "bold 22px 'Inter', sans-serif";
+      ctx.fillStyle = "#f1f5f9";
+      ctx.fillText(mapTitle, paddingX + 18, 54);
+
+      ctx.font = "13px 'Inter', sans-serif";
+      ctx.fillStyle = "#64748b";
+      ctx.fillText(`Source: AfriEnergy Tracker  ·  ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, paddingX + 18, 78);
+
+      const link = document.createElement("a");
+      const slug = mapTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      link.download = `afrienergy-map-${slug}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast.success("Map downloaded");
+    } catch (e) {
+      toast.error("Download failed — try again");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function handleShare() {
+    const params = new URLSearchParams();
+    if (sectorFilter !== "all") params.set("sector", sectorFilter);
+    if (financingFilter !== "all") params.set("financing", financingFilter);
+    const qs = params.toString();
+    const url = `${window.location.origin}${window.location.pathname.replace(/\?.*/, "")}${qs ? "?" + qs : ""}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      toast.success("Map link copied to clipboard");
+      setTimeout(() => setCopied(false), 2500);
+    });
   }
 
   return (
     <Layout>
       <SEOMeta
         title="Investment Map"
-        description="Explore African energy investment deals on an interactive map. Filter by technology sector and see geographic spread across 26 countries."
+        description="Explore African energy investment deals on an interactive map. Filter by technology sector and see geographic spread across African markets."
         url="/map"
       />
       <PageTransition className="h-full flex flex-col md:flex-row relative">
 
         {/* ── Map Area ── */}
-        <div className="flex-1 h-full relative z-0">
+        <div className="flex-1 h-full relative z-0" ref={mapWrapRef}>
           <MapContainer
-            center={[2, 20]}
-            zoom={4}
+            bounds={AFRICA_BOUNDS}
+            boundsOptions={{ padding: [10, 10] }}
             style={{ height: "100%", width: "100%", zIndex: 0 }}
             zoomControl={false}
+            maxZoom={10}
+            minZoom={2}
           >
-            <MapController mapRef={mapRef} />
+            <MapController mapRef={mapRef} onZoomChange={setZoom} />
 
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -378,31 +622,50 @@ export default function MapPage() {
               />
             )}
 
-            {/* Markers */}
+            {/* Country name labels */}
+            {showChoropleth && geoJson && (
+              <CountryNamesLayer geoJson={geoJson} zoom={zoom} />
+            )}
+
+            {/* Project markers — smaller radius to fit within countries */}
             {showMarkers && mapProjects.map(p => (
               <CircleMarker
                 key={p.id}
                 center={[p.latitude!, p.longitude!]}
                 radius={p.dealSizeUsdMn
-                  ? Math.max(6, Math.min(22, Math.sqrt(p.dealSizeUsdMn) * 1.5))
-                  : 8}
+                  ? Math.max(3, Math.min(11, Math.sqrt(p.dealSizeUsdMn) * 0.55))
+                  : 4}
                 pathOptions={{
                   color: activeProject?.id === p.id ? "#ffffff" : SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
                   fillColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR,
-                  fillOpacity: 0.85,
-                  weight: activeProject?.id === p.id ? 3 : 1.5,
+                  fillOpacity: 0.9,
+                  weight: activeProject?.id === p.id ? 2.5 : 1,
                 }}
                 eventHandlers={{ click: () => setActiveProject(p) }}
               >
-                <Popup className="custom-popup" maxWidth={320} minWidth={285}>
+                <Popup className="custom-popup" maxWidth={310} minWidth={270}>
                   <EnhancedPopup project={p} navigate={navigate} />
                 </Popup>
               </CircleMarker>
             ))}
           </MapContainer>
 
-          {/* Layer toggle — floats over map */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-1/2 z-[1000] pointer-events-auto">
+          {/* ── Map title overlay (top-left, below filters) ── */}
+          <div
+            className="absolute top-4 left-4 z-[999] pointer-events-none"
+            data-no-export
+          >
+            <div className="bg-[#0b0f1a]/80 backdrop-blur border border-white/8 rounded-xl px-4 py-2.5 shadow-lg">
+              <p className="text-sm font-bold text-white leading-tight">{mapTitle}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {filteredProjects.length} deals · {Object.keys(countryStatsMap).length} markets
+              </p>
+            </div>
+          </div>
+
+          {/* ── Controls bar (top-center) ── */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto flex items-center gap-2">
+            {/* Layer mode toggle */}
             <div className="flex items-center gap-0.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-1 shadow-xl">
               {(["both", "choropleth", "markers"] as LayerMode[]).map(mode => (
                 <button
@@ -418,61 +681,100 @@ export default function MapPage() {
                 </button>
               ))}
             </div>
+
+            {/* Sector filter */}
+            <FilterDropdown
+              label="Sector"
+              value={sectorFilter}
+              options={sectors}
+              onChange={setSectorFilter}
+            />
+
+            {/* Financing filter */}
+            <FilterDropdown
+              label="Financing"
+              value={financingFilter}
+              options={financingTypes}
+              onChange={setFinancingFilter}
+            />
           </div>
 
-          {/* Zoom-to-fit button */}
+          {/* ── Action buttons (top-right) ── */}
+          <div className="absolute top-4 right-4 z-[1000] flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              title="Share map link"
+              className="flex items-center gap-1.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl px-3 py-2 shadow-xl hover:bg-white/10 transition-colors text-xs text-slate-300 font-semibold"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-[#00e676]" /> : <Share2 className="w-3.5 h-3.5" />}
+              <span className="hidden md:inline">{copied ? "Copied!" : "Share"}</span>
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={exporting}
+              title="Download map as PNG"
+              className="flex items-center gap-1.5 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl px-3 py-2 shadow-xl hover:bg-white/10 transition-colors text-xs text-slate-300 font-semibold disabled:opacity-60"
+            >
+              {exporting
+                ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                : <Download className="w-3.5 h-3.5" />}
+              <span className="hidden md:inline">{exporting ? "Exporting…" : "Download"}</span>
+            </button>
+          </div>
+
+          {/* ── Zoom-to-fit ── */}
           <button
             onClick={handleZoomFit}
-            title="Zoom to fit all projects"
+            title="Fit Africa"
             className="absolute bottom-20 right-4 md:bottom-6 md:right-6 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
           >
             <Maximize2 className="w-4 h-4 text-slate-300" />
           </button>
 
-          {/* Mobile: toggle project list button */}
+          {/* ── Mobile: toggle project list ── */}
           <button
             onClick={() => setShowProjects(true)}
             className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-slate-200"
           >
             <ChevronUp className="w-4 h-4 text-[#00e676]" />
-            {isLoading ? "Loading…" : `${(projectsData?.projects ?? []).length} Projects`}
+            {isLoading ? "Loading…" : `${filteredProjects.length} Projects`}
           </button>
 
-          {/* Legend */}
+          {/* ── Legend ── */}
           <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 z-[1000]">
             <button
               onClick={() => setLegendOpen(v => !v)}
               className="md:hidden flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 px-3 py-2 rounded-xl text-xs font-semibold"
             >
-              <span className="w-2 h-2 rounded-full bg-[#00e676]" />
+              <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
               {legendOpen ? "Hide legend" : "Legend"}
             </button>
 
-            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[60vh] overflow-y-auto`}>
-              {/* Investment color scale */}
+            <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[55vh] overflow-y-auto`}>
+              {/* Investment color scale — now blue */}
               {showChoropleth && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
                   <div
                     className="h-2.5 w-28 rounded-full mb-1.5"
-                    style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
+                    style={{ background: "linear-gradient(to right, rgba(15,23,42,0.5), rgba(30,41,82,0.8), #3b82f6, #93c5fd)" }}
                   />
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>None</span>
                     <span>{fmt(maxInvestment)}</span>
                   </div>
-                  <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile page</p>
+                  <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile</p>
                 </div>
               )}
 
-              {/* Technology dots */}
+              {/* Technology markers */}
               {showMarkers && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Technologies</p>
                   <div className="space-y-1.5">
                     {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
                       <div key={tech} className="flex items-center gap-2 text-xs text-slate-300">
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                         {tech}
                       </div>
                     ))}
@@ -480,22 +782,47 @@ export default function MapPage() {
                   <p className="text-[9px] text-slate-600 mt-2">Marker size ∝ deal size</p>
                 </div>
               )}
+
+              {/* Active filter summary */}
+              {(sectorFilter !== "all" || financingFilter !== "all") && (
+                <div className="border-t border-white/8 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Active Filters</p>
+                  {sectorFilter !== "all" && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#00e676] mb-1">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[sectorFilter] ?? DEFAULT_COLOR }} />
+                      {sectorFilter}
+                    </div>
+                  )}
+                  {financingFilter !== "all" && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#60a5fa]">
+                      <div className="w-2 h-2 rounded-full bg-[#60a5fa]" />
+                      {financingFilter}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { setSectorFilter("all"); setFinancingFilter("all"); }}
+                    className="mt-2 text-[10px] text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* ── Desktop Sidebar ── */}
-        <div className="hidden md:flex w-[320px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
+        <div className="hidden md:flex w-[300px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
           <div className="p-5 border-b border-white/5 shrink-0">
             <h2 className="text-base font-bold mb-0.5">Project Explorer</h2>
             <p className="text-xs text-slate-500">
               {isLoading
                 ? "Loading…"
-                : `${mapProjects.length} mapped · ${(projectsData?.projects ?? []).length} total`}
+                : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
             </p>
           </div>
           <ProjectList
-            projects={projectsData?.projects ?? []}
+            projects={filteredProjects}
             isLoading={isLoading}
             activeProject={activeProject}
             onSelect={(p) => setActiveProject(activeProject?.id === p.id ? null : p)}
@@ -527,7 +854,7 @@ export default function MapPage() {
                   <div>
                     <h2 className="text-sm font-bold">Project Explorer</h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {isLoading ? "Loading…" : `${mapProjects.length} mapped · ${(projectsData?.projects ?? []).length} total`}
+                      {isLoading ? "Loading…" : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
                     </p>
                   </div>
                   <button onClick={() => setShowProjects(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8">
@@ -536,7 +863,7 @@ export default function MapPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   <ProjectList
-                    projects={projectsData?.projects ?? []}
+                    projects={filteredProjects}
                     isLoading={isLoading}
                     activeProject={activeProject}
                     onSelect={(p) => { setActiveProject(activeProject?.id === p.id ? null : p); setShowProjects(false); }}
