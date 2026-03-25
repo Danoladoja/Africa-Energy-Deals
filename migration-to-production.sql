@@ -1,5 +1,33 @@
 BEGIN;
 
+-- Remove non-African countries (scraped from World Bank by mistake)
+DELETE FROM energy_projects WHERE country IN (
+  'Hashemite Kingdom of Jordan',
+  'Islamic  Republic of Afghanistan',
+  'Islamic Republic of Pakistan',
+  'Lebanese Republic',
+  'Republic of Iraq',
+  'Republic of Yemen',
+  'Syrian Arab Republic',
+  'West Bank and Gaza'
+);
+
+-- Remove regional labels (not real countries)
+DELETE FROM energy_projects WHERE country IN (
+  'Africa (multi-country)',
+  'Central Africa',
+  'East Africa II',
+  'Eastern and Southern Africa',
+  'Multiple African Countries',
+  'Other',
+  'West Africa I',
+  'Western and Central Africa'
+);
+
+-- Fix duplicate country names
+UPDATE energy_projects SET country = 'Cabo Verde' WHERE country = 'Cape Verde';
+UPDATE energy_projects SET country = 'Democratic Republic of the Congo' WHERE country = 'DRC';
+
   CREATE UNIQUE INDEX IF NOT EXISTS idx_energy_projects_name_country
     ON energy_projects (project_name, country);
 
