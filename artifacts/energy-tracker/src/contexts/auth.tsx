@@ -42,19 +42,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetch(`${API}/auth/me`, {
       headers: { Authorization: `Bearer ${stored}` },
     })
-      .then((r) => r.json())
-      .then((data: { authenticated: boolean; email?: string }) => {
+      .then((r) => {
+        if (!r.ok) {
+          // Server responded with an error (e.g. 401) — token is invalid
+          localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(EMAIL_KEY);
+          return null;
+        }
+        return r.json() as Promise<{ authenticated: boolean; email?: string }>;
+      })
+      .then((data) => {
+        if (!data) return;
         if (data.authenticated && data.email) {
           setSessionToken(stored);
           setEmail(data.email);
           localStorage.setItem(EMAIL_KEY, data.email);
         } else {
+          // Server says not authenticated — clear stale token
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(EMAIL_KEY);
         }
       })
       .catch(() => {
-        localStorage.removeItem(SESSION_KEY);
+        // Network failure / CORS error — keep the token in localStorage so
+        // the user can try again after the connectivity issue is resolved.
+        // Do not set sessionToken so the UI shows as unauthenticated for now.
+        console.warn("Auth check failed due to network/CORS — session token preserved.");
       })
       .finally(() => setIsLoading(false));
   }, []);

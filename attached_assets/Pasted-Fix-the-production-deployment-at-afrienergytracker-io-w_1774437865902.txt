@@ -1,0 +1,198 @@
+Fix the production deployment at afrienergytracker.io which currently shows a blank white page. There are two critical bugs to fix:
+
+BUG 1 — CORS CONFIGURATION (artifacts/api-server/src/app.ts)
+
+The isAllowedOrigin() function around line 20-40 only allows Replit dev domains and localhost.
+The production domain "afrienergytracker.io" is NOT in the allowed origins list.
+
+CURRENT CODE (broken):
+```
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
+  if (origin.startsWith("http://localhost:") || origin === "http://localhost") return true;
+  return false;
+}
+```
+
+FIX: Add production domain to the isAllowedOrigin function:
+```
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow production domain
+  if (origin === "https://afrienergytracker.io" || origin === "http://afrienergytracker.io") return true;
+  // Allow Railway preview domains
+  if (origin.endsWith(".up.railway.app")) return true;
+  // Allow Replit dev/preview domains
+  if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
+  // Allow any localhost origin (dev environment — port may vary)
+  if (origin.startsWith("http://localhost:") || origin === "http://localhost") return true;
+  return false;
+}
+```
+
+Also add "https://afrienergytracker.io" to the allowedOrigins array if one exists above the function.
+
+VERIFICATION: After this fix, API calls from the browser at afrienergytracker.io should return JSON data instead of CORS errors.
+
+
+BUG 2 — REPLIT RUNTIME ERROR OVERLAY IN PRODUCTION (artifacts/energy-tracker/vite.config.ts)
+
+The runtimeErrorOverlay() plugin from @replit/vite-plugin-runtime-error-modal is included in ALL builds.
+It is NOT inside the conditional block that excludes other Replit plugins in production.
+
+CURRENT CODE (broken):
+```
+plugins: [
+  react(),
+  tailwindcss(),
+  runtimeErrorOverlay(),    // ← Always included, even in production!
+  botPrerender(),
+  ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+    ? [
+        await import("@replit/vite-plugin-cartographer").then(...),
+        await import("@replit/vite-plugin-dev-banner").then(...),
+      ]
+    : []),
+],
+```
+
+FIX: Move runtimeErrorOverlay() inside the conditional block so it's only included in Replit dev:
+```
+plugins: [
+  react(),
+  tailwindcss(),
+  botPrerender(),
+  ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+    ? [
+        runtimeErrorOverlay(),
+        await import("@replit/vite-plugin-cartographer").then((m) =>
+          m.cartographer({
+            root: path.resolve(import.meta.dirname, ".."),
+          }),
+        ),
+        await import("@replit/vite-plugin-dev-banner").then((m) =>
+          m.devBanner(),
+        ),
+      ]
+    : []),
+],
+```
+
+
+BUG 3 — ADD ERROR BOUNDARY TO PREVENT BLANK PAGES (artifacts/energy-tracker/src/App.tsx)
+
+Add a React error boundary around the app to catch and display errors instead of showing a blank page.
+
+Add this component BEFORE the App component in App.tsx:
+
+```
+import { Component, ErrorInfo, ReactNode } from "react";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("App Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        
+
+          
+Something went wrong
+
+          
+
+{this.state.error?.message}
+
+
+           window.location.reload()} style={{ background: "#00e676", color: "#0b0f1a", border: "none", padding: "8px 24px", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}>
+            Reload Page
+          
+        
+
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+Then wrap the App return with it:
+
+```
+function App() {
+  return (
+    
+      
+        
+          
+            
+              
+                
+                
+              
+            
+          
+          
+        
+      
+    
+  );
+}
+```
+
+
+BUG 4 — HARDEN AuthProvider AGAINST NETWORK FAILURES (artifacts/energy-tracker/src/contexts/auth.tsx)
+
+Check the AuthProvider component. If it makes an initial API call to check authentication status (e.g., /api/auth/me or /api/session), make sure:
+
+1. The fetch call has a try/catch around it
+2. If the fetch fails (network error, CORS error), set isLoading=false and isAuthenticated=false
+3. Do NOT let a failed auth check prevent children from rendering
+4. The provider should ALWAYS render its children, even if auth state is unknown
+
+Example pattern:
+```
+useEffect(() => {
+  const checkAuth = async () => {
+    try {
+      const response = await fetch("/api/auth/me");
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.warn("Auth check failed:", error);
+      setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);   // CRITICAL: always set loading to false
+    }
+  };
+  checkAuth();
+}, []);
+```
+
+
+TESTING AFTER FIX:
+
+1. Run the app locally and verify the Replit dev preview still works
+2. Push to GitHub (git push github master)
+3. Wait for Railway to auto-deploy (~5 minutes)
+4. Visit https://afrienergytracker.io/ — the landing page should render
+5. Visit https://afrienergytracker.io/dashboard — the dashboard should render with data
+6. Check browser console — no CORS errors should appear
+7. Check Railway logs — no "Not allowed by CORS" errors
+
+IMPORTANT: These are the MINIMUM fixes needed. The API also needs to handle the ?limit=500 query parameter (currently returns 400 for that). Check the GET /api/projects route handler and ensure it accepts limit as a query parameter.
+  

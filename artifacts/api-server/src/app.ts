@@ -14,6 +14,8 @@ const app: Express = express();
 
 // CORS: restrict to known origins
 const allowedOrigins = [
+  "https://afrienergytracker.io",
+  "http://afrienergytracker.io",
   "https://africa-energy-deals-production.up.railway.app",
   "http://localhost:3000",
   "http://localhost:5173",
@@ -22,6 +24,8 @@ const allowedOrigins = [
 
 function isAllowedOrigin(origin: string): boolean {
   if (allowedOrigins.includes(origin)) return true;
+  // Allow production + any Railway preview domains
+  if (origin.endsWith(".up.railway.app")) return true;
   // Allow all Replit dev/preview domains
   if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
   // Allow any localhost origin (dev environment — port may vary)
