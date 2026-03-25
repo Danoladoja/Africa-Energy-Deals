@@ -938,7 +938,12 @@ export default function DealTracker() {
             <h1 className="text-3xl md:text-4xl font-bold mb-2">Deal Tracker</h1>
             <p className="text-muted-foreground text-base md:text-lg">Search and filter through the complete database of energy transactions.</p>
           </div>
-          <div className="hidden md:block shrink-0 mt-1">
+          <div className="hidden md:flex items-center gap-2 shrink-0 mt-1">
+            <MySavedSearchesDropdown
+              searches={savedSearches}
+              onApply={applySearch}
+              onDelete={(id) => setSavedSearches((prev) => prev.filter((s) => s.id !== id))}
+            />
             <ExportDropdown filters={activeFilters} />
           </div>
         </header>
@@ -1182,14 +1187,9 @@ export default function DealTracker() {
             </div>
           )}
 
-          {/* Saved-searches toolbar: My Searches dropdown + Save Search button */}
-          <div className="flex items-center justify-between pt-1 border-t border-border/50 mt-1">
-            <MySavedSearchesDropdown
-              searches={savedSearches}
-              onApply={applySearch}
-              onDelete={(id) => setSavedSearches((prev) => prev.filter((s) => s.id !== id))}
-            />
-            {hasActiveFilters && (
+          {/* Save Search button — only shown when filters are active */}
+          {hasActiveFilters && (
+            <div className="flex justify-end pt-1 border-t border-border/50 mt-1">
               <button
                 onClick={() => setSaveModalOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-[#00e676] hover:bg-[#00e676]/5 hover:border-[#00e676]/30 border border-transparent transition-all"
@@ -1198,8 +1198,8 @@ export default function DealTracker() {
                 <BookmarkPlus className="w-4 h-4" />
                 <span className="hidden sm:inline">Save Search</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Mobile Card List */}
