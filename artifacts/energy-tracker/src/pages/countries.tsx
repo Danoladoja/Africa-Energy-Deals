@@ -7,6 +7,7 @@ import { WatchButton } from "@/components/watch-button";
 import { SEOMeta } from "@/components/seo-meta";
 import { ExportDropdown } from "@/components/export-dropdown";
 import { exportToPng, exportImageToPdf, exportImageToPptx } from "@/utils/export-utils";
+import { ShareButton } from "@/components/share-button";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1218,6 +1219,7 @@ export default function CountriesPage() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(initParams.country);
   const [compareInitial, setCompareInitial] = useState<string[]>(initParams.countries);
   const [search, setSearch] = useState("");
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const { data: countryStats, isLoading } = useQuery<CountryStat[]>({
     queryKey: ["stats-by-country"],
@@ -1268,6 +1270,23 @@ export default function CountriesPage() {
     return `$${mn.toFixed(0)}M`;
   }
 
+  function downloadCountriesCSV() {
+    const headers = ["Country", "Region", "Projects", "Total Investment (USD M)"];
+    const rows = sorted.map(c => [
+      c.country,
+      c.region,
+      c.projectCount,
+      c.totalInvestmentUsdMn.toFixed(0),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `afrienergy-countries-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <Layout>
       <SEOMeta
@@ -1285,8 +1304,46 @@ export default function CountriesPage() {
               Explore energy investment profiles and compare African markets side-by-side.
             </p>
           </div>
+          <div className="flex items-center gap-2 shrink-0 mt-1">
+            <ShareButton
+              text="Explore African energy investment country profiles and market comparisons on AfriEnergy Tracker."
+            />
+            <ExportDropdown
+              size="sm"
+              options={[
+                {
+                  id: "csv",
+                  label: "Download CSV",
+                  description: "Countries investment summary",
+                  type: "png",
+                  onExport: async () => downloadCountriesCSV(),
+                },
+                {
+                  id: "png",
+                  label: "Download PNG",
+                  description: "Snapshot of this page",
+                  type: "png",
+                  onExport: async () => {
+                    if (!contentRef.current) return;
+                    await exportToPng(contentRef.current, `afrienergy-countries-${new Date().toISOString().split("T")[0]}.png`);
+                  },
+                },
+                {
+                  id: "pdf",
+                  label: "Download PDF",
+                  description: "PDF report of this page",
+                  type: "pdf",
+                  onExport: async () => {
+                    if (!contentRef.current) return;
+                    await exportImageToPdf(contentRef.current, "Countries & Markets", `afrienergy-countries-${new Date().toISOString().split("T")[0]}.pdf`);
+                  },
+                },
+              ]}
+            />
+          </div>
         </header>
 
+        <div ref={contentRef} className="flex flex-col flex-1 min-h-0">
         {/* Summary banner */}
         {!isLoading && sorted.length > 0 && (
           <div className="grid grid-cols-3 gap-3 mb-6 shrink-0">
@@ -1425,6 +1482,7 @@ export default function CountriesPage() {
             <CompareTab allCountries={allCountries} initialSelected={compareInitial} />
           </div>
         )}
+        </div>{/* /contentRef */}
 
       </PageTransition>
     </Layout>

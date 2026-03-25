@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -8,6 +8,9 @@ import {
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { MatrixView, extractMatrixEntities, type MatrixEntityRow, type Project } from "./developers-matrix";
+import { ShareButton } from "@/components/share-button";
+import { ExportDropdown } from "@/components/export-dropdown";
+import { exportToPng, exportImageToPdf } from "@/utils/export-utils";
 
 const API = "/api";
 
@@ -83,11 +86,16 @@ function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
 
 type ViewMode = "table" | "matrix";
 
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function DevelopersIndex() {
   const [, navigate] = useLocation();
   const [sortKey, setSortKey] = useState<SortKey>("totalInvestment");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const { data: projectsData, isLoading } = useQuery<{ projects: Project[] }>({
     queryKey: ["all-projects-developers"],
@@ -125,6 +133,24 @@ export default function DevelopersIndex() {
 
   const totalInvestment = useMemo(() => entities.reduce((s, e) => s + e.totalInvestment, 0), [entities]);
 
+  function downloadEntitiesCSV() {
+    const headers = ["Name", "Total Investment (USD M)", "Project Count", "Countries", "Top Sector"];
+    const rows = sorted.map(e => [
+      e.name,
+      e.totalInvestment.toFixed(0),
+      e.projectCount,
+      e.countries.join("; "),
+      e.topSector,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `afrienergy-investors-developers-${todayStr()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   const Th = ({ label, col }: { label: string; col: SortKey }) => (
     <th
       className="text-left py-3 px-4 font-semibold cursor-pointer select-none hover:text-white transition-colors"
@@ -149,30 +175,72 @@ export default function DevelopersIndex() {
               </p>
             </div>
 
-            {/* View mode toggle */}
-            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 self-start">
-              <button
-                onClick={() => setViewMode("table")}
-                className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
-                  ${viewMode === "table"
-                    ? "bg-[#00e676] text-black"
-                    : "text-slate-400 hover:text-white"}`}
-              >
-                <List className="w-4 h-4" /> Table View
-              </button>
-              <button
-                onClick={() => setViewMode("matrix")}
-                className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
-                  ${viewMode === "matrix"
-                    ? "bg-[#00e676] text-black"
-                    : "text-slate-400 hover:text-white"}`}
-              >
-                <LayoutGrid className="w-4 h-4" /> Matrix View
-              </button>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start">
+              {/* Share + Export */}
+              <div className="flex items-center gap-2">
+                <ShareButton
+                  text="Explore investors and developers active in African energy deals on AfriEnergy Tracker."
+                />
+                <ExportDropdown
+                  size="sm"
+                  options={[
+                    {
+                      id: "csv",
+                      label: "Download CSV",
+                      description: "Investors & developer data",
+                      type: "png",
+                      onExport: async () => downloadEntitiesCSV(),
+                    },
+                    {
+                      id: "png",
+                      label: "Download PNG",
+                      description: "Snapshot of this page",
+                      type: "png",
+                      onExport: async () => {
+                        if (!contentRef.current) return;
+                        await exportToPng(contentRef.current, `afrienergy-investors-${todayStr()}.png`);
+                      },
+                    },
+                    {
+                      id: "pdf",
+                      label: "Download PDF",
+                      description: "PDF report of this page",
+                      type: "pdf",
+                      onExport: async () => {
+                        if (!contentRef.current) return;
+                        await exportImageToPdf(contentRef.current, "Investors & Developers", `afrienergy-investors-${todayStr()}.pdf`);
+                      },
+                    },
+                  ]}
+                />
+              </div>
+
+              {/* View mode toggle */}
+              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
+                    ${viewMode === "table"
+                      ? "bg-[#00e676] text-black"
+                      : "text-slate-400 hover:text-white"}`}
+                >
+                  <List className="w-4 h-4" /> Table View
+                </button>
+                <button
+                  onClick={() => setViewMode("matrix")}
+                  className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
+                    ${viewMode === "matrix"
+                      ? "bg-[#00e676] text-black"
+                      : "text-slate-400 hover:text-white"}`}
+                >
+                  <LayoutGrid className="w-4 h-4" /> Matrix View
+                </button>
+              </div>
             </div>
           </div>
         </header>
 
+        <div ref={contentRef}>
         {/* Status notice */}
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-6 flex items-start gap-3">
           <Building2 className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
@@ -406,6 +474,7 @@ export default function DevelopersIndex() {
             </div>
           </>
         )}
+        </div>{/* /contentRef */}
       </PageTransition>
     </Layout>
   );
