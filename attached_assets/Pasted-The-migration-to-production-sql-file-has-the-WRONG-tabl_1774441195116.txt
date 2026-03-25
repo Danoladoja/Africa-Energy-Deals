@@ -1,0 +1,44 @@
+The migration-to-production.sql file has the WRONG table and column names. The production Railway database uses the table name "projects" (not "energy_projects") and camelCase column names in double quotes (not snake_case).
+Regenerate migration-to-production.sql using the EXACT table and column names below. Query all 378 cleaned projects from the Replit database and write them into the new file.
+The file must use this exact structure:
+sqlBEGIN;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_name_country
+  ON projects ("projectName", country);
+
+INSERT INTO projects ("projectName", country, region, technology, "dealSizeUsdMn", investors, status, description, latitude, longitude, "capacityMw", "announcedYear", "closedYear", "sourceUrl", "newsUrl", "isAutoDiscovered", "reviewStatus", "dealStage", developer, financiers, "dfiInvolvement", offtaker, "financialCloseDate", "commissioningDate", "announcementDate", "debtEquitySplit", "grantComponent")
+VALUES
+    ('Project Name Here', 'Country', 'Region', 'Tech', 100, 'Investors', 'Status', 'Description', 0.0, 0.0, 100, 2024, NULL, NULL, NULL, false, 'approved', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    -- ... all 378 rows ...
+ON CONFLICT ("projectName", country)
+DO UPDATE SET
+    region = EXCLUDED.region,
+    technology = EXCLUDED.technology,
+    "dealSizeUsdMn" = COALESCE(EXCLUDED."dealSizeUsdMn", projects."dealSizeUsdMn"),
+    investors = COALESCE(EXCLUDED.investors, projects.investors),
+    status = COALESCE(EXCLUDED.status, projects.status),
+    description = COALESCE(EXCLUDED.description, projects.description),
+    latitude = COALESCE(EXCLUDED.latitude, projects.latitude),
+    longitude = COALESCE(EXCLUDED.longitude, projects.longitude),
+    "capacityMw" = COALESCE(EXCLUDED."capacityMw", projects."capacityMw"),
+    "announcedYear" = COALESCE(EXCLUDED."announcedYear", projects."announcedYear"),
+    "closedYear" = COALESCE(EXCLUDED."closedYear", projects."closedYear"),
+    "sourceUrl" = COALESCE(EXCLUDED."sourceUrl", projects."sourceUrl"),
+    "newsUrl" = COALESCE(EXCLUDED."newsUrl", projects."newsUrl"),
+    "dealStage" = COALESCE(EXCLUDED."dealStage", projects."dealStage"),
+    developer = COALESCE(EXCLUDED.developer, projects.developer),
+    financiers = COALESCE(EXCLUDED.financiers, projects.financiers),
+    "dfiInvolvement" = COALESCE(EXCLUDED."dfiInvolvement", projects."dfiInvolvement"),
+    offtaker = COALESCE(EXCLUDED.offtaker, projects.offtaker);
+
+COMMIT;
+CRITICAL RULES:
+
+Table name is projects NOT energy_projects
+Column names are camelCase in double quotes: "projectName", "dealSizeUsdMn", "capacityMw", "announcedYear", "closedYear", "sourceUrl", "newsUrl", "isAutoDiscovered", "reviewStatus", "dealStage", "dfiInvolvement", "financialCloseDate", "commissioningDate", "announcementDate", "debtEquitySplit", "grantComponent"
+Single-word columns stay lowercase without quotes: country, region, technology, investors, status, description, latitude, longitude, developer, financiers, offtaker
+Escape single quotes in text by doubling them ('')
+Query all projects from the cleaned Replit database and include every row
+Overwrite the existing migration-to-production.sql file
+Do NOT modify any app code — only regenerate the SQL file
+After generating, push to GitHub with: git add migration-to-production.sql && git commit -m "Fix migration column names to match production schema" && git push origin master
