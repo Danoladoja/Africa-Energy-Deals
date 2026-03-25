@@ -59,16 +59,14 @@ function fmt(mn: number | null | undefined): string {
   return `$${mn.toFixed(0)}M`;
 }
 
-// ── Blue-slate choropleth color scale ────────────────────────────────────────
+// ── Green choropleth color scale ─────────────────────────────────────────────
 function getCountryColor(investment: number, maxInvestment: number): string {
-  if (!investment) return "rgba(15, 23, 42, 0.5)";
+  if (!investment) return "rgba(15, 23, 42, 0.6)";
   const t = Math.log1p(investment) / Math.log1p(maxInvestment);
-  // Dark navy → mid-blue → bright blue
-  const r = Math.round(30  + (96  - 30)  * t);
-  const g = Math.round(41  + (165 - 41)  * t);
-  const b = Math.round(82  + (250 - 82)  * t);
-  const alpha = 0.30 + 0.60 * t;
-  return `rgba(${r},${g},${b},${alpha})`;
+  const g = Math.round(77 + (230 - 77) * t);
+  const b = Math.round(42 + (118 - 42) * t);
+  const alpha = 0.35 + 0.55 * t;
+  return `rgba(0,${g},${b},${alpha})`;
 }
 
 // ── Dynamic map title ─────────────────────────────────────────────────────────
@@ -784,7 +782,7 @@ export default function MapPage() {
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
                     <div
                       className="h-2 w-28 rounded-full mb-1.5"
-                      style={{ background: "linear-gradient(to right, rgba(15,23,42,0.5), rgba(30,41,82,0.8), #3b82f6, #93c5fd)" }}
+                      style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
                     />
                     <div className="flex justify-between text-[10px] text-slate-500">
                       <span>None</span>
