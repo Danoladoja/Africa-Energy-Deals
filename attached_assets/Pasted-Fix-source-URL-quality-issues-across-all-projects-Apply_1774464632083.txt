@@ -1,0 +1,68 @@
+Fix source URL quality issues across all projects. Apply these changes to the scraper AND the existing data.
+
+=== 1. ADD URL VALIDATION TO THE SCRAPER ===
+
+In the scraper's validateAndInsert function (or wherever projects are saved), add URL validation BEFORE inserting:
+
+async function isUrlReachable(url: string): Promise<boolean> {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/$/, '');
+    // Reject homepage-only URLs — they don't prove anything
+    if (!path || path === '') return false;
+    // HEAD request with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'AfricaEnergyTracker/1.0 (link-checker)' }
+    });
+    clearTimeout(timeout);
+    return res.ok || res.status === 301 || res.status === 302;
+  } catch {
+    return false;
+  }
+}
+
+Before inserting a project:
+- If sourceUrl is a homepage-only URL (no path after domain), set sourceUrl to null
+- If sourceUrl fails the reachability check, set sourceUrl to null
+- Set reviewStatus to "needs_source" for any project with null sourceUrl
+- NEVER insert a project with a fabricated URL — null is better than fake
+
+=== 2. UPDATE THE AI SYSTEM PROMPT ===
+
+Add this rule to the scraper's AI system prompt:
+
+"sourceUrl MUST be the EXACT URL of the news article you are extracting from. Copy the URL directly from the article metadata. NEVER fabricate, guess, or construct a URL. If the article URL is not available, return null. A homepage URL like 'https://example.com/' is NOT a valid sourceUrl."
+
+=== 3. FLAG EXISTING PROJECTS WITH BAD URLS ===
+
+Run this SQL to mark existing projects that need source URL attention:
+
+-- Flag projects with no URL
+UPDATE energy_projects SET review_status = 'needs_source' WHERE (source_url IS NULL OR source_url = '') AND (news_url IS NULL OR news_url = '');
+
+-- Flag projects with homepage-only URLs
+UPDATE energy_projects SET review_status = 'needs_source' WHERE source_url ~ '^https?://[^/]+/?$';
+
+Do NOT delete these projects — they may be legitimate energy projects that just need proper source links added manually.
+
+Commit and push with message: "Add URL validation to scraper, flag projects needing source URLs"
+```
+
+### Railway Production SQL
+
+After the Replit prompt is run and deployed, also run these on Railway to flag existing bad URLs:
+
+```sql
+-- Flag projects with no URL at all
+UPDATE energy_projects SET review_status = 'needs_source'
+WHERE (source_url IS NULL OR source_url = '')
+AND (news_url IS NULL OR news_url = '');
+
+-- Flag homepage-only source URLs
+UPDATE energy_projects SET review_status = 'needs_source'
+WHERE source_url ~ '^https?://[^/]+/?$';

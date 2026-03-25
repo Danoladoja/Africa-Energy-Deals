@@ -318,6 +318,53 @@ const VALID_TECHNOLOGIES = new Set([
   "Biomass", "Other Renewables",
 ]);
 
+// ── URL VALIDATION ────────────────────────────────────────────────────────────
+function isHomepageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/$/, "");
+    return !path || path === "";
+  } catch {
+    return true; // Unparseable URL treated as invalid
+  }
+}
+
+async function isUrlReachable(url: string): Promise<boolean> {
+  if (!url) return false;
+  try {
+    if (isHomepageUrl(url)) return false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+      headers: { "User-Agent": "AfricaEnergyTracker/1.0 (link-checker)" },
+    });
+    clearTimeout(timeout);
+    return res.ok || res.status === 301 || res.status === 302;
+  } catch {
+    return false;
+  }
+}
+
+async function validateSourceUrl(rawUrl: string | null | undefined): Promise<string | null> {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  // Reject homepage-only URLs immediately — no HTTP request needed
+  if (isHomepageUrl(trimmed)) {
+    console.log(`[SCRAPER] URL rejected (homepage-only): ${trimmed}`);
+    return null;
+  }
+  // Reachability check
+  const reachable = await isUrlReachable(trimmed);
+  if (!reachable) {
+    console.log(`[SCRAPER] URL rejected (unreachable): ${trimmed}`);
+    return null;
+  }
+  return trimmed;
+}
+
 function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
   const text = `${item.title ?? ""} ${item.contentSnippet ?? ""}`.toLowerCase();
   if (EXCLUDE_KEYWORDS.some((k) => text.includes(k))) return false;
@@ -470,7 +517,7 @@ Return a JSON array where each object has:
 - capacityMw: number | null — generation/storage capacity in MW; null if not stated
 - announcedYear: number | null — year of announcement
 - financialCloseDate: string | null — ISO date (YYYY-MM-DD) of financial close if mentioned
-- sourceUrl: string | null — article URL
+- sourceUrl: string | null — MUST be the EXACT URL of the news article you are extracting from. Copy the URL directly from the article metadata. NEVER fabricate, guess, or construct a URL. If the article URL is not available, return null. A homepage URL like "https://example.com/" is NOT a valid sourceUrl.
 - newsUrl: string | null — same as sourceUrl
 - confidence: number — 0.0 to 1.0 extraction confidence
 
@@ -771,6 +818,11 @@ export async function runSourceGroup(
 
         // New project — insert with all validations passed
         try {
+          // Validate source URL before inserting
+          const rawSourceUrl = typeof project.sourceUrl === "string" ? project.sourceUrl : null;
+          const validatedUrl = await validateSourceUrl(rawSourceUrl);
+          const insertReviewStatus = validatedUrl ? "pending" : "needs_source";
+
           await db.insert(projectsTable).values({
             projectName: name,
             country,
@@ -785,10 +837,10 @@ export async function runSourceGroup(
             closedYear: null,
             latitude: null,
             longitude: null,
-            sourceUrl: typeof project.sourceUrl === "string" ? project.sourceUrl : null,
-            newsUrl: typeof project.sourceUrl === "string" ? project.sourceUrl : null,
+            sourceUrl: validatedUrl,
+            newsUrl: validatedUrl,
             isAutoDiscovered: true,
-            reviewStatus: "pending",
+            reviewStatus: insertReviewStatus,
             discoveredAt: new Date(),
             developer: project.developer ?? null,
             financiers: project.financiers ?? null,
