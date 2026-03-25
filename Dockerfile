@@ -19,4 +19,4 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push && pnpm exec tsx railway-server.mjs"]
+CMD ["sh", "-c", "pnpm --filter @workspace/db run push && node run-migration.mjs && pnpm exec tsx railway-server.mjs"]
