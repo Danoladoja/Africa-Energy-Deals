@@ -1,0 +1,305 @@
+Expand the Visualization Studio with 4 new chart types: Treemap, Stacked Bar, Sankey Flow Diagram, and Scatter/Bubble Plot. These supplement the existing 6 chart types (Vertical Bar, Horizontal Bar, Line, Area, Pie, Donut).
+
+CURRENT STATE:
+- Vis Studio at /energy-tracker/studio has:
+  - CHART TYPE selector: Vertical Bar, Horizontal Bar, Line, Area, Pie, Donut
+  - METRIC selector: Investment ($), Projects (#)
+  - GROUP BY selector: Sector, Region, Country, Year
+  - Chart tabs: "Overview Charts" and "Country / Region Spotlight"
+  - Buttons: Share, Embed, Download Chart
+  - Uses Recharts for all current charts
+  - Dark theme: #0b0f1a background, #1e293b cards, #00e676 accent
+
+REQUIREMENTS:
+
+=== CHART TYPE 1: TREEMAP ===
+
+Add "Treemap" to the CHART TYPE selector.
+
+PURPOSE: Visualise hierarchical data as nested rectangles. Users can see how total investment breaks down by Region → Country → Sector in a single view, with rectangle size proportional to value.
+
+CONFIGURATION PANEL (when Treemap is selected):
+- METRIC: Investment ($) | Projects (#) — determines rectangle sizing
+- HIERARCHY: Two-level dropdown:
+  - Level 1 (outer rectangles): Region | Sector | Year
+  - Level 2 (inner rectangles): Country | Sector | Technology | Status
+  - Default: Level 1 = Region, Level 2 = Country
+- COLOR BY: Region | Sector (determines the color palette applied to rectangles)
+
+IMPLEMENTATION:
+- Use Recharts  component
+- Data structure: transform API data into nested format:
+  {
+    name: "East Africa",
+    children: [
+      { name: "Kenya", value: 7900, sector: "Oil & Gas", projects: 14 },
+      { name: "Ethiopia", value: 3200, sector: "Hydro", projects: 9 },
+      { name: "Rwanda", value: 32200, sector: "Solar", projects: 6 },
+      ...
+    ]
+  }
+
+- Custom Treemap cell renderer:
+  - Show country/item name inside each rectangle (if rectangle is large enough to fit text)
+  - Show value below the name: "$7.9B" or "14 projects"
+  - Small rectangles: show tooltip on hover instead of text
+  - Border: 2px white between rectangles for visual separation
+
+- Color palette by Region:
+  - North Africa: #3b82f6 shades (blue)
+  - West Africa: #f59e0b shades (amber)
+  - East Africa: #10b981 shades (green)
+  - Central Africa: #ef4444 shades (red)
+  - Southern Africa: #8b5cf6 shades (purple)
+  Within each region, vary the shade by value (darker = higher investment)
+
+- Color palette by Sector (reuse existing sector colors from elsewhere in the app)
+
+- TOOLTIP on hover: Show full details:
+  "Kenya · East Africa
+   Investment: $7.9B
+   Projects: 14
+   Top Sector: Oil & Gas"
+
+- CLICK INTERACTION: Clicking a rectangle could filter the data to zoom into that segment (e.g., clicking "East Africa" shows only East African countries). Add a breadcrumb trail at the top: "All → East Africa → Kenya" with back navigation.
+
+- RESPONSIVE: On smaller screens, limit to top 15 items to avoid tiny unreadable rectangles.
+
+
+=== CHART TYPE 2: STACKED BAR ===
+
+Add "Stacked Bar" and "100% Stacked Bar" to the CHART TYPE selector.
+
+PURPOSE: Show composition over time or across categories. A stacked bar by Year with segments coloured by Sector reveals how the energy mix is shifting — e.g., Solar growing from 10% to 40% over a decade.
+
+CONFIGURATION PANEL (when Stacked Bar is selected):
+- METRIC: Investment ($) | Projects (#)
+- X-AXIS: Year | Region | Country (what each bar represents)
+- STACK BY: Sector | Region | Status | Financing Type (what each coloured segment represents)
+  - Default: X-AXIS = Year, STACK BY = Sector
+- MODE TOGGLE: "Absolute" (normal stacked) | "Percentage" (100% stacked, normalised to %)
+  - Show this as a small toggle switch above the chart
+
+IMPLEMENTATION:
+- Use Recharts  with stacked  components
+- For each unique value in STACK BY, render a  with a distinct color and stackId="stack"
+- Data transformation: pivot the project data into:
+  [
+    { year: 2017, Solar: 1200, Wind: 800, Hydro: 2400, "Oil & Gas": 5000, ... },
+    { year: 2018, Solar: 2500, Wind: 1200, Hydro: 900, ... },
+    ...
+  ]
+
+- For 100% Stacked mode: normalise each row to sum to 100%, format Y-axis as percentages
+- Y-axis label: "Investment (USD)" for absolute, "Share (%)" for percentage mode
+- X-axis: rotated labels if more than 10 items
+
+- LEGEND: Show below the chart with colored squares for each segment. Clicking a legend item toggles that segment's visibility (standard Recharts legend behavior).
+
+- TOOLTIP: On hover, show all segment values for that bar:
+  "2023
+   Solar: $2.5B (35%)
+   Wind: $1.2B (17%)
+   Hydro: $900M (13%)
+   Oil & Gas: $2.1B (30%)
+   Grid & Storage: $350M (5%)
+   Total: $7.1B"
+
+- COLOR PALETTE for sectors (consistent across all charts):
+  - Solar: #f59e0b (amber)
+  - Wind: #3b82f6 (blue)
+  - Hydro: #06b6d4 (cyan)
+  - Grid & Storage: #8b5cf6 (purple)
+  - Oil & Gas: #ef4444 (red)
+  - Coal: #64748b (slate)
+  - Nuclear: #ec4899 (pink)
+  - Bioenergy: #22c55e (green)
+
+
+=== CHART TYPE 3: SANKEY FLOW DIAGRAM ===
+
+Add "Sankey Flow" to the CHART TYPE selector.
+
+PURPOSE: Visualise how capital flows between dimensions — from Investor → Country → Sector, or from Region → Sector → Status. The width of each flow represents the investment volume. This is the most analytically powerful chart type for understanding capital allocation patterns.
+
+CONFIGURATION PANEL (when Sankey is selected):
+- METRIC: Investment ($) only (Sankey flows need a continuous measure)
+- FLOW CONFIGURATION (3 columns for the flow path):
+  - FROM (left nodes): Investor | Region | Financing Type
+  - THROUGH (middle nodes, optional): Country | Sector
+  - TO (right nodes): Sector | Status | Country
+  - Default: FROM = Region, THROUGH = Country, TO = Sector
+
+- FILTER: Top N flows: 10 | 20 | 50 | All
+  - Default: Top 20 (to keep the diagram readable)
+  - Filters to only show the N largest flows by investment volume
+
+IMPLEMENTATION:
+- Use either:
+  a) Recharts Sankey component (simpler, stays in the Recharts ecosystem), OR
+  b) A custom SVG implementation using d3-sankey (more control over styling)
+
+  Recommendation: Try Recharts Sankey first. If it doesn't support 3-column flows or styling is too limited, fall back to d3-sankey.
+
+- Data transformation: create nodes and links arrays:
+  nodes: [
+    { name: "East Africa" },
+    { name: "West Africa" },
+    { name: "Kenya" },
+    { name: "Nigeria" },
+    { name: "Solar" },
+    { name: "Oil & Gas" },
+    ...
+  ]
+  links: [
+    { source: 0, target: 2, value: 7900 },   // East Africa → Kenya: $7.9B
+    { source: 2, target: 4, value: 3000 },    // Kenya → Solar: $3B
+    { source: 2, target: 5, value: 4900 },    // Kenya → Oil & Gas: $4.9B
+    { source: 1, target: 3, value: 25500 },   // West Africa → Nigeria: $25.5B
+    ...
+  ]
+
+- NODE STYLING:
+  - Each node is a vertical rectangle colored by its category
+  - Region nodes: colored by region palette
+  - Country nodes: neutral gray (#475569) with white text
+  - Sector nodes: colored by sector palette (same as stacked bar)
+  - Node label: name + value, e.g., "Kenya · $7.9B"
+
+- LINK (FLOW) STYLING:
+  - Semi-transparent gradient from source color to target color
+  - Opacity: 0.3 default, 0.7 on hover
+  - Width proportional to investment volume
+
+- HOVER INTERACTION:
+  - Hovering a flow highlights it and dims all others
+  - Tooltip: "East Africa → Kenya → Solar: $3.0B (14 projects)"
+  - Hovering a node highlights all connected flows
+
+- LIMITATIONS HANDLING:
+  - If more than 50 flows, the diagram gets unreadable. Cap at top 50 by default with a "Show all" toggle.
+  - Group small flows into an "Other" category if they represent < 2% of total
+
+- SIZE: The Sankey should be wider than other charts — use full width of the chart area, minimum height 500px. Add horizontal scroll if needed on mobile.
+
+
+=== CHART TYPE 4: SCATTER / BUBBLE PLOT ===
+
+Add "Scatter Plot" and "Bubble Plot" to the CHART TYPE selector (or a single "Scatter / Bubble" entry with a size toggle).
+
+PURPOSE: Plot two variables against each other to reveal correlations and outliers. Deal Size vs. Capacity coloured by Sector instantly shows which technologies deliver the most MW per dollar. Outliers like an expensive low-capacity project or a bargain high-capacity one are immediately visible.
+
+CONFIGURATION PANEL (when Scatter/Bubble is selected):
+- X-AXIS METRIC: Deal Size ($M) | Capacity (MW) | Year Announced | Project Count (for country-level)
+- Y-AXIS METRIC: Deal Size ($M) | Capacity (MW) | Year Announced | Project Count
+  - Default: X = Capacity (MW), Y = Deal Size ($M)
+  - Prevent selecting the same metric for both axes
+- COLOR BY: Sector | Region | Status | Country | Financing Type
+  - Default: Sector
+- BUBBLE SIZE (optional): Deal Size ($M) | Capacity (MW) | Project Count | None
+  - Default: None (scatter plot). When a size metric is selected, it becomes a bubble chart.
+  - "None" = equal-sized dots (scatter), any metric = proportional bubbles
+- DATA LEVEL: Project-level (each dot = 1 project) | Country-level (each dot = 1 country, aggregated)
+  - Default: Project-level
+
+IMPLEMENTATION:
+- Use Recharts  with  components (one per color category)
+
+- Project-level data (default): each data point is one project:
+  [
+    { name: "Benban Solar Park", x: 1650, y: 2000, sector: "Solar", country: "Egypt", size: 2000 },
+    { name: "Lake Turkana Wind", x: 310, y: 694, sector: "Wind", country: "Kenya", size: 694 },
+    ...
+  ]
+
+- Country-level data: aggregate per country:
+  [
+    { name: "Kenya", x: 14, y: 7900, region: "East Africa", size: 14 },
+    { name: "Nigeria", x: 12, y: 25500, region: "West Africa", size: 12 },
+    ...
+  ]
+
+- DOT/BUBBLE STYLING:
+  - Minimum dot radius: 6px (scatter mode)
+  - Bubble sizing: scale radius proportionally using sqrt scale (so area is proportional to value)
+  - Maximum bubble radius: 40px
+  - Color by sector palette (same as other charts)
+  - Opacity: 0.75 (so overlapping dots are visible)
+  - Stroke: 2px white border on each dot for visibility against dark background
+
+- TOOLTIP on hover:
+  Project-level:
+  "Benban Solar Park
+   Country: Egypt
+   Sector: Solar
+   Capacity: 1,650 MW
+   Deal Size: $2.0B
+   Status: Operational"
+
+  Country-level:
+  "Kenya
+   Region: East Africa
+   Projects: 14
+   Total Investment: $7.9B
+   Top Sector: Oil & Gas"
+
+- AXIS FORMATTING:
+  - Deal Size: "$500M", "$1B", "$5B" (abbreviated)
+  - Capacity: "500 MW", "1 GW", "5 GW"
+  - Add grid lines (subtle, #334155) for readability
+
+- REFERENCE LINES (optional, auto-generated):
+  - Show average X and average Y as dashed reference lines
+  - This divides the chart into 4 quadrants (high-high, high-low, low-high, low-low)
+  - Label each quadrant subtly: e.g., "High capacity, High cost" (top-right)
+  - Toggle: "Show averages" checkbox, default ON
+
+- CLICK INTERACTION: Clicking a dot navigates to that project's detail page (project-level) or country profile (country-level).
+
+- ZOOM: Add zoom/pan capability for dense scatter plots. A "Reset zoom" button to return to full view.
+
+
+=== GENERAL REQUIREMENTS FOR ALL 4 CHARTS ===
+
+1. CHART TYPE SELECTOR — Update the existing selector to include the new types. Organize into groups:
+   BASIC: Vertical Bar, Horizontal Bar, Line, Area, Pie, Donut
+   ADVANCED: Treemap, Stacked Bar, Sankey Flow, Scatter / Bubble
+   Use a divider line or subtle section header between the groups.
+
+2. CONFIGURATION PANEL — Each chart type has its own configuration options (detailed above). When the user switches chart types, the configuration panel should update to show only the relevant options for that chart. Use smooth transitions when switching.
+
+3. SHARE / EMBED / DOWNLOAD — All existing export functionality (Share, Embed, Download Chart) must work with the new chart types:
+   - Download: capture the chart as PNG using html2canvas (same as existing charts)
+   - Share: generate a URL with chart type + config encoded in query params
+   - Embed: generate an iframe snippet for the chart
+
+4. RESPONSIVE: All 4 new charts must work on screens down to 768px width. For Sankey and Treemap, show a "Best viewed on desktop" note below 768px and simplify the data (fewer nodes/rectangles).
+
+5. EMPTY STATE: If the selected configuration yields no data (e.g., Scatter with Capacity when no projects have capacity data), show: "No data available for this configuration. Try a different metric or grouping."
+
+6. CONSISTENT COLORS: Use the same sector color palette across ALL chart types (existing and new). Define the palette in a shared constants file if not already:
+   Solar: #f59e0b
+   Wind: #3b82f6
+   Hydro: #06b6d4
+   Grid & Storage: #8b5cf6
+   Oil & Gas: #ef4444
+   Coal: #64748b
+   Nuclear: #ec4899
+   Bioenergy: #22c55e
+
+   Region colors:
+   North Africa: #3b82f6
+   West Africa: #f59e0b
+   East Africa: #10b981
+   Central Africa: #ef4444
+   Southern Africa: #8b5cf6
+
+7. DATA SOURCE: All charts pull from the existing /api/projects endpoint (or /api/stats/* endpoints). No new API endpoints are needed — do all aggregation/transformation on the frontend. If performance becomes an issue with 200+ projects, consider adding a /api/stats/aggregated endpoint later.
+
+8. ANIMATION: Use subtle enter animations for all charts (Recharts built-in animation props). Keep animation duration under 800ms. Disable animation when switching between chart configurations to avoid jarring re-renders — only animate on initial load or chart type change.
+
+IMPLEMENTATION ORDER:
+1. Stacked Bar (simplest — extends existing BarChart pattern)
+2. Scatter/Bubble (well-supported in Recharts)
+3. Treemap (Recharts has native support)
+4. Sankey (most complex — may need d3-sankey fallback)

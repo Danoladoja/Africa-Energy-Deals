@@ -30,7 +30,7 @@ The project is structured as a pnpm monorepo, with distinct packages for deploya
     - **Dashboard:** KPIs, investment trajectory, technology and regional breakdowns.
     - **Deal Tracker:** Searchable, filterable table with pagination and detail modals.
     - **Interactive Map:** Leaflet map with choropleth and markers, country drill-down, and enhanced marker popups.
-    - **Visualization Studio:** Customizable charts with export options.
+    - **Visualization Studio:** Customizable charts with export options. 10 chart types in two groups — Basic (Vertical Bar, Horizontal Bar, Line, Area, Pie, Donut) and Advanced (Treemap, Stacked Bar, 100% Stacked Bar, Sankey Flow, Scatter/Bubble). Each advanced chart has its own config panel (metric, hierarchy, axes, stack-by, color-by, etc.). All charts support PNG/PDF/PPTX download.
     - **Country & Investor Profiles:** Detailed pages with aggregate stats and project listings.
     - **AI Discovery:** Automated scraping of RSS feeds, AI extraction, and human review queue for new deals.
     - **Alert & Watch System:** User authentication, watchlists for countries/sectors/investors, and email notifications for new matching deals.
