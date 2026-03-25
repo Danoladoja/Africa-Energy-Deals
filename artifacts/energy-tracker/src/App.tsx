@@ -46,6 +46,12 @@ function PageLoader() {
   );
 }
 
+function CompareRedirect() {
+  const [, nav] = useLocation();
+  useEffect(() => { nav("/countries?tab=compare"); }, []);
+  return null;
+}
+
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAdmin, isLoading } = useAdminAuth();
   if (isLoading) return null;
@@ -122,9 +128,7 @@ function Router() {
         <Route path="/countries/:countryName">
           {() => <AuthRoute component={CountryProfile} />}
         </Route>
-        <Route path="/compare">
-          {() => <AuthRoute component={ComparePage} />}
-        </Route>
+        <Route path="/compare" component={CompareRedirect} />
         <Route path="/developers">
           {() => <AuthRoute component={DevelopersIndex} />}
         </Route>
