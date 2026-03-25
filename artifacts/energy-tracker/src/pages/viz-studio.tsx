@@ -41,6 +41,7 @@ type Metric = "totalInvestmentUsdMn" | "projectCount";
 type Grouping = "country" | "technology" | "region" | "year";
 type ViewMode = "overview" | "spotlight";
 type SpotlightType = "country" | "region";
+type SpotlightChartType = BasicChartType | "stacked-bar" | "treemap";
 
 const BASIC_CHART_OPTIONS: { value: BasicChartType; label: string }[] = [
   { value: "bar", label: "Vertical Bar" },
@@ -356,7 +357,7 @@ export default function VizStudio() {
   // Spotlight state
   const [spotlightType, setSpotlightType] = useState<SpotlightType>("country");
   const [selectedSpotlight, setSelectedSpotlight] = useState<string>("");
-  const [spotlightChartType, setSpotlightChartType] = useState<BasicChartType>("horizontal-bar");
+  const [spotlightChartType, setSpotlightChartType] = useState<SpotlightChartType>("horizontal-bar");
   const [spotlightMetric, setSpotlightMetric] = useState<Metric>("totalInvestmentUsdMn");
   const [spotlightGrouping, setSpotlightGrouping] = useState<string>("technology");
 
@@ -570,34 +571,24 @@ export default function VizStudio() {
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                 <BarChart2 className="w-4 h-4" /> Chart Type
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                <div className="md:col-span-4">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">Basic</p>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5">
+              <div className="relative">
+                <select
+                  value={chartType}
+                  onChange={e => setChartType(e.target.value as ChartType)}
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none pr-10"
+                >
+                  <optgroup label="Basic">
                     {BASIC_CHART_OPTIONS.map(opt => (
-                      <button key={opt.value} onClick={() => setChartType(opt.value)}
-                        className={`py-2 px-2 rounded-lg text-xs font-medium transition-colors border text-center
-                          ${chartType === opt.value ? "bg-primary/20 border-primary/50 text-primary" : "bg-background border-border hover:bg-muted text-muted-foreground"}`}>
-                        {opt.label}
-                      </button>
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
-                  </div>
-                </div>
-                <div className="md:col-span-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Advanced</p>
-                    <span className="text-[10px] bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/20 px-1.5 py-0.5 rounded-full font-bold tracking-wide">NEW</span>
-                  </div>
-                  <div className="grid grid-cols-3 md:grid-cols-5 gap-1.5">
+                  </optgroup>
+                  <optgroup label="Advanced">
                     {ADVANCED_CHART_OPTIONS.map(opt => (
-                      <button key={opt.value} onClick={() => setChartType(opt.value)}
-                        className={`py-2 px-2 rounded-lg text-xs font-medium transition-colors border text-center
-                          ${chartType === opt.value ? "bg-primary/20 border-primary/50 text-primary" : "bg-background border-border hover:bg-muted text-muted-foreground"}`}>
-                        {opt.label}
-                      </button>
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
-                  </div>
-                </div>
+                  </optgroup>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               </div>
             </div>
 
@@ -956,9 +947,15 @@ export default function VizStudio() {
                       <BarChart2 className="w-4 h-4" /> Chart Type
                     </label>
                     <div className="relative">
-                      <select value={spotlightChartType} onChange={e => setSpotlightChartType(e.target.value as BasicChartType)}
+                      <select value={spotlightChartType} onChange={e => setSpotlightChartType(e.target.value as SpotlightChartType)}
                         className="w-full bg-card border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none pr-10">
-                        {BASIC_CHART_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        <optgroup label="Basic">
+                          {BASIC_CHART_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </optgroup>
+                        <optgroup label="Advanced">
+                          <option value="stacked-bar">Stacked Bar</option>
+                          <option value="treemap">Treemap</option>
+                        </optgroup>
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     </div>
@@ -1005,8 +1002,26 @@ export default function VizStudio() {
                   </div>
                   {spotlightActiveData.length === 0 ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">No data available for this selection</div>
+                  ) : spotlightChartType === "treemap" ? (
+                    <TreemapChart
+                      projects={spotlightProjects?.projects ?? []}
+                      metric={spotlightMetric === "totalInvestmentUsdMn" ? "totalInvestmentUsdMn" : "projectCount"}
+                      level1="technology"
+                      level2="country"
+                      colorBy="technology"
+                      height={380}
+                    />
+                  ) : spotlightChartType === "stacked-bar" ? (
+                    <StackedBarChart
+                      projects={spotlightProjects?.projects ?? []}
+                      metric={spotlightMetric === "totalInvestmentUsdMn" ? "totalInvestmentUsdMn" : "projectCount"}
+                      xAxis="year"
+                      stackBy="technology"
+                      mode="absolute"
+                      height={380}
+                    />
                   ) : (
-                    <ChartRenderer chartType={spotlightChartType} data={spotlightActiveData} nameKey={spotlightNameKey}
+                    <ChartRenderer chartType={spotlightChartType as BasicChartType} data={spotlightActiveData} nameKey={spotlightNameKey}
                       metric={spotlightMetric} height={380} colorMap={spotlightNameKey === "technology" ? SECTOR_COLORS : undefined} />
                   )}
                 </div>
