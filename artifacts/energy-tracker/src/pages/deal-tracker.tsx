@@ -1129,75 +1129,78 @@ export default function DealTracker() {
             </div>
           </div>
 
-          {/* Deal Size filter chips */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Deal Size</span>
-            {DEAL_SIZE_PRESETS.map((preset) => {
-              const isActive = dealSizePreset === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => { setDealSizePreset(preset.id); setPage(1); }}
-                  className={[
-                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                    isActive
-                      ? "bg-[#00e676] text-[#0b0f1a] border-[#00e676]"
-                      : "bg-transparent text-[#94a3b8] border-[#334155] hover:border-[#00e676]/50 hover:text-white",
-                  ].join(" ")}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Financing Type filter chips */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Financing</span>
-            {[
-              { id: "", label: "All Types", color: "" },
-              { id: "Project Finance", label: "Project Finance", color: "#3b82f6" },
-              { id: "Blended Finance", label: "Blended Finance", color: "#06b6d4" },
-              { id: "Concessional Loan", label: "Concessional", color: "#f59e0b" },
-              { id: "Grant / Donor Funding", label: "Grant / Donor", color: "#10b981" },
-              { id: "IPP / Concession", label: "IPP / Concession", color: "#ec4899" },
-              { id: "Corporate Finance", label: "Corporate", color: "#8b5cf6" },
-              { id: "Green / Climate Bond", label: "Green Bond", color: "#22c55e" },
-              { id: "Sovereign Lending", label: "Sovereign", color: "#ef4444" },
-            ].map(({ id, label, color }) => {
-              const isActive = financingType === id;
-              if (id === "") {
+          {/* Deal Size + Financing — side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 pt-1 border-t border-border/40">
+            {/* Deal Size */}
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0 w-16">Deal Size</span>
+              {DEAL_SIZE_PRESETS.map((preset) => {
+                const isActive = dealSizePreset === preset.id;
                 return (
                   <button
-                    key="all"
-                    onClick={() => { setFinancingType(""); setPage(1); }}
+                    key={preset.id}
+                    onClick={() => { setDealSizePreset(preset.id); setPage(1); }}
                     className={[
-                      "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                      "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
                       isActive
                         ? "bg-[#00e676] text-[#0b0f1a] border-[#00e676]"
                         : "bg-transparent text-[#94a3b8] border-[#334155] hover:border-[#00e676]/50 hover:text-white",
                     ].join(" ")}
                   >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Financing Type — separated by a thin vertical divider on md+ */}
+            <div className="flex flex-wrap gap-1.5 items-center md:border-l md:border-border/40 md:pl-4">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0 w-16">Financing</span>
+              {[
+                { id: "", label: "All", color: "" },
+                { id: "Project Finance", label: "Project Finance", color: "#3b82f6" },
+                { id: "Blended Finance", label: "Blended Finance", color: "#06b6d4" },
+                { id: "Concessional Loan", label: "Concessional", color: "#f59e0b" },
+                { id: "Grant / Donor Funding", label: "Grant / Donor", color: "#10b981" },
+                { id: "IPP / Concession", label: "IPP / Concession", color: "#ec4899" },
+                { id: "Corporate Finance", label: "Corporate", color: "#8b5cf6" },
+                { id: "Green / Climate Bond", label: "Green Bond", color: "#22c55e" },
+                { id: "Sovereign Lending", label: "Sovereign", color: "#ef4444" },
+              ].map(({ id, label, color }) => {
+                const isActive = financingType === id;
+                if (id === "") {
+                  return (
+                    <button
+                      key="all"
+                      onClick={() => { setFinancingType(""); setPage(1); }}
+                      className={[
+                        "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
+                        isActive
+                          ? "bg-[#00e676] text-[#0b0f1a] border-[#00e676]"
+                          : "bg-transparent text-[#94a3b8] border-[#334155] hover:border-[#00e676]/50 hover:text-white",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    key={id}
+                    onClick={() => { setFinancingType(financingType === id ? "" : id); setPage(1); }}
+                    className="px-2.5 py-1 rounded-md text-xs font-medium border transition-all"
+                    style={isActive
+                      ? { backgroundColor: color, color: "#0b0f1a", borderColor: color }
+                      : { backgroundColor: "transparent", color: "#94a3b8", borderColor: "#334155" }
+                    }
+                    onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = `${color}80`; e.currentTarget.style.color = color; } }}
+                    onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = "#334155"; e.currentTarget.style.color = "#94a3b8"; } }}
+                  >
                     {label}
                   </button>
                 );
-              }
-              return (
-                <button
-                  key={id}
-                  onClick={() => { setFinancingType(financingType === id ? "" : id); setPage(1); }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
-                  style={isActive
-                    ? { backgroundColor: color, color: "#0b0f1a", borderColor: color }
-                    : { backgroundColor: "transparent", color: "#94a3b8", borderColor: "#334155" }
-                  }
-                  onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = `${color}80`; e.currentTarget.style.color = color; } }}
-                  onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = "#334155"; e.currentTarget.style.color = "#94a3b8"; } }}
-                >
-                  {label}
-                </button>
-              );
-            })}
+              })}
+            </div>
           </div>
 
           {/* Active filter chips (from URL params / heatmap navigation) */}
