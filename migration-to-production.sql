@@ -1,9 +1,9 @@
 BEGIN;
 
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_name_country
-    ON projects ("projectName", country);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_energy_projects_name_country
+    ON energy_projects (project_name, country);
 
-  INSERT INTO projects ("projectName", country, region, technology, "dealSizeUsdMn", investors, status, description, latitude, longitude, "capacityMw", "announcedYear", "closedYear", "sourceUrl", "newsUrl", "isAutoDiscovered", "reviewStatus", "dealStage", developer, financiers, "dfiInvolvement", offtaker, "financialCloseDate", "commissioningDate", "announcementDate", "debtEquitySplit", "grantComponent")
+  INSERT INTO energy_projects (project_name, country, region, technology, deal_size_usd_mn, investors, status, description, latitude, longitude, capacity_mw, announced_year, closed_year, source_url, news_url, is_auto_discovered, review_status, deal_stage, developer, financiers, dfi_involvement, offtaker, financial_close_date, commissioning_date, announcement_date, debt_equity_split, grant_component)
   VALUES
       ('Benban Solar Park', 'Egypt', 'North Africa', 'Solar', 2000, 'Scatec, JICA, IFC, EBRD', 'Operational', 'One of Africa''s largest solar parks located in Aswan Governorate.', 24.48, 32.93, 1650, 2017, 2019, 'https://www.scatec.com/project/benban/', 'https://www.bloomberg.com/news/articles/2018-03-13/desert-sun-to-power-upper-egypt-with-2-8-billion-solar-park', false, 'approved', 'Commissioned', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
     ('Redstone Solar Thermal Power', 'South Africa', 'Southern Africa', 'Solar', 920, 'Total Energies, SunPower, IDC, DBSA', 'Under Construction', 'CSP plant with molten salt storage in Northern Cape.', -29.05, 22.18, 100, 2019, 2021, 'https://acwapower.com/en/projects/redstone-csp-ipp/', NULL, false, 'approved', 'Construction', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
@@ -383,26 +383,32 @@ BEGIN;
     ('Rwanda - Energy Access and Quality Improvement Project', 'Rwanda', 'East Africa', 'Solar', NULL, 'World Bank', 'Under Construction', 'World Bank under construction energy project in Republic of Rwanda.', NULL, NULL, NULL, 2025, NULL, 'https://projects.worldbank.org/en/projects-operations/project-detail/P513031', 'https://projects.worldbank.org/en/projects-operations/project-detail/P513031', true, 'approved', NULL, NULL, 'World Bank', 'World Bank', NULL, NULL, NULL, NULL, NULL, NULL),
     ('Pa Solar Power Plant', 'Burkina Faso', 'West Africa', 'Solar', 35, 'EU, AFD, SEFA', 'Development', '22 MW solar project at Pa in southern Burkina Faso, co-financed by the EU and AFD. Part of a multi-site solar programme to reduce load-shedding and improve rural electricity access.', 11.54, -3.04, 22, 2019, NULL, 'https://www.afd.fr/burkina-faso-pa-solar', NULL, false, 'approved', NULL, 'SONABEL / Urbasolar', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
     ('Kenya IPP Procurement 1112 MW', 'Kenya', 'East Africa', 'Solar', NULL, NULL, 'tender', 'Kenya has launched a procurement process to source 1,112 MW of electricity from Independent Power Producers (IPPs) to address its growing energy demand. The tender signals a significant expansion of private sector participation in Kenya''s power generation mix. Technology mix and financial details were not specified in the announcement.', NULL, NULL, 1112, 2025, NULL, 'https://news.google.com/rss/articles/CBMihgFBVV95cUxNdERjbndkQTBUN0N3QjRMVWx6ZUdHS0MxZUJrb3hTMm0zdlRJU19tRmU4WU93NUxVU2pDVUo0cVExMHNGRUJZWVlfbktJWENHS0pYQ0piUDBYcEJMS0xLSlM3R2JsWERDT0tOZHBBczRDZGFncGVsbHIxQzRHSjY0a2lCdGFjZw', 'https://news.google.com/rss/articles/CBMihgFBVV95cUxNdERjbndkQTBUN0N3QjRMVWx6ZUdHS0MxZUJrb3hTMm0zdlRJU19tRmU4WU93NUxVU2pDVUo0cVExMHNGRUJZWVlfbktJWENHS0pYQ0piUDBYcEJMS0xLSlM3R2JsWERDT0tOZHBBczRDZGFncGVsbHIxQzRHSjY0a2lCdGFjZw', true, 'pending', 'Announced', NULL, NULL, NULL, 'Kenya Power', NULL, NULL, NULL, NULL, NULL)
-  ON CONFLICT ("projectName", country)
-  DO UPDATE SET
-      region = EXCLUDED.region,
-    technology = EXCLUDED.technology,
-    "dealSizeUsdMn" = COALESCE(EXCLUDED."dealSizeUsdMn", projects."dealSizeUsdMn"),
-    investors = COALESCE(EXCLUDED.investors, projects.investors),
-    status = COALESCE(EXCLUDED.status, projects.status),
-    description = COALESCE(EXCLUDED.description, projects.description),
-    latitude = COALESCE(EXCLUDED.latitude, projects.latitude),
-    longitude = COALESCE(EXCLUDED.longitude, projects.longitude),
-    "capacityMw" = COALESCE(EXCLUDED."capacityMw", projects."capacityMw"),
-    "announcedYear" = COALESCE(EXCLUDED."announcedYear", projects."announcedYear"),
-    "closedYear" = COALESCE(EXCLUDED."closedYear", projects."closedYear"),
-    "sourceUrl" = COALESCE(EXCLUDED."sourceUrl", projects."sourceUrl"),
-    "newsUrl" = COALESCE(EXCLUDED."newsUrl", projects."newsUrl"),
-    "dealStage" = COALESCE(EXCLUDED."dealStage", projects."dealStage"),
-    developer = COALESCE(EXCLUDED.developer, projects.developer),
-    financiers = COALESCE(EXCLUDED.financiers, projects.financiers),
-    "dfiInvolvement" = COALESCE(EXCLUDED."dfiInvolvement", projects."dfiInvolvement"),
-    offtaker = COALESCE(EXCLUDED.offtaker, projects.offtaker);
+  ON CONFLICT (project_name, country) DO UPDATE SET
+      region = COALESCE(EXCLUDED.region, energy_projects.region),
+    technology = COALESCE(EXCLUDED.technology, energy_projects.technology),
+    deal_size_usd_mn = COALESCE(EXCLUDED.deal_size_usd_mn, energy_projects.deal_size_usd_mn),
+    investors = COALESCE(EXCLUDED.investors, energy_projects.investors),
+    status = COALESCE(EXCLUDED.status, energy_projects.status),
+    description = COALESCE(EXCLUDED.description, energy_projects.description),
+    latitude = COALESCE(EXCLUDED.latitude, energy_projects.latitude),
+    longitude = COALESCE(EXCLUDED.longitude, energy_projects.longitude),
+    capacity_mw = COALESCE(EXCLUDED.capacity_mw, energy_projects.capacity_mw),
+    announced_year = COALESCE(EXCLUDED.announced_year, energy_projects.announced_year),
+    closed_year = COALESCE(EXCLUDED.closed_year, energy_projects.closed_year),
+    source_url = COALESCE(EXCLUDED.source_url, energy_projects.source_url),
+    news_url = COALESCE(EXCLUDED.news_url, energy_projects.news_url),
+    is_auto_discovered = COALESCE(EXCLUDED.is_auto_discovered, energy_projects.is_auto_discovered),
+    review_status = COALESCE(EXCLUDED.review_status, energy_projects.review_status),
+    deal_stage = COALESCE(EXCLUDED.deal_stage, energy_projects.deal_stage),
+    developer = COALESCE(EXCLUDED.developer, energy_projects.developer),
+    financiers = COALESCE(EXCLUDED.financiers, energy_projects.financiers),
+    dfi_involvement = COALESCE(EXCLUDED.dfi_involvement, energy_projects.dfi_involvement),
+    offtaker = COALESCE(EXCLUDED.offtaker, energy_projects.offtaker),
+    financial_close_date = COALESCE(EXCLUDED.financial_close_date, energy_projects.financial_close_date),
+    commissioning_date = COALESCE(EXCLUDED.commissioning_date, energy_projects.commissioning_date),
+    announcement_date = COALESCE(EXCLUDED.announcement_date, energy_projects.announcement_date),
+    debt_equity_split = COALESCE(EXCLUDED.debt_equity_split, energy_projects.debt_equity_split),
+    grant_component = COALESCE(EXCLUDED.grant_component, energy_projects.grant_component);
 
   COMMIT;
   
