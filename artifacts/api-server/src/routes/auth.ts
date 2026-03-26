@@ -89,7 +89,14 @@ router.post("/auth/login", async (req, res) => {
     await db.insert(magicLinkTokensTable).values({ token, userEmail: trimmed, expiresAt, used: false });
 
     const verifyUrl = `${APP_URL}/auth/verify?token=${token}`;
-    await sendEmail(trimmed, "Sign in to AfriEnergy Tracker", magicLinkEmail(verifyUrl, APP_URL));
+
+    try {
+      await sendEmail(trimmed, "Sign in to AfriEnergy Tracker", magicLinkEmail(verifyUrl, APP_URL));
+    } catch (emailErr) {
+      console.error("[Auth] Failed to send magic link email:", emailErr);
+      res.status(500).json({ error: "Failed to send verification email. Please try again." });
+      return;
+    }
 
     const devLink = process.env.NODE_ENV !== "production" ? verifyUrl : undefined;
     res.json({ success: true, devLink });

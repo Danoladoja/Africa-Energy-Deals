@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = process.env.SMTP_FROM ?? "AfriEnergy Tracker <onboarding@resend.dev>";
+const FROM = process.env.SMTP_FROM ?? "AfriEnergy Tracker <noreply@afrienergytracker.io>";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
@@ -12,14 +12,19 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return;
   }
 
-  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+  try {
+    const { error } = await resend.emails.send({ from: FROM, to, subject, html });
 
-  if (error) {
-    console.error(`[Email] Failed to send to ${to}:`, error);
-    throw new Error(error.message);
+    if (error) {
+      console.error(`[Email] Resend API error sending to ${to}:`, error);
+      throw new Error(`Email delivery failed: ${error.message}`);
+    }
+
+    console.log(`[Email] Sent to ${to}: ${subject}`);
+  } catch (err) {
+    console.error(`[Email] Unexpected error sending to ${to}:`, err);
+    throw new Error(`Failed to send email to ${to}: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  console.log(`[Email] Sent to ${to}: ${subject}`);
 }
 
 export function magicLinkEmail(link: string, appUrl: string): string {
