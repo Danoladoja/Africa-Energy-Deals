@@ -5,3 +5,4 @@ export * from "./watches";
 export * from "./api-keys";
 export * from "./scraper-runs";
 export * from "./saved-searches";
+export * from "./url-audit";

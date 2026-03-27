@@ -1106,11 +1106,15 @@ export default function DealTracker() {
               <option value="Solar">Solar</option>
               <option value="Wind">Wind</option>
               <option value="Hydro">Hydro</option>
-              <option value="Grid & Storage">Grid &amp; Storage</option>
+              <option value="Geothermal">Geothermal</option>
               <option value="Oil & Gas">Oil &amp; Gas</option>
-              <option value="Coal">Coal</option>
+              <option value="Grid Expansion">Grid Expansion</option>
+              <option value="Battery & Storage">Battery &amp; Storage</option>
+              <option value="Hydrogen">Hydrogen</option>
               <option value="Nuclear">Nuclear</option>
               <option value="Bioenergy">Bioenergy</option>
+              <option value="Clean Cooking">Clean Cooking</option>
+              <option value="Coal">Coal</option>
             </select>
 
             <select

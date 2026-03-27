@@ -10,6 +10,8 @@ interface AuthContextType {
   sessionToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  role: string | null;
+  isReviewer: boolean;
   login: (email: string, sessionToken: string) => void;
   logout: () => Promise<void>;
 }
@@ -19,6 +21,8 @@ const AuthContext = createContext<AuthContextType>({
   sessionToken: null,
   isAuthenticated: false,
   isLoading: true,
+  role: null,
+  isReviewer: false,
   login: () => {},
   logout: async () => {},
 });
@@ -27,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
   const verifiedRef = useRef(false);
 
   useEffect(() => {
@@ -44,29 +49,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
       .then((r) => {
         if (!r.ok) {
-          // Server responded with an error (e.g. 401) — token is invalid
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(EMAIL_KEY);
           return null;
         }
-        return r.json() as Promise<{ authenticated: boolean; email?: string }>;
+        return r.json() as Promise<{ authenticated: boolean; email?: string; role?: string }>;
       })
       .then((data) => {
         if (!data) return;
         if (data.authenticated && data.email) {
           setSessionToken(stored);
           setEmail(data.email);
+          setRole(data.role ?? "user");
           localStorage.setItem(EMAIL_KEY, data.email);
         } else {
-          // Server says not authenticated — clear stale token
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(EMAIL_KEY);
         }
       })
       .catch(() => {
-        // Network failure / CORS error — keep the token in localStorage so
-        // the user can try again after the connectivity issue is resolved.
-        // Do not set sessionToken so the UI shows as unauthenticated for now.
         console.warn("Auth check failed due to network/CORS — session token preserved.");
       })
       .finally(() => setIsLoading(false));
@@ -93,11 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(EMAIL_KEY);
     setEmail(null);
     setSessionToken(null);
+    setRole(null);
   };
+
+  const isReviewer = role === "reviewer" || role === "admin-reviewer";
 
   return (
     <AuthContext.Provider
-      value={{ email, sessionToken, isAuthenticated: !!sessionToken, isLoading, login, logout }}
+      value={{ email, sessionToken, isAuthenticated: !!sessionToken, isLoading, role, isReviewer, login, logout }}
     >
       {children}
     </AuthContext.Provider>

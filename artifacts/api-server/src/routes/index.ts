@@ -12,6 +12,7 @@ import savedSearchesRouter from "./saved-searches.js";
 import apiKeysRouter from "./api-keys.js";
 import institutionalRouter from "./institutional.js";
 import seoRouter from "./seo.js";
+import reviewRouter from "./review.js";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(savedSearchesRouter);
 router.use(apiKeysRouter);
 router.use(institutionalRouter);
 router.use(seoRouter);
+router.use(reviewRouter);
 
 export default router;

@@ -1,0 +1,194 @@
+TASK: Implement the redesigned scraper workflow with 7-stage pipeline,
+expanded sectors, and automated URL verification. Apply ALL changes below.
+
+=== 1. EXPAND THE SECTOR/TECHNOLOGY TAXONOMY ===
+
+Update the technology enum/field across the app to support these 12 sectors
+(replacing the current 8):
+"Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "Grid Expansion",
+"Battery & Storage", "Hydrogen", "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+
+Key mappings from old to new:
+- Old "Grid & Storage" → split into "Grid Expansion" and "Battery & Storage"
+- Old "Solar" stays "Solar" but now includes mini-grids, off-grid, standalone
+- "Oil & Gas" now includes upstream, midstream, downstream, refining, LNG,
+  and LPG distribution
+- NEW sectors: "Geothermal", "Hydrogen", "Clean Cooking"
+
+Update the Deal Tracker filter bar to show all 12 sectors.
+Update the AI system prompt's technology list to match exactly.
+
+=== 2. ADD URL VERIFICATION TO THE SCRAPER PIPELINE ===
+
+After AI extraction and before database insertion, verify every sourceUrl:
+- HEAD request with 8-second timeout
+- Reject homepage-only URLs (no path after domain)
+- If URL fails: set sourceUrl to null, set reviewStatus to "needs_source"
+- Never insert a fabricated URL
+
+=== 3. ADD SMART DEDUPLICATION ===
+
+Before inserting, check for duplicates using:
+- Exact name match (existing)
+- Fuzzy name match: normalise names (strip "project", "plant", "farm",
+  "phase"), check if one contains the other
+- Same country + same tech + similar name = likely duplicate → review queue
+
+=== 4. ADD CONFIDENCE THRESHOLD ROUTING ===
+
+The AI must return a confidenceScore (0.0-1.0).
+Routing rules:
+- ≥ 0.85: auto-insert as "approved"
+- 0.65-0.84: insert as "pending" (review queue)
+- < 0.65: reject silently (log but don't insert)
+
+=== 5. ADD NEW SOURCE GROUPS ===
+
+Group: "West & Central Africa" (new)
+- Ghana Business News RSS
+- Graphic Online Ghana RSS
+- Cameroon Tribune RSS
+- Jeune Afrique RSS
+- Confidentiel Afrique RSS
+
+Group: "Hydrogen & New Tech" (new)
+- Google News RSS: "africa green hydrogen project"
+- Google News RSS: "africa hydrogen ammonia plant"
+- Google News RSS: "africa electrolyzer"
+- H2 View RSS (if available)
+- Hydrogen Insight RSS (if available)
+
+=== 6. UPDATE THE AI SYSTEM PROMPT ===
+
+Replace the scraper's AI system prompt with the hardened version:
+- 12 technology categories (not 8)
+- Rules: Solar = mini-grids/off-grid; Oil & Gas = upstream/midstream/
+  downstream/refining/LNG/LPG; Grid Expansion = transmission/distribution;
+  Battery & Storage = BESS
+- Explicit deal size conversion rules ($500M = 500, $1.2B = 1200)
+- Requirement to return confidenceScore
+- Explicit instruction to NEVER fabricate URLs
+- Instruction to SKIP projects that don't match an energy technology
+
+=== 7. ADD A RECLASSIFICATION MIGRATION ===
+
+Step A: Split old "Grid & Storage" projects:
+- transmission/interconnector/substation → "Grid Expansion"
+- battery/BESS/storage → "Battery & Storage"
+- unclear → default to "Grid Expansion"
+
+Step B: Reclassify misclassified Solar projects:
+- Select all where technology = "Solar" (currently 239)
+- Send projectName + description to Claude AI for reclassification
+- Oil & Gas includes refining, LNG, and LPG
+- Clean Cooking covers cookstoves and bioethanol only
+- Log all changes
+
+=== 8. ADD WEEKLY HEALTH CHECK ENDPOINT ===
+
+POST /api/scraper/health-check that:
+- Tests all RSS feed URLs for reachability
+- Spot-checks 50 random project sourceUrls
+- Counts projects per country; flags countries with 0
+- Checks sector distribution; flags if any sector > 40%
+- Returns a JSON health report
+
+=== 9. ADD REVIEWER ROLE & REVIEW PORTAL ===
+
+CRITICAL: This adds NEW routes and a new role. Do NOT modify any
+existing auth logic, admin routes, API endpoints, or middleware
+behaviour for /admin/*. The existing auth flow must remain untouched.
+
+Step A: Extend Role enum in prisma/schema.prisma:
+  enum Role { USER  REVIEWER  ADMIN }
+Run prisma migrate. Additive change — existing rows unaffected.
+
+Step B: Add UrlAudit model to prisma/schema.prisma:
+  model UrlAudit {
+    id           String   @id @default(cuid())
+    dealId       String
+    oldUrl       String?
+    newUrl       String?
+    action       String   // "tested","edited","replaced","removed"
+    testedStatus Int?
+    responseTime Int?
+    note         String?
+    reviewerId   String
+    createdAt    DateTime @default(now())
+  }
+Index on dealId and reviewerId.
+
+Step C: Update middleware.ts — add /review/* route protection:
+  - Keep /admin/* exactly as-is (ADMIN only)
+  - Add /review/:path* and /api/review/:path* → REVIEWER or ADMIN
+  - Not authenticated → redirect /auth/signin
+  - USER role → redirect /deals
+  DO NOT change existing /admin/* middleware.
+
+Step D: Create Review Portal pages:
+
+  /review — Dashboard with queue stats (pending, needs_source,
+  flagged, reviewed today)
+
+  /review/queue — Paginated table of items needing review.
+  Columns: Project Name, Country, Technology, Source URL,
+  Confidence Score, Review Status. Filter by status/tech/country.
+  Sort by confidence (ascending) or date.
+
+  /review/queue/[id] — Item Detail with:
+  * Read-only project card (name, country, tech, deal size)
+  * URL Test Panel:
+    - "Test URL" → POST /api/review/test-url (server-side HEAD+GET)
+    - "Open in New Tab" → target="_blank"
+    - "Edit URL" → inline edit with Save/Cancel
+    - "Find Replacement" → POST /api/review/search-url (Google News
+      RSS for project name + country, top 5 results as cards)
+    - All URL changes logged to UrlAudit
+  * URL History: chronological UrlAudit entries
+  * Review Actions: "Mark as Reviewed", "Flag for Admin" (requires
+    note), "Needs Better Source"
+  * NO approve/publish/delete buttons (admin-only)
+
+Step E: Create Review API endpoints:
+  POST /api/review/test-url — REVIEWER or ADMIN
+    Body: { url }. Server-side HEAD+GET (8s timeout).
+    Returns: { reachable, status, responseTime, title, snippet }
+
+  POST /api/review/search-url — REVIEWER or ADMIN
+    Body: { query }. Google News RSS search.
+    Returns: [{ title, url, snippet, publishedDate }] (top 5)
+
+  PUT /api/review/[id]/url — REVIEWER or ADMIN
+    Body: { newUrl, note? }. Updates source URL, creates UrlAudit.
+
+  PUT /api/review/[id]/status — REVIEWER or ADMIN
+    Body: { reviewStatus, note? }. Updates reviewStatus field.
+
+  GET /api/review/[id]/url-history — REVIEWER or ADMIN
+    Returns UrlAudit entries for the deal.
+
+  GET /api/review/stats — REVIEWER or ADMIN
+    Returns: { totalPending, needsSource, flagged, reviewedToday }
+
+Step F: Add fields to Deal model if not present:
+  reviewStatus String? @default("pending")
+  confidenceScore Float?
+Run prisma migrate.
+
+Step G: Navigation — REVIEWER sees "Review Portal" link.
+ADMIN sees both "Review Portal" and "Admin Dashboard".
+USER sees neither.
+
+=== DO NOT ===
+- Do NOT modify the Dockerfile CMD
+- Do NOT create run-migration.mjs
+- Do NOT change the database connection setup
+- Do NOT modify existing /admin/* routes or API endpoints
+- Do NOT change NextAuth config, providers, or session callback
+- Do NOT modify existing magic link or Google OAuth flow
+- Do NOT alter Resend email sending logic
+- Do NOT change how ADMIN role works or what admins can access
+
+Commit and push with message: "Redesign scraper: 7-stage pipeline,
+12 sectors, URL verification, smart dedup, confidence routing,
+reviewer portal"

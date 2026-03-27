@@ -1,12 +1,16 @@
 export const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#f59e0b",
-  "Wind":           "#3b82f6",
-  "Hydro":          "#06b6d4",
-  "Grid & Storage": "#8b5cf6",
-  "Oil & Gas":      "#ef4444",
-  "Coal":           "#64748b",
-  "Nuclear":        "#ec4899",
-  "Bioenergy":      "#22c55e",
+  "Solar":            "#f59e0b",
+  "Wind":             "#3b82f6",
+  "Hydro":            "#06b6d4",
+  "Geothermal":       "#ef4444",
+  "Oil & Gas":        "#78350f",
+  "Grid Expansion":   "#8b5cf6",
+  "Battery & Storage":"#6366f1",
+  "Hydrogen":         "#10b981",
+  "Nuclear":          "#ec4899",
+  "Bioenergy":        "#22c55e",
+  "Clean Cooking":    "#f97316",
+  "Coal":             "#64748b",
 };
 
 export const REGION_COLORS: Record<string, string> = {

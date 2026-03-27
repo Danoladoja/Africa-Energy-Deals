@@ -37,7 +37,8 @@ The project is structured as a pnpm monorepo, with distinct packages for deploya
 - **API Key System:** Tiered API access with rate limiting for institutional users.
 - **Embeddable Widgets:** Public routes for embedding deal cards and charts.
 - **Export System:** Comprehensive data export functionalities (PDF, PNG, PPTX) for dashboards and visualizations, supporting both data-driven and image-based exports.
-- **Data Pipeline & Scraper:** Source groups for various data sources, confidence scoring, fuzzy deduplication, and an admin interface for monitoring and managing the scraping process.
+- **Data Pipeline & Scraper:** 13 source groups (incl. new West & Central Africa and Hydrogen & New Tech), 12-sector taxonomy, confidence routing (≥0.85 auto-approve, 0.65–0.84 pending, <0.65 reject), 8s URL validation, fuzzy dedup, admin interface.
+- **Review Portal:** Reviewer role (user/reviewer/admin-reviewer), queue UI with approve/reject/needs_source workflow, URL test + audit log.
 - **Seed Data & World Bank Integration:** Initial seed data and integration with the World Bank Projects API to enrich the dataset.
 
 # External Dependencies

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable, scraperRunsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { runScraper, runSourceGroup, getScraperStatus, getFeedList, getSourceGroups, runSeedImport, runWorldBankAdapter } from "../services/scraper.js";
+import { runScraper, runSourceGroup, getScraperStatus, getFeedList, getSourceGroups, getRawSourceGroups, runSeedImport, runWorldBankAdapter } from "../services/scraper.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 import { checkWatchesAndNotify } from "../services/notifications.js";
 
@@ -269,6 +269,40 @@ router.post("/scraper/world-bank", async (_req, res) => {
   } finally {
     res.end();
   }
+});
+
+// POST /api/scraper/health-check — test all RSS feed URLs quickly
+router.post("/scraper/health-check", async (_req, res) => {
+  const sourceGroups = getRawSourceGroups();
+
+  const results: { group: string; feed: string; url: string; reachable: boolean; ms: number }[] = [];
+
+  for (const group of sourceGroups) {
+    for (const feed of group.feeds) {
+      const start = Date.now();
+      let reachable = false;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const r = await fetch(feed.url, {
+          method: "HEAD",
+          signal: ctrl.signal,
+          headers: { "User-Agent": "AfricaEnergyTracker/1.0 (health-check)" },
+        });
+        clearTimeout(timer);
+        reachable = r.ok || r.status === 301 || r.status === 302 || r.status === 404;
+      } catch {}
+      results.push({ group: group.name, feed: feed.name, url: feed.url, reachable, ms: Date.now() - start });
+    }
+  }
+
+  const dead = results.filter((r) => !r.reachable);
+  res.json({
+    total: results.length,
+    alive: results.length - dead.length,
+    dead: dead.length,
+    results,
+  });
 });
 
 export default router;

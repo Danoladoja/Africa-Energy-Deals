@@ -176,7 +176,18 @@ router.get("/auth/me", async (req: AuthenticatedRequest, res) => {
       res.json({ authenticated: false });
       return;
     }
-    res.json({ authenticated: true, email: session.userEmail });
+
+    const [userRecord] = await db
+      .select({ role: userEmailsTable.role })
+      .from(userEmailsTable)
+      .where(eq(userEmailsTable.email, session.userEmail))
+      .limit(1);
+
+    res.json({
+      authenticated: true,
+      email: session.userEmail,
+      role: userRecord?.role ?? "user",
+    });
   } catch {
     res.json({ authenticated: false });
   }

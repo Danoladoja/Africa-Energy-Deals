@@ -15,6 +15,7 @@ import {
   UserCircle2,
   Code2,
   Database,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +38,7 @@ const publicNavItems = [
 const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
 const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles };
 const adminScraperNavItem = { name: "Data Pipeline", href: "/admin/scraper", icon: Database };
+const reviewPortalNavItem = { name: "Review Portal", href: "/review", icon: ClipboardList };
 
 function NavItem({ item }: { item: typeof publicNavItems[number] }) {
   const [isActive] = useRoute(item.href);
@@ -88,7 +90,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [bellCount, setBellCount] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
-  const { isAuthenticated, email, logout: userLogout } = useAuth();
+  const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
   const [, navigate] = useLocation();
 
   // Global keyboard shortcut: Cmd+K / Ctrl+K to open AI assistant
@@ -105,8 +107,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [handleKeyDown]);
 
   const navItems = isAdmin
-    ? [...publicNavItems, adminNavItem, adminScraperNavItem]
-    : publicNavItems;
+    ? [...publicNavItems, adminNavItem, adminScraperNavItem, reviewPortalNavItem]
+    : isReviewer
+      ? [...publicNavItems, reviewPortalNavItem]
+      : publicNavItems;
 
   useEffect(() => {
     if (!isAuthenticated) { setBellCount(0); return; }

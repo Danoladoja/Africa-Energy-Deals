@@ -28,6 +28,9 @@ const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
 const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
 const AdminScraperPage = lazy(() => import("@/pages/admin-scraper"));
 const ComparePage      = lazy(() => import("@/pages/compare"));
+const ReviewDashboard  = lazy(() => import("@/pages/review"));
+const ReviewQueue      = lazy(() => import("@/pages/review-queue"));
+const ReviewItem       = lazy(() => import("@/pages/review-item"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -96,6 +99,17 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
       </Layout>
     );
   }
+  return <Component />;
+}
+
+function ReviewerRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) navigate("/");
+  }, [isAuthenticated, isLoading, navigate]);
+  if (isLoading) return <PageLoader />;
+  if (!isAuthenticated) return null;
   return <Component />;
 }
 
@@ -199,6 +213,15 @@ function Router() {
         <Route path="/api-docs" component={ApiDocsPage} />
         <Route path="/admin/scraper">
           {() => <AdminRoute component={AdminScraperPage} />}
+        </Route>
+        <Route path="/review">
+          {() => <ReviewerRoute component={ReviewDashboard} />}
+        </Route>
+        <Route path="/review/queue/:id">
+          {() => <ReviewerRoute component={ReviewItem} />}
+        </Route>
+        <Route path="/review/queue">
+          {() => <ReviewerRoute component={ReviewQueue} />}
         </Route>
         <Route component={NotFound} />
       </Switch>

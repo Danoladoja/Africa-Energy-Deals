@@ -203,6 +203,28 @@ const SOURCE_GROUPS: SourceGroup[] = [
       { name: "COP28 COP29 Africa Energy", url: "https://news.google.com/rss/search?q=COP28+COP29+africa+energy+climate+fund+project&hl=en-US&gl=US&ceid=US:en", category: "Recent Deals", skipCountryFilter: true },
     ],
   },
+  {
+    name: "West & Central Africa",
+    description: "Ghana, Cameroon, francophone Africa — BusinessNews Ghana, Graphic Online, Cameroon Tribune, Jeune Afrique, Confidentiel Afrique",
+    feeds: [
+      { name: "Ghana Business News", url: "https://www.ghanabusinessnews.com/feed/", category: "Ghana", skipCountryFilter: true },
+      { name: "Graphic Online Ghana", url: "https://www.graphic.com.gh/feed/", category: "Ghana", skipCountryFilter: true },
+      { name: "Cameroon Tribune", url: "https://www.cameroon-tribune.cm/rss.xml", category: "Cameroon", skipCountryFilter: true },
+      { name: "Jeune Afrique", url: "https://www.jeuneafrique.com/feed/", category: "Francophone Africa", skipCountryFilter: true },
+      { name: "Confidentiel Afrique", url: "https://www.confidentielafrique.com/feed/", category: "West Africa", skipCountryFilter: true },
+    ],
+  },
+  {
+    name: "Hydrogen & New Tech",
+    description: "Green hydrogen, electrolysers, ammonia, and emerging clean tech projects in Africa",
+    feeds: [
+      { name: "Africa Green Hydrogen Projects", url: "https://news.google.com/rss/search?q=africa+green+hydrogen+project+investment&hl=en-US&gl=US&ceid=US:en", category: "Hydrogen", skipCountryFilter: true },
+      { name: "Africa Hydrogen Ammonia", url: "https://news.google.com/rss/search?q=africa+hydrogen+ammonia+plant+investment+2024+2025&hl=en-US&gl=US&ceid=US:en", category: "Hydrogen", skipCountryFilter: true },
+      { name: "Africa Electrolyzer", url: "https://news.google.com/rss/search?q=africa+electrolyzer+electrolyser+hydrogen+project&hl=en-US&gl=US&ceid=US:en", category: "Hydrogen", skipCountryFilter: true },
+      { name: "H2 View Africa", url: "https://www.h2-view.com/feed/", category: "Hydrogen" },
+      { name: "Hydrogen Insight", url: "https://www.hydrogeninsight.com/feed/", category: "Hydrogen" },
+    ],
+  },
 ];
 
 // All feeds flat list for backward compat
@@ -313,9 +335,9 @@ function isLikelyNonEnergy(projectName: string, description: string): boolean {
 
 // ── TECHNOLOGY VALIDATION ─────────────────────────────────────────────────────
 const VALID_TECHNOLOGIES = new Set([
-  "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas",
-  "Battery Storage", "Transmission", "Mini-Grid", "Nuclear",
-  "Biomass", "Other Renewables",
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Grid Expansion", "Battery & Storage", "Hydrogen", "Nuclear",
+  "Bioenergy", "Clean Cooking", "Coal",
 ]);
 
 // ── URL VALIDATION ────────────────────────────────────────────────────────────
@@ -334,7 +356,7 @@ async function isUrlReachable(url: string): Promise<boolean> {
   try {
     if (isHomepageUrl(url)) return false;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(url, {
       method: "HEAD",
       signal: controller.signal,
@@ -377,35 +399,69 @@ function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
 // ── NORMALIZERS ──────────────────────────────────────────────────────────────
 function normalizeSector(rawSector: string): string {
   const sectorMap: Record<string, string> = {
-    "solar": "Solar", "photovoltaic": "Solar", "pv": "Solar", "concentrated solar": "Solar", "csp": "Solar",
-    "wind": "Wind", "offshore wind": "Wind", "onshore wind": "Wind",
-    "hydro": "Hydro", "hydroelectric": "Hydro", "hydropower": "Hydro", "dam": "Hydro", "tidal": "Hydro", "wave": "Hydro",
-    "grid & storage": "Grid & Storage", "grid and storage": "Grid & Storage", "battery storage": "Grid & Storage",
-    "battery": "Grid & Storage", "storage": "Grid & Storage", "green hydrogen": "Grid & Storage",
-    "hydrogen": "Grid & Storage", "green h2": "Grid & Storage", "electrolyser": "Grid & Storage",
-    "electrolysis": "Grid & Storage", "ammonia": "Grid & Storage", "mini-grid": "Grid & Storage",
-    "mini grid": "Grid & Storage", "minigrid": "Grid & Storage", "transmission": "Grid & Storage",
-    "grid": "Grid & Storage", "smart grid": "Grid & Storage", "ev": "Grid & Storage",
-    "electric vehicle": "Grid & Storage", "e-mobility": "Grid & Storage",
-    "oil & gas": "Oil & Gas", "oil and gas": "Oil & Gas", "natural gas": "Oil & Gas", "gas": "Oil & Gas",
-    "lng": "Oil & Gas", "lpg": "Oil & Gas", "oil": "Oil & Gas", "petroleum": "Oil & Gas",
-    "refinery": "Oil & Gas", "upstream": "Oil & Gas", "downstream": "Oil & Gas", "pipeline": "Oil & Gas", "biogas": "Oil & Gas",
-    "coal": "Coal", "thermal power": "Coal",
-    "nuclear": "Nuclear", "atomic": "Nuclear", "uranium": "Nuclear",
-    "bioenergy": "Bioenergy", "biomass": "Bioenergy", "geothermal": "Bioenergy",
-    "other renewables": "Bioenergy", "waste-to-energy": "Bioenergy", "waste to energy": "Bioenergy",
+    // Solar (includes mini-grids, off-grid, standalone)
+    "solar": "Solar", "solar pv": "Solar", "photovoltaic": "Solar", "pv": "Solar",
+    "concentrated solar": "Solar", "csp": "Solar", "solar thermal": "Solar",
+    "mini-grid": "Solar", "mini grid": "Solar", "minigrid": "Solar",
+    "off-grid solar": "Solar", "off grid solar": "Solar", "solar home": "Solar",
+    // Wind
+    "wind": "Wind", "offshore wind": "Wind", "onshore wind": "Wind", "wind farm": "Wind",
+    // Hydro
+    "hydro": "Hydro", "hydroelectric": "Hydro", "hydropower": "Hydro",
+    "dam": "Hydro", "tidal": "Hydro", "wave": "Hydro", "run-of-river": "Hydro",
+    // Geothermal
+    "geothermal": "Geothermal", "geothermal power": "Geothermal",
+    // Oil & Gas (upstream, midstream, downstream, refining, LNG, LPG)
+    "oil & gas": "Oil & Gas", "oil and gas": "Oil & Gas", "natural gas": "Oil & Gas",
+    "gas": "Oil & Gas", "lng": "Oil & Gas", "lpg": "Oil & Gas", "oil": "Oil & Gas",
+    "petroleum": "Oil & Gas", "refinery": "Oil & Gas", "upstream": "Oil & Gas",
+    "downstream": "Oil & Gas", "midstream": "Oil & Gas", "pipeline": "Oil & Gas",
+    "gas pipeline": "Oil & Gas", "gas plant": "Oil & Gas", "gas terminal": "Oil & Gas",
+    "floating lng": "Oil & Gas", "flng": "Oil & Gas",
+    // Grid Expansion (transmission, distribution, interconnection)
+    "grid expansion": "Grid Expansion", "transmission": "Grid Expansion",
+    "grid": "Grid Expansion", "smart grid": "Grid Expansion", "distribution": "Grid Expansion",
+    "interconnector": "Grid Expansion", "substation": "Grid Expansion",
+    "power line": "Grid Expansion", "electricity grid": "Grid Expansion",
+    "grid & storage": "Grid Expansion", "grid and storage": "Grid Expansion",
+    // Battery & Storage (BESS)
+    "battery & storage": "Battery & Storage", "battery storage": "Battery & Storage",
+    "battery": "Battery & Storage", "storage": "Battery & Storage", "bess": "Battery & Storage",
+    "energy storage": "Battery & Storage", "pumped hydro storage": "Battery & Storage",
+    // Hydrogen (green hydrogen, electrolysers, ammonia)
+    "hydrogen": "Hydrogen", "green hydrogen": "Hydrogen", "green h2": "Hydrogen",
+    "electrolyser": "Hydrogen", "electrolyzer": "Hydrogen", "electrolysis": "Hydrogen",
+    "ammonia": "Hydrogen", "green ammonia": "Hydrogen", "hydrogen plant": "Hydrogen",
+    "hydrogen hub": "Hydrogen",
+    // Nuclear
+    "nuclear": "Nuclear", "atomic": "Nuclear", "uranium": "Nuclear", "smr": "Nuclear",
+    // Bioenergy (biomass, biogas, waste-to-energy)
+    "bioenergy": "Bioenergy", "biomass": "Bioenergy", "biogas": "Bioenergy",
+    "waste-to-energy": "Bioenergy", "waste to energy": "Bioenergy",
+    "other renewables": "Bioenergy",
+    // Clean Cooking (cookstoves, bioethanol only)
+    "clean cooking": "Clean Cooking", "cookstove": "Clean Cooking",
+    "bioethanol": "Clean Cooking", "ethanol cooking": "Clean Cooking",
+    // Coal
+    "coal": "Coal", "thermal power": "Coal", "coal plant": "Coal", "coal mine": "Coal",
+    "ev": "Grid Expansion", "electric vehicle": "Grid Expansion", "e-mobility": "Grid Expansion",
   };
-  const normalized = sectorMap[rawSector.toLowerCase().trim()];
+  const key = rawSector.toLowerCase().trim();
+  const normalized = sectorMap[key];
   if (normalized) return normalized;
   const lower = rawSector.toLowerCase();
-  if (lower.includes("solar") || lower.includes("pv") || lower.includes("photovoltaic")) return "Solar";
+  if (lower.includes("solar") || lower.includes("pv") || lower.includes("photovoltaic") || lower.includes("mini-grid") || lower.includes("minigrid")) return "Solar";
   if (lower.includes("wind")) return "Wind";
-  if (lower.includes("hydro") || lower.includes("dam")) return "Hydro";
-  if (lower.includes("battery") || lower.includes("storage") || lower.includes("grid") || lower.includes("hydrogen") || lower.includes("mini-grid")) return "Grid & Storage";
-  if (lower.includes("oil") || lower.includes("gas") || lower.includes("lng") || lower.includes("petro")) return "Oil & Gas";
-  if (lower.includes("coal") || lower.includes("thermal")) return "Coal";
-  if (lower.includes("nuclear") || lower.includes("uranium")) return "Nuclear";
-  if (lower.includes("bio") || lower.includes("geotherm") || lower.includes("waste")) return "Bioenergy";
+  if (lower.includes("hydro") || lower.includes("dam") || lower.includes("run-of-river")) return "Hydro";
+  if (lower.includes("geotherm")) return "Geothermal";
+  if (lower.includes("hydrogen") || lower.includes("electroly") || lower.includes("ammonia")) return "Hydrogen";
+  if (lower.includes("bess") || lower.includes("battery") || lower.includes("energy storage")) return "Battery & Storage";
+  if (lower.includes("transmission") || lower.includes("substation") || lower.includes("interconnect") || lower.includes("grid expansion")) return "Grid Expansion";
+  if (lower.includes("oil") || lower.includes("gas") || lower.includes("lng") || lower.includes("lpg") || lower.includes("petro") || lower.includes("refin")) return "Oil & Gas";
+  if (lower.includes("coal") || lower.includes("thermal coal")) return "Coal";
+  if (lower.includes("nuclear") || lower.includes("uranium") || lower.includes("smr")) return "Nuclear";
+  if (lower.includes("biomass") || lower.includes("biogas") || lower.includes("waste-to-energy") || lower.includes("bioenergy")) return "Bioenergy";
+  if (lower.includes("cook") || lower.includes("ethanol") || lower.includes("bioethanol")) return "Clean Cooking";
   return "Solar";
 }
 
@@ -497,7 +553,17 @@ STRICT EXTRACTION RULES:
    - NEVER return values above 5000 ($5 billion) — no single African energy project exceeds this
    - If the article mentions a multi-country program budget, return null (not the total program cost)
 
-5. TECHNOLOGY RULE: Must be one of: "Solar PV", "Wind", "Hydro", "Geothermal", "Gas", "Oil & Gas", "Battery Storage", "Transmission", "Mini-Grid", "Nuclear", "Biomass", "Other Renewables"
+5. TECHNOLOGY RULE: Must be exactly one of these 12 sectors:
+   "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+
+   Mapping rules:
+   - Solar = all solar PV, CSP, mini-grids, off-grid solar, solar home systems
+   - Oil & Gas = upstream exploration, midstream, downstream, refining, LNG terminals, LPG distribution
+   - Grid Expansion = transmission lines, substations, distribution networks, interconnectors
+   - Battery & Storage = BESS, pumped hydro storage, any standalone storage project
+   - Hydrogen = green/blue hydrogen, electrolysers, ammonia plants, hydrogen hubs
+   - Bioenergy = biomass power, biogas (NOT bioethanol for cooking), waste-to-energy
+   - Clean Cooking = cookstoves and bioethanol for cooking fuel ONLY
    - If the project is NOT energy infrastructure, do NOT force-fit it into a category
    - If you cannot determine the technology, skip the project entirely
 
@@ -626,6 +692,10 @@ export function getSourceGroups() {
   }));
 }
 
+export function getRawSourceGroups() {
+  return SOURCE_GROUPS;
+}
+
 // ── CORE RUNNER FOR A SOURCE GROUP ───────────────────────────────────────────
 export async function runSourceGroup(
   groupName: string,
@@ -746,7 +816,11 @@ export async function runSourceGroup(
         }
 
         const confidence = typeof project.confidence === "number" ? project.confidence : 0.7;
-        const isLowConfidence = confidence < 0.7;
+        if (confidence < 0.65) {
+          console.log(`[SCRAPER] Rejected low-confidence (${confidence.toFixed(2)}): "${name}"`);
+          continue;
+        }
+        const isHighConfidence = confidence >= 0.85;
 
         // Country validation (all paths)
         const country = normalizeCountry(rawCountry);
@@ -821,7 +895,8 @@ export async function runSourceGroup(
           // Validate source URL before inserting
           const rawSourceUrl = typeof project.sourceUrl === "string" ? project.sourceUrl : null;
           const validatedUrl = await validateSourceUrl(rawSourceUrl);
-          const insertReviewStatus = validatedUrl ? "pending" : "needs_source";
+          const baseStatus = isHighConfidence ? "approved" : "pending";
+          const insertReviewStatus = validatedUrl ? baseStatus : "needs_source";
 
           await db.insert(projectsTable).values({
             projectName: name,
@@ -854,7 +929,7 @@ export async function runSourceGroup(
           existingNames.set(name.toLowerCase(), -1);
           existing.push({ id: -1, projectName: name, country, technology });
           result.discovered++;
-          if (isLowConfidence) result.flagged++;
+          if (!isHighConfidence) result.flagged++;
         } catch (err) {
           result.errors.push(`Insert failed for "${name}": ${err instanceof Error ? err.message : String(err)}`);
         }
