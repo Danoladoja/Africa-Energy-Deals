@@ -317,15 +317,26 @@ function sanitizeDealSize(value: unknown): number | null {
 
 // ── NON-ENERGY EXCLUSION ──────────────────────────────────────────────────────
 const NON_ENERGY_KEYWORDS = [
-  "social protection", "skills training", "skills for", "poultry",
-  "aquaculture", "livestock", "agriculture program", "education program",
+  // Generic development / social programs
+  "social protection", "social safety net", "cash transfer",
+  "skills training", "skills for", "education program", "school building", "university program",
   "health program", "health system", "covid-19", "covid response",
-  "urban transformation", "water supply", "sanitation", "road",
-  "highway", "bridge construction", "housing program", "food security",
-  "nutrition", "vaccination", "immunization", "school", "university program",
-  "governance", "judicial", "public sector reform", "digital identity",
-  "social safety net", "cash transfer", "microfinance", "textile",
-  "garment", "tourism development", "fisheries management",
+  "vaccination", "immunization", "nutrition", "food security",
+  "water supply", "sanitation", "wash program",
+  "governance", "judicial", "public sector reform", "public financial management",
+  "digital identity", "digital transformation", "financial inclusion", "microfinance",
+  "urban transformation", "housing program",
+  "road construction", "highway", "bridge construction",
+  "agriculture program", "agribusiness", "livestock", "poultry",
+  "aquaculture", "fisheries management",
+  "textile", "garment", "tourism development",
+  "ida credit", "ida grant",
+  // EV / transport companies (not energy infrastructure)
+  "electric motorcycle", "e-motorcycle", "electric motorbike", "e-moto",
+  "electric bus company", "e-bus company",
+  "ride-hailing", "ride hailing",
+  "ev startup", "ev company", "electric vehicle company",
+  "electric vehicle financing", "e-mobility startup",
 ];
 
 function isLikelyNonEnergy(projectName: string, description: string): boolean {
@@ -397,72 +408,101 @@ function isRelevantArticle(item: Parser.Item, feed: FeedConfig): boolean {
 }
 
 // ── NORMALIZERS ──────────────────────────────────────────────────────────────
-function normalizeSector(rawSector: string): string {
+// Returns null when the sector cannot be determined — NEVER defaults to Solar.
+// Null causes the project to be flagged for human review instead of force-classified.
+function normalizeSector(rawSector: string): string | null {
+  const s = rawSector.trim().toLowerCase();
+
   const sectorMap: Record<string, string> = {
-    // Solar (includes mini-grids, off-grid, standalone)
+    // Solar
     "solar": "Solar", "solar pv": "Solar", "photovoltaic": "Solar", "pv": "Solar",
-    "concentrated solar": "Solar", "csp": "Solar", "solar thermal": "Solar",
+    "csp": "Solar", "concentrated solar": "Solar", "solar thermal": "Solar",
+    "solar home": "Solar", "solar home system": "Solar",
     "mini-grid": "Solar", "mini grid": "Solar", "minigrid": "Solar",
-    "off-grid solar": "Solar", "off grid solar": "Solar", "solar home": "Solar",
+    "solar mini-grid": "Solar", "off-grid solar": "Solar", "off grid solar": "Solar",
+    "floating solar": "Solar", "agri-pv": "Solar",
     // Wind
-    "wind": "Wind", "offshore wind": "Wind", "onshore wind": "Wind", "wind farm": "Wind",
-    // Hydro
-    "hydro": "Hydro", "hydroelectric": "Hydro", "hydropower": "Hydro",
-    "dam": "Hydro", "tidal": "Hydro", "wave": "Hydro", "run-of-river": "Hydro",
+    "wind": "Wind", "onshore wind": "Wind", "offshore wind": "Wind",
+    "wind farm": "Wind", "wind power": "Wind", "wind park": "Wind",
+    // Hydro — NOTE: pumped storage is Hydro, not Battery & Storage
+    "hydro": "Hydro", "hydropower": "Hydro", "hydroelectric": "Hydro",
+    "dam": "Hydro", "pumped storage": "Hydro", "pumped hydro": "Hydro",
+    "pumped storage hydro": "Hydro", "pumped hydro storage": "Hydro",
+    "phs": "Hydro", "run-of-river": "Hydro", "tidal": "Hydro",
+    "wave energy": "Hydro", "small hydro": "Hydro",
     // Geothermal
     "geothermal": "Geothermal", "geothermal power": "Geothermal",
+    "steam field": "Geothermal",
     // Oil & Gas (upstream, midstream, downstream, refining, LNG, LPG)
-    "oil & gas": "Oil & Gas", "oil and gas": "Oil & Gas", "natural gas": "Oil & Gas",
-    "gas": "Oil & Gas", "lng": "Oil & Gas", "lpg": "Oil & Gas", "oil": "Oil & Gas",
-    "petroleum": "Oil & Gas", "refinery": "Oil & Gas", "upstream": "Oil & Gas",
-    "downstream": "Oil & Gas", "midstream": "Oil & Gas", "pipeline": "Oil & Gas",
+    "oil": "Oil & Gas", "oil & gas": "Oil & Gas", "oil and gas": "Oil & Gas",
+    "petroleum": "Oil & Gas", "natural gas": "Oil & Gas", "gas": "Oil & Gas",
+    "lng": "Oil & Gas", "flng": "Oil & Gas", "floating lng": "Oil & Gas",
+    "refinery": "Oil & Gas", "gas-to-power": "Oil & Gas", "gas to power": "Oil & Gas",
+    "ccgt": "Oil & Gas", "combined cycle": "Oil & Gas", "gas turbine": "Oil & Gas",
+    "upstream": "Oil & Gas", "downstream": "Oil & Gas", "midstream": "Oil & Gas",
+    "crude": "Oil & Gas", "lpg": "Oil & Gas", "pipeline": "Oil & Gas",
     "gas pipeline": "Oil & Gas", "gas plant": "Oil & Gas", "gas terminal": "Oil & Gas",
-    "floating lng": "Oil & Gas", "flng": "Oil & Gas",
+    "fpso": "Oil & Gas", "gas processing": "Oil & Gas",
     // Grid Expansion (transmission, distribution, interconnection)
-    "grid expansion": "Grid Expansion", "transmission": "Grid Expansion",
-    "grid": "Grid Expansion", "smart grid": "Grid Expansion", "distribution": "Grid Expansion",
+    "grid expansion": "Grid Expansion", "grid": "Grid Expansion",
+    "transmission": "Grid Expansion", "transmission line": "Grid Expansion",
     "interconnector": "Grid Expansion", "substation": "Grid Expansion",
-    "power line": "Grid Expansion", "electricity grid": "Grid Expansion",
-    "grid & storage": "Grid Expansion", "grid and storage": "Grid Expansion",
-    // Battery & Storage (BESS)
+    "distribution": "Grid Expansion", "power line": "Grid Expansion",
+    "hvdc": "Grid Expansion", "grid extension": "Grid Expansion",
+    "electrification": "Grid Expansion", "power pool": "Grid Expansion",
+    "smart grid": "Grid Expansion", "electricity grid": "Grid Expansion",
+    // Battery & Storage (BESS only — NOT pumped hydro)
     "battery & storage": "Battery & Storage", "battery storage": "Battery & Storage",
-    "battery": "Battery & Storage", "storage": "Battery & Storage", "bess": "Battery & Storage",
-    "energy storage": "Battery & Storage", "pumped hydro storage": "Battery & Storage",
-    // Hydrogen (green hydrogen, electrolysers, ammonia)
+    "battery": "Battery & Storage", "bess": "Battery & Storage",
+    "energy storage": "Battery & Storage", "storage": "Battery & Storage",
+    "flywheel": "Battery & Storage",
+    // Hydrogen
     "hydrogen": "Hydrogen", "green hydrogen": "Hydrogen", "green h2": "Hydrogen",
-    "electrolyser": "Hydrogen", "electrolyzer": "Hydrogen", "electrolysis": "Hydrogen",
-    "ammonia": "Hydrogen", "green ammonia": "Hydrogen", "hydrogen plant": "Hydrogen",
-    "hydrogen hub": "Hydrogen",
+    "electrolyzer": "Hydrogen", "electrolyser": "Hydrogen", "electrolysis": "Hydrogen",
+    "power-to-x": "Hydrogen", "green ammonia": "Hydrogen", "ammonia": "Hydrogen",
+    "hydrogen plant": "Hydrogen", "hydrogen hub": "Hydrogen", "h2": "Hydrogen",
     // Nuclear
-    "nuclear": "Nuclear", "atomic": "Nuclear", "uranium": "Nuclear", "smr": "Nuclear",
-    // Bioenergy (biomass, biogas, waste-to-energy)
+    "nuclear": "Nuclear", "nuclear power": "Nuclear",
+    "smr": "Nuclear", "small modular reactor": "Nuclear",
+    // Bioenergy (biomass, biogas, waste-to-energy, bagasse, cogeneration)
     "bioenergy": "Bioenergy", "biomass": "Bioenergy", "biogas": "Bioenergy",
     "waste-to-energy": "Bioenergy", "waste to energy": "Bioenergy",
+    "biofuel": "Bioenergy", "bagasse": "Bioenergy", "cogeneration": "Bioenergy",
     "other renewables": "Bioenergy",
-    // Clean Cooking (cookstoves, bioethanol only)
+    // Clean Cooking (cookstoves and electric cooking ONLY — LPG distribution goes to Oil & Gas)
     "clean cooking": "Clean Cooking", "cookstove": "Clean Cooking",
-    "bioethanol": "Clean Cooking", "ethanol cooking": "Clean Cooking",
+    "improved stove": "Clean Cooking", "e-cooking": "Clean Cooking",
+    "electric cooking": "Clean Cooking", "bioethanol": "Clean Cooking",
+    "ethanol cooking": "Clean Cooking",
     // Coal
-    "coal": "Coal", "thermal power": "Coal", "coal plant": "Coal", "coal mine": "Coal",
-    "ev": "Grid Expansion", "electric vehicle": "Grid Expansion", "e-mobility": "Grid Expansion",
+    "coal": "Coal", "coal-fired": "Coal", "coal plant": "Coal",
+    "coal gasification": "Coal", "coal mine": "Coal",
+    // Old taxonomy — remap to nearest canonical sector
+    "grid & storage": "Grid Expansion",
+    "grid and storage": "Grid Expansion",
+    "thermal power": "Coal",
   };
-  const key = rawSector.toLowerCase().trim();
-  const normalized = sectorMap[key];
-  if (normalized) return normalized;
-  const lower = rawSector.toLowerCase();
-  if (lower.includes("solar") || lower.includes("pv") || lower.includes("photovoltaic") || lower.includes("mini-grid") || lower.includes("minigrid")) return "Solar";
-  if (lower.includes("wind")) return "Wind";
-  if (lower.includes("hydro") || lower.includes("dam") || lower.includes("run-of-river")) return "Hydro";
-  if (lower.includes("geotherm")) return "Geothermal";
-  if (lower.includes("hydrogen") || lower.includes("electroly") || lower.includes("ammonia")) return "Hydrogen";
-  if (lower.includes("bess") || lower.includes("battery") || lower.includes("energy storage")) return "Battery & Storage";
-  if (lower.includes("transmission") || lower.includes("substation") || lower.includes("interconnect") || lower.includes("grid expansion")) return "Grid Expansion";
-  if (lower.includes("oil") || lower.includes("gas") || lower.includes("lng") || lower.includes("lpg") || lower.includes("petro") || lower.includes("refin")) return "Oil & Gas";
-  if (lower.includes("coal") || lower.includes("thermal coal")) return "Coal";
-  if (lower.includes("nuclear") || lower.includes("uranium") || lower.includes("smr")) return "Nuclear";
-  if (lower.includes("biomass") || lower.includes("biogas") || lower.includes("waste-to-energy") || lower.includes("bioenergy")) return "Bioenergy";
-  if (lower.includes("cook") || lower.includes("ethanol") || lower.includes("bioethanol")) return "Clean Cooking";
-  return "Solar";
+
+  // Exact key match
+  if (sectorMap[s]) return sectorMap[s];
+
+  // Partial containment match (ordered most-specific to least)
+  if (s.includes("pumped hydro") || s.includes("pumped storage")) return "Hydro";
+  if (s.includes("solar") || s.includes("photovoltaic") || s.includes("mini-grid") || s.includes("minigrid")) return "Solar";
+  if (s.includes("wind")) return "Wind";
+  if (s.includes("geotherm")) return "Geothermal";
+  if (s.includes("hydrogen") || s.includes("electroly") || s.includes("green ammonia")) return "Hydrogen";
+  if (s.includes("bess") || s.includes("battery storage")) return "Battery & Storage";
+  if (s.includes("hydro") || s.includes("dam") || s.includes("run-of-river")) return "Hydro";
+  if (s.includes("transmission") || s.includes("substation") || s.includes("interconnect") || s.includes("grid expansion")) return "Grid Expansion";
+  if (s.includes("lng") || s.includes("lpg") || s.includes("refin") || s.includes("petro") || s.includes("crude") || s.includes("fpso") || s.includes("gas turbine")) return "Oil & Gas";
+  if (s.includes("coal")) return "Coal";
+  if (s.includes("nuclear") || s.includes("smr")) return "Nuclear";
+  if (s.includes("biomass") || s.includes("biogas") || s.includes("waste-to-energy") || s.includes("bioenergy") || s.includes("bagasse")) return "Bioenergy";
+  if (s.includes("cookstove") || s.includes("clean cooking")) return "Clean Cooking";
+
+  // CRITICAL: Do NOT default to Solar. Return null and flag for human review.
+  return null;
 }
 
 function inferRegion(country: string): string {
@@ -529,66 +569,85 @@ function findFuzzyMatch(
 }
 
 // ── CLAUDE EXTRACTION ────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are an expert analyst specialising in African energy infrastructure investment and project finance.
-Extract ONLY genuine energy/power infrastructure projects from news article summaries.
+const SYSTEM_PROMPT = `You are an expert analyst specialising in African energy infrastructure investment and project finance. Your job is to extract ONLY genuine energy/power infrastructure projects from news articles.
 
-STRICT EXTRACTION RULES:
-1. ONLY extract projects that involve physical energy infrastructure: power plants, solar farms, wind parks, hydroelectric dams, gas pipelines, transmission lines, battery storage facilities, mini-grids, EV charging networks, refineries, LNG terminals.
+WHAT TO EXTRACT:
+- Physical energy infrastructure: power plants, solar farms, wind parks, hydro dams, geothermal wells, gas pipelines, LNG terminals, refineries, battery storage facilities, transmission lines, hydrogen plants, clean cooking facilities, nuclear plants, substations, interconnectors
+- Investment/financing deals for the above (loans, equity, grants, PPAs, concessions) — but ONLY when a specific physical project is named
+- Government procurement tenders for specific energy capacity
+- DFI project approvals specifically for energy infrastructure
 
-2. NEVER extract:
-   - General development programs (World Bank/IDA social programs, skills training, education, health, agriculture, water/sanitation)
-   - Policy announcements without a specific named project
-   - Climate finance commitments without a specific project
-   - Opinion pieces, market commentary, or price news
-   - Fuel subsidy programs or tariff changes
-   - Programs where energy is mentioned incidentally but is not the core focus
+WHAT TO REJECT (return empty array or skip the item):
+- General development programs (World Bank/IDA social programs, health, education, agriculture, water/sanitation, governance, financial sector reform, IDA credits for non-energy purposes)
+- EV companies, electric motorcycle startups, ride-hailing platforms — these are transport companies, NOT energy infrastructure
+- Corporate fundraising announcements (Series A/B/C) that don't name a specific physical project being built
+- Policy announcements without a named, physical project
+- Climate finance pledges without a specific project
+- Energy price news, fuel subsidy changes, tariff adjustments
+- Opinion pieces, market commentary, conference announcements, awards, rankings
+- Agriculture, fisheries, livestock, textiles, tourism, housing programs
+- Digital transformation, skills training, education programs
+- "Africa needs $100B in energy" style commentary — NOT a project
 
-3. COUNTRY RULE: The project MUST be physically located in an African country. Use the full country name (e.g., "Nigeria", not "West Africa"). Regional labels like "Sub-Saharan Africa" or "East Africa" are NOT valid — you must identify the specific country.
+SECTOR CLASSIFICATION — use exactly one of these 12 values:
+"Solar" | "Wind" | "Hydro" | "Geothermal" | "Oil & Gas" | "Grid Expansion" | "Battery & Storage" | "Hydrogen" | "Nuclear" | "Bioenergy" | "Clean Cooking" | "Coal"
 
-4. DEAL SIZE RULE: The dealSizeUsdMn field must be the value IN MILLIONS OF US DOLLARS.
-   - If an article says "$500 million", return dealSizeUsdMn: 500
-   - If an article says "$1.2 billion", return dealSizeUsdMn: 1200
-   - If an article says "$50,000", return dealSizeUsdMn: 0.05
-   - If the amount is ambiguous or not clearly stated, return null
-   - NEVER return values above 5000 ($5 billion) — no single African energy project exceeds this
-   - If the article mentions a multi-country program budget, return null (not the total program cost)
+Sector rules (read carefully — these distinctions matter):
+- Solar: solar PV farms, CSP, solar home systems, mini-grids where solar is the primary source, floating solar, agri-PV
+- Wind: onshore and offshore wind farms only
+- Hydro: dams, run-of-river, pumped-storage hydropower (PHS), small hydro, tidal, wave energy
+- Geothermal: geothermal wells, steam fields, geothermal plants
+- Oil & Gas: upstream exploration, LNG, FLNG, refineries, gas-to-power plants, CCGT, pipelines, LPG distribution
+- Grid Expansion: transmission lines, interconnectors between countries, substations, distribution upgrades, rural electrification (grid extension), HVDC, power pools
+- Battery & Storage: standalone BESS, battery procurement programs, flywheel storage. NOT pumped-storage hydro (that is Hydro).
+- Hydrogen: green/blue hydrogen plants, electrolyzers, ammonia-from-hydrogen, power-to-X
+- Nuclear: nuclear power plants, SMRs
+- Bioenergy: biomass power, biogas digesters, waste-to-energy, bagasse cogeneration
+- Clean Cooking: improved cookstove programs, electric cooking programs, bioethanol for cooking. LPG distribution goes to Oil & Gas.
+- Coal: coal-fired power plants only
 
-5. TECHNOLOGY RULE: Must be exactly one of these 12 sectors:
-   "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+CRITICAL DISTINCTIONS:
+- "100 MW Solar + 50 MWh Battery hybrid" → Solar (battery is ancillary)
+- "250 MWh BESS co-located with solar" → Battery & Storage (storage is the primary asset)
+- "Grid-connected solar farm" → Solar (the generation asset)
+- "Transmission line to connect solar farm" → Grid Expansion (the transmission asset)
+- "Pumped-storage hydropower plant" → Hydro (NOT Battery & Storage)
+- "Electric motorcycle company raises $10M" → REJECT (transport company, not energy)
+- "EV bus fleet financing" → REJECT (transport, not energy infrastructure)
 
-   Mapping rules:
-   - Solar = all solar PV, CSP, mini-grids, off-grid solar, solar home systems
-   - Oil & Gas = upstream exploration, midstream, downstream, refining, LNG terminals, LPG distribution
-   - Grid Expansion = transmission lines, substations, distribution networks, interconnectors
-   - Battery & Storage = BESS, pumped hydro storage, any standalone storage project
-   - Hydrogen = green/blue hydrogen, electrolysers, ammonia plants, hydrogen hubs
-   - Bioenergy = biomass power, biogas (NOT bioethanol for cooking), waste-to-energy
-   - Clean Cooking = cookstoves and bioethanol for cooking fuel ONLY
-   - If the project is NOT energy infrastructure, do NOT force-fit it into a category
-   - If you cannot determine the technology, skip the project entirely
+COUNTRY RULE: Must be a single African country name. NEVER a region. If multi-country, use primary host country.
 
-Return a JSON array where each object has:
-- projectName: string — specific, unique project name (e.g., "Turkana Wind Power Phase 2"); NEVER generic names like "Energy Program" or "Development Project"
-- country: string — single African country name (NEVER a region, NEVER non-African)
-- region: string — one of: "East Africa", "West Africa", "North Africa", "Southern Africa", "Central Africa"
-- technology: string — from the list above
-- dealSizeUsdMn: number | null — value in USD millions; null if unclear or above $5B
-- developer: string | null — project developer or sponsor
-- financiers: string | null — comma-separated investor names
-- dfiInvolvement: string | null — specific DFI names if any (AfDB, IFC, World Bank, etc.)
-- offtaker: string | null — electricity off-taker or buyer if mentioned
-- dealStage: string | null — one of: "Announced", "Mandated", "Financial Close", "Construction", "Commissioned", "Suspended"
-- status: string — one of: "announced", "under construction", "financing closed", "operational", "tender"
-- description: string — 2-3 factual sentences about the energy project specifically
-- capacityMw: number | null — generation/storage capacity in MW; null if not stated
-- announcedYear: number | null — year of announcement
-- financialCloseDate: string | null — ISO date (YYYY-MM-DD) of financial close if mentioned
-- sourceUrl: string | null — MUST be the EXACT URL of the news article you are extracting from. Copy the URL directly from the article metadata. NEVER fabricate, guess, or construct a URL. If the article URL is not available, return null. A homepage URL like "https://example.com/" is NOT a valid sourceUrl.
-- newsUrl: string | null — same as sourceUrl
-- confidence: number — 0.0 to 1.0 extraction confidence
+DEAL SIZE RULE (dealSizeUsdMn in USD millions):
+- "$1.2 billion" → 1200; "$500M" → 500; "$50,000" → 0.05
+- NEVER above 5000. Multi-country program budgets → null.
 
-If NO articles contain genuine African energy infrastructure projects, return an empty array: []
-Return ONLY a valid JSON array. No markdown fences, no explanation.`;
+CONFIDENCE (0.0 to 1.0):
+- Score below 0.5 if: the project might be non-African, it's actually a corporate event or policy announcement, you're unsure about the technology, or the article is vague about what's actually being built.
+- NEVER default a vague article to Solar. If you can't classify it, score it below 0.5.
+
+Return a JSON array. If nothing qualifies, return []. ONLY valid JSON, no markdown.
+
+Each object:
+{
+  "projectName": string,        // Specific, unique name. NEVER generic. If no named project, return [].
+  "country": string,            // Single African country
+  "region": string,             // "East Africa" | "West Africa" | "North Africa" | "Southern Africa" | "Central Africa"
+  "technology": string,         // One of the 12 sectors above
+  "dealSizeUsdMn": number|null,
+  "developer": string|null,
+  "financiers": string|null,    // Comma-separated
+  "dfiInvolvement": string|null,
+  "offtaker": string|null,
+  "dealStage": string|null,     // "Announced"|"Mandated"|"Financial Close"|"Construction"|"Commissioned"|"Suspended"
+  "status": string,             // "announced"|"under construction"|"financing closed"|"operational"|"tender"
+  "description": string,        // 2-3 factual sentences about the physical energy project
+  "capacityMw": number|null,    // MW (power capacity, not MWh)
+  "announcedYear": number|null,
+  "financialCloseDate": string|null,  // YYYY-MM-DD
+  "sourceUrl": string|null,     // EXACT article URL. Never fabricated. Never a homepage.
+  "newsUrl": string|null,       // Same as sourceUrl
+  "confidence": number          // 0.0-1.0
+}`;
 
 interface ExtractedProject {
   projectName: string;
@@ -835,9 +894,13 @@ export async function runSourceGroup(
           continue;
         }
 
-        // Technology: use the new AI taxonomy then normalise to stored sector
-        const rawTech = String(project.technology ?? "Other Renewables");
+        // Technology: normalize to canonical sector — null means unclassifiable, reject
+        const rawTech = String(project.technology ?? "").trim();
         const technology = normalizeSector(rawTech);
+        if (!technology) {
+          console.log(`[SCRAPER] Rejected: Unclassifiable technology "${rawTech}" for "${name}" — add to normalizeSector map or review manually`);
+          continue;
+        }
 
         // Sanitized deal size
         const cleanDealSize = sanitizeDealSize(project.dealSizeUsdMn);
@@ -1042,7 +1105,7 @@ export async function runSeedImport(
   for (const seed of SEED_PROJECTS) {
     const name = seed.projectName.trim();
     const country = seed.country.trim();
-    const technology = normalizeSector(seed.technology);
+    const technology = normalizeSector(seed.technology) ?? seed.technology; // Seed data is curated
 
     try {
       // 1) Exact name match → UPDATE with non-null seed fields
@@ -1237,9 +1300,13 @@ export async function runWorldBankAdapter(
       const country = (p.countryname ?? "").replace(/\s*\([^)]*\)/g, "").trim();
       if (!name || !country || name.length < 5) continue;
 
-      // Derive technology from sector name
+      // Derive technology from sector name — skip if unclassifiable (non-energy World Bank project)
       const sectorRaw = p.sector1?.Name ?? p.sector_exact?.[0] ?? "";
-      const technology = normalizeSector(sectorRaw || "Solar");
+      const technology = normalizeSector(sectorRaw);
+      if (!technology) {
+        console.log(`[SCRAPER] World Bank project skipped: non-energy sector "${sectorRaw}" for "${name}"`);
+        continue;
+      }
 
       // Deal size: World Bank amounts are in USD thousands → convert to millions
       const dealSizeUsdMn = p.totalamt && p.totalamt > 0 ? Math.round(p.totalamt / 1000) : null;

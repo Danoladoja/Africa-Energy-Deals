@@ -1,0 +1,409 @@
+# Africa Energy Tracker — Scraper AI Classification Training Document
+
+**Version:** 2.0 | **Date:** 28 March 2026
+**Based on:** Manual review of 180 Solar-tagged projects that revealed systematic misclassification patterns
+
+---
+
+## PART 1: THE 12-SECTOR TAXONOMY (Canonical & Final)
+
+The scraper AI must classify every project into exactly ONE of these 12 sectors. No other values are permitted. If a project does not clearly fit any sector, it should be flagged for human review rather than force-classified.
+
+### Sector Definitions with Classification Rules
+
+#### 1. Solar
+**Includes:** Solar PV farms, CSP (concentrated solar power) plants, solar thermal systems, solar mini-grids, solar home systems, solar-battery hybrid projects (where solar is the primary generation), floating solar, agri-PV, solar-powered desalination, solar-powered irrigation pumps.
+
+**Classification signals:** "solar farm", "solar park", "photovoltaic", "PV", "CSP", "concentrated solar", "solar home system", "solar mini-grid", "solar IPP", capacity in MWp or MWac.
+
+**Common false positive to AVOID:** Projects that mention "solar" incidentally but are primarily grid infrastructure, battery storage, or mixed-technology programs. If the project name says "Battery" or "Storage" and solar is just the charging source, classify as Battery & Storage.
+
+#### 2. Wind
+**Includes:** Onshore wind farms, offshore wind farms, wind parks, wind IPPs.
+
+**Classification signals:** "wind farm", "wind park", "wind power", "wind turbine", "onshore wind", "offshore wind", capacity specified in MW with turbine counts.
+
+#### 3. Hydro
+**Includes:** Large hydroelectric dams, run-of-river hydro, small hydro (<10 MW), pumped-storage hydropower (PHS), multipurpose dam projects where hydropower is a component, tidal energy, wave energy.
+
+**Classification signals:** "hydropower", "hydroelectric", "hydro dam", "run-of-river", "pumped storage", "PHS", "multipurpose dam", "tidal", "wave energy". Also: project descriptions mentioning turbine halls, penstocks, reservoirs, spillways.
+
+**Lesson from review:** Two projects were misclassified as Solar that were clearly Hydro:
+- "Dogo-Bis Multipurpose Dam Program" (Benin) — the word "Dam" is a dead giveaway
+- "Ifahsa Pumped Hydropower Storage" (Morocco) — "Pumped Hydropower" is explicit
+
+#### 4. Geothermal
+**Includes:** Geothermal power plants, geothermal wells, geothermal direct-use facilities, geothermal exploration programs tied to a specific site.
+
+**Classification signals:** "geothermal", "steam field", "geothermal well", "Olkaria", "Menengai", "Corbetti", "Aluto Langano". Key countries: Kenya, Ethiopia, Djibouti, Tanzania, Uganda.
+
+#### 5. Oil & Gas
+**Includes:** Upstream (exploration, drilling, production), midstream (pipelines, LNG terminals, FLNG, gas processing), downstream (refineries, LPG distribution, fuel depots), gas-to-power plants, natural gas combined cycle plants.
+
+**Classification signals:** "oil", "gas", "petroleum", "refinery", "LNG", "FLNG", "pipeline", "upstream", "downstream", "crude", "barrel", "gas-to-power", "CCGT", "gas turbine", "FPSO".
+
+**Note:** LPG distribution and cooking gas programs go here, NOT under Clean Cooking (which is for improved cookstove and clean fuel programs).
+
+#### 6. Grid Expansion
+**Includes:** High-voltage transmission lines, power interconnectors between countries, substations, distribution network upgrades, rural electrification grid extensions, power system strengthening, SCADA/grid management systems.
+
+**Classification signals:** "transmission line", "interconnector", "substation", "distribution", "grid", "power line", "kV line", "HVDC", "power pool", "grid extension", "electrification program" (when focused on grid extension, not generation).
+
+**Lesson from review:** Four projects were misclassified as Solar that were clearly Grid:
+- "Zambia Grid Diversification PPA Programme" — "Grid Diversification" is the clue
+- "Tanzania-Uganda Interconnector Project" — "Interconnector" = Grid Expansion
+- "Huila-Cunene Interconnection Project" — "Interconnection" = Grid Expansion
+
+**CRITICAL distinction:** "Grid-connected solar farm" is Solar (the generation asset). "Grid extension to connect solar farm" is Grid Expansion (the transmission asset). Classify based on what is actually being built/financed.
+
+#### 7. Battery & Storage
+**Includes:** Grid-scale battery energy storage systems (BESS), standalone battery projects, battery procurement programs, flywheel storage, compressed air energy storage, thermal energy storage (standalone).
+
+**Classification signals:** "battery storage", "BESS", "energy storage system", "MWh" (storage capacity), "battery procurement", "storage facility".
+
+**Lesson from review:** Two projects were misclassified as Solar that were clearly Battery & Storage:
+- "Uganda Co-located Battery Energy Storage System (250 MWh)" — "Battery Energy Storage System" with MWh capacity
+- "South Africa Battery Storage Procurement Round" — "Battery Storage Procurement"
+
+**CRITICAL distinction from Solar:** If a project is "100 MW Solar + 50 MWh Battery", classify as Solar (the battery is ancillary to the solar farm). But if the project is "250 MWh Battery Energy Storage System" that happens to be co-located with solar, classify as Battery & Storage (storage is the primary asset).
+
+#### 8. Hydrogen
+**Includes:** Green hydrogen production plants, electrolyzers, hydrogen pipelines, hydrogen refueling stations, ammonia-from-hydrogen plants, power-to-X facilities.
+
+**Classification signals:** "hydrogen", "electrolyzer", "electrolysis", "green hydrogen", "H₂", "power-to-X", "green ammonia".
+
+#### 9. Nuclear
+**Includes:** Nuclear power plants, SMRs (small modular reactors), nuclear fuel facilities.
+
+**Classification signals:** "nuclear", "SMR", "small modular reactor", "atomic energy", "nuclear power plant".
+
+#### 10. Bioenergy
+**Includes:** Biomass power plants, biogas digesters, waste-to-energy facilities, biofuel production plants, bagasse cogeneration, wood pellet plants.
+
+**Classification signals:** "biomass", "biogas", "waste-to-energy", "biofuel", "bagasse", "cogeneration", "anaerobic digestion", "wood pellet".
+
+#### 11. Clean Cooking
+**Includes:** Improved cookstove programs, LPG cookstove distribution programs (when framed as clean cooking access, not fuel distribution), ethanol cookstove programs, electric cooking programs, biogas cooking systems.
+
+**Classification signals:** "clean cooking", "cookstove", "improved stove", "cooking fuel", "electric cooking", "e-cooking".
+
+#### 12. Coal
+**Includes:** Coal-fired power plants, coal mine-mouth power stations, coal gasification plants.
+
+**Classification signals:** "coal", "coal-fired", "coal plant", "coal gasification".
+
+---
+
+## PART 2: NON-ENERGY REJECTION RULES
+
+The March 2026 review found that **90 of 180 projects** (50%) tagged as Solar were not energy projects at all. They were junk entries that the scraper should have rejected. Here are the patterns to reject:
+
+### Category A: Electric Vehicles & Transport (NOT energy infrastructure)
+**Reject if:** Project is an EV company, ride-hailing platform, electric motorcycle company, or transport logistics firm. These are NOT energy generation, storage, or grid infrastructure.
+
+**Examples found in review (all were wrongly tagged Solar):**
+- Electric motorcycle companies (Spiro, Roam, Ampersand)
+- EV bus companies (BasiGo, Kayoola)
+- Ride-hailing platforms operating EVs
+- EV charging network companies (unless the project is specifically a charging station build — which would still not be Solar but could be Grid Expansion)
+
+**Exception:** A dedicated EV charging infrastructure construction project (building physical charging stations powered by solar) could be classified. But the company itself or a fundraising round is NOT a project.
+
+### Category B: World Bank / DFI Generic Development Programs
+**Reject if:** The project is a World Bank IDA credit, IMF loan, or DFI program for generic development — governance, public sector reform, financial sector strengthening, social safety nets, digital transformation, agriculture, education, health.
+
+**Signals to reject:**
+- "IDA Credit" or "IDA Grant" for non-energy purposes
+- "Public Financial Management"
+- "Social Safety Net"
+- "Digital Transformation"
+- "Skills for" or "Skills Training"
+- "Governance" or "Institutional Strengthening"
+- "Health System Strengthening"
+- "Agriculture" or "Agribusiness" or "Livestock"
+- "Education" or "School" or "University"
+- "Water Supply" or "Sanitation" or "WASH"
+- "Road" or "Highway" or "Transport corridor" (unless it's an EV charging corridor)
+- "Urban Development" or "Housing"
+- "Financial Inclusion" or "Microfinance"
+
+**The test:** Does the project description mention building, financing, or operating a PHYSICAL ENERGY ASSET (power plant, grid line, storage facility, etc.)? If not, reject it.
+
+### Category C: Generic Corporate Fundraising
+**Reject if:** The article is about a company raising venture capital, Series A/B/C funding, or debt financing, but there is no specific physical project being built.
+
+**Examples:** "Solar startup raises $10M Series A" — this is a corporate event, not an energy project. REJECT unless the article also names a specific project the money will fund (e.g., "Solar startup raises $10M to build 50 MW plant in Kenya" — then extract the 50 MW plant, not the fundraising).
+
+### Category D: Policy & Market Commentary
+**Reject if:** The article is about energy policy, tariff changes, market analysis, forecasts, or regulatory developments with no named physical project.
+
+**Examples:** "Nigeria raises electricity tariff", "Africa needs $100B in energy investment", "Morocco announces renewable energy target" — these are policy/commentary, not projects. REJECT.
+
+**Exception:** "Morocco launches 2 GW solar tender" — this is a procurement action tied to specific capacity and could be extracted as a project. Use judgment.
+
+### Category E: Conferences, Awards, Rankings
+**Reject entirely.** "Africa Energy Forum", "Solar Industry Awards", "Top 10 Clean Energy Companies" — these are not projects.
+
+---
+
+## PART 3: NORMALIZATION FUNCTION
+
+Apply this normalization to every technology value BEFORE database insertion. This catches the AI's common mistakes:
+
+```typescript
+const CANONICAL_SECTORS = [
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Grid Expansion", "Battery & Storage", "Hydrogen",
+  "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+] as const;
+
+type CanonicalSector = typeof CANONICAL_SECTORS[number];
+
+function normalizeSector(rawSector: string): CanonicalSector | null {
+  const s = rawSector.trim().toLowerCase();
+
+  const sectorMap: Record<string, CanonicalSector> = {
+    // Solar variants
+    "solar": "Solar",
+    "solar pv": "Solar",
+    "csp": "Solar",
+    "concentrated solar": "Solar",
+    "solar thermal": "Solar",
+    "solar home": "Solar",
+    "photovoltaic": "Solar",
+    "mini-grid": "Solar",
+    "mini grid": "Solar",
+    "minigrid": "Solar",
+    "solar mini-grid": "Solar",
+    "floating solar": "Solar",
+
+    // Wind variants
+    "wind": "Wind",
+    "onshore wind": "Wind",
+    "offshore wind": "Wind",
+    "wind farm": "Wind",
+    "wind power": "Wind",
+    "wind park": "Wind",
+
+    // Hydro variants
+    "hydro": "Hydro",
+    "hydropower": "Hydro",
+    "hydroelectric": "Hydro",
+    "dam": "Hydro",
+    "pumped storage": "Hydro",
+    "pumped hydro": "Hydro",
+    "pumped storage hydro": "Hydro",
+    "phs": "Hydro",
+    "run-of-river": "Hydro",
+    "tidal": "Hydro",
+    "wave energy": "Hydro",
+    "small hydro": "Hydro",
+
+    // Geothermal
+    "geothermal": "Geothermal",
+    "geothermal power": "Geothermal",
+    "steam field": "Geothermal",
+
+    // Oil & Gas variants
+    "oil": "Oil & Gas",
+    "oil & gas": "Oil & Gas",
+    "oil and gas": "Oil & Gas",
+    "petroleum": "Oil & Gas",
+    "natural gas": "Oil & Gas",
+    "gas": "Oil & Gas",
+    "lng": "Oil & Gas",
+    "flng": "Oil & Gas",
+    "refinery": "Oil & Gas",
+    "gas-to-power": "Oil & Gas",
+    "gas to power": "Oil & Gas",
+    "ccgt": "Oil & Gas",
+    "combined cycle": "Oil & Gas",
+    "upstream": "Oil & Gas",
+    "downstream": "Oil & Gas",
+    "midstream": "Oil & Gas",
+    "crude": "Oil & Gas",
+    "lpg": "Oil & Gas",
+    "pipeline": "Oil & Gas",
+    "fpso": "Oil & Gas",
+    "gas processing": "Oil & Gas",
+    "gas turbine": "Oil & Gas",
+
+    // Grid Expansion variants
+    "grid expansion": "Grid Expansion",
+    "grid": "Grid Expansion",
+    "transmission": "Grid Expansion",
+    "transmission line": "Grid Expansion",
+    "interconnector": "Grid Expansion",
+    "substation": "Grid Expansion",
+    "distribution": "Grid Expansion",
+    "power line": "Grid Expansion",
+    "hvdc": "Grid Expansion",
+    "grid extension": "Grid Expansion",
+    "electrification": "Grid Expansion",
+    "power pool": "Grid Expansion",
+
+    // Battery & Storage variants
+    "battery & storage": "Battery & Storage",
+    "battery storage": "Battery & Storage",
+    "battery": "Battery & Storage",
+    "bess": "Battery & Storage",
+    "energy storage": "Battery & Storage",
+    "storage": "Battery & Storage",
+    "flywheel": "Battery & Storage",
+
+    // Hydrogen variants
+    "hydrogen": "Hydrogen",
+    "green hydrogen": "Hydrogen",
+    "electrolyzer": "Hydrogen",
+    "electrolysis": "Hydrogen",
+    "power-to-x": "Hydrogen",
+    "green ammonia": "Hydrogen",
+    "h2": "Hydrogen",
+
+    // Nuclear
+    "nuclear": "Nuclear",
+    "nuclear power": "Nuclear",
+    "smr": "Nuclear",
+    "small modular reactor": "Nuclear",
+
+    // Bioenergy variants
+    "bioenergy": "Bioenergy",
+    "biomass": "Bioenergy",
+    "biogas": "Bioenergy",
+    "waste-to-energy": "Bioenergy",
+    "waste to energy": "Bioenergy",
+    "biofuel": "Bioenergy",
+    "bagasse": "Bioenergy",
+    "cogeneration": "Bioenergy",
+
+    // Clean Cooking
+    "clean cooking": "Clean Cooking",
+    "cookstove": "Clean Cooking",
+    "improved stove": "Clean Cooking",
+    "e-cooking": "Clean Cooking",
+    "electric cooking": "Clean Cooking",
+
+    // Coal
+    "coal": "Coal",
+    "coal-fired": "Coal",
+    "coal plant": "Coal",
+    "coal gasification": "Coal",
+
+    // OLD TAXONOMY — map to new
+    "grid & storage": "Grid Expansion",  // Default to Grid; battery projects should be caught by name analysis
+  };
+
+  // Direct match
+  if (sectorMap[s]) return sectorMap[s];
+
+  // Partial match (check if any key is contained in the raw string)
+  for (const [key, sector] of Object.entries(sectorMap)) {
+    if (s.includes(key)) return sector;
+  }
+
+  // No match — return null to flag for human review
+  return null;
+}
+```
+
+---
+
+## PART 4: AI EXTRACTION SYSTEM PROMPT (Updated)
+
+Replace the existing scraper AI system prompt with this version:
+
+```
+You are an expert analyst specialising in African energy infrastructure investment and project finance. Your job is to extract ONLY genuine energy/power infrastructure projects from news articles.
+
+WHAT TO EXTRACT:
+- Physical energy infrastructure: power plants, solar farms, wind parks, hydro dams, geothermal wells, gas pipelines, LNG terminals, refineries, battery storage facilities, transmission lines, hydrogen plants, clean cooking facilities, nuclear plants, substations, interconnectors
+- Investment/financing deals for the above (loans, equity, grants, PPAs, concessions) — but ONLY when a specific physical project is named
+- Government procurement tenders for specific energy capacity
+- DFI project approvals specifically for energy infrastructure
+
+WHAT TO REJECT (return empty array):
+- General development programs (World Bank/IDA social programs, health, education, agriculture, water/sanitation, governance, financial sector reform)
+- EV companies, electric motorcycle startups, ride-hailing platforms (these are transport, not energy infrastructure)
+- Corporate fundraising announcements that don't name a specific project
+- Policy announcements without a named, physical project
+- Climate finance pledges without a specific project
+- Energy price news, fuel subsidy changes, tariff adjustments
+- Opinion pieces, market commentary, conference announcements, awards
+- Agriculture, fisheries, livestock, textiles, tourism, housing programs
+- Digital transformation, skills training, education programs
+
+FIELD RULES:
+- projectName: The specific, unique project name. NEVER generic ("Energy Program", "Development Project"). Must name the physical asset or specific facility. If the article only discusses a company or market trend without naming a project, return [].
+- country: A single African country name. NEVER a region. NEVER non-African. If the project spans multiple countries, use the primary host country.
+- technology: MUST be exactly one of: "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+
+  CLASSIFICATION RULES:
+  - "Solar" = solar PV, CSP, solar thermal, solar mini-grids, solar home systems, solar-battery hybrids where solar is primary
+  - "Wind" = onshore/offshore wind farms
+  - "Hydro" = dams, run-of-river, pumped storage hydro, tidal, wave
+  - "Geothermal" = geothermal power, steam fields, geothermal wells
+  - "Oil & Gas" = upstream, midstream, downstream, refining, LNG, pipelines, gas-to-power, gas processing, LPG distribution
+  - "Grid Expansion" = transmission lines, interconnectors, substations, distribution networks, rural electrification grid extensions
+  - "Battery & Storage" = standalone BESS, battery procurement, grid-scale storage. Use this ONLY when storage is the PRIMARY asset, not an add-on to a solar/wind farm
+  - "Hydrogen" = green hydrogen, electrolyzers, hydrogen pipelines, power-to-X, green ammonia
+  - "Nuclear" = nuclear plants, SMRs
+  - "Bioenergy" = biomass, biogas, waste-to-energy, biofuels, bagasse cogeneration
+  - "Clean Cooking" = improved cookstoves, clean cooking fuel programs, e-cooking
+  - "Coal" = coal-fired plants, coal gasification
+
+  If you cannot clearly identify the technology, return [] (do NOT guess or default to Solar).
+
+- dealSizeUsdMn: Value IN MILLIONS of US dollars.
+  - "$500 million" = 500
+  - "$1.2 billion" = 1200
+  - "$50,000" = 0.05
+  - NEVER above 5000. If it's a multi-country program budget (like a World Bank $2B portfolio), return null.
+
+- status: One of "Announced", "Under Construction", "Operational", "Financing", "Tendered", "Cancelled", "Suspended". Default to "Announced" if unclear.
+
+- capacityMw: In megawatts. Convert from GW (multiply by 1000) or kW (divide by 1000). For storage projects, this is power capacity (MW), not energy capacity (MWh).
+
+- sourceUrl: The EXACT URL of the article you are extracting from. NEVER fabricate. NEVER return a homepage. If unknown, return null.
+
+- confidenceScore: Your confidence this is a genuine African energy infrastructure project (0.0 to 1.0). Score below 0.5 if:
+  - The project might be non-African
+  - The "project" is actually a corporate event or policy announcement
+  - You're unsure about the technology classification
+  - The article is vague about what's actually being built
+
+Return a JSON array. If nothing qualifies, return [].
+```
+
+---
+
+## PART 5: POST-EXTRACTION VALIDATION CHECKLIST
+
+Run these checks in code AFTER the AI returns its extraction, BEFORE inserting into the database:
+
+1. **Technology must be in the canonical 12-sector list.** If not, reject.
+2. **Country must be a valid African country** (54 AU member states). If not, reject.
+3. **Project name must not match non-energy keywords:** Run the name through the exclusion list: "EV", "electric vehicle", "motorcycle", "ride-hailing", "governance", "social protection", "education", "health system", "agriculture", "livestock", "fisheries", "textile", "tourism", "digital transformation", "skills training", "financial inclusion", "microfinance", "water supply", "sanitation", "road construction", "housing". If ANY match, flag for human review.
+4. **Deal size sanity:** If > $5,000M, set to null and flag for review. If < $0.05M, flag for review.
+5. **Confidence threshold:** If confidenceScore < 0.6, route to review queue (do NOT auto-insert).
+6. **Duplicate check:** Check for existing projects with similar names (fuzzy match, not just exact). Use Levenshtein distance or trigram similarity with threshold of 0.7.
+7. **URL verification:** Confirm sourceUrl returns HTTP 200. If not, flag for review but still insert with null URL.
+
+---
+
+## PART 6: LESSONS LEARNED FROM THE MARCH 2026 REVIEW
+
+### What Went Wrong
+The original scraper had a default-to-Solar behavior: if the AI couldn't confidently classify a project, it was tagged "Solar". This caused 50% of the 180 Solar-tagged projects to be non-energy junk (World Bank governance loans, EV startups, agriculture programs, etc.).
+
+### Key Fixes Applied
+1. Split "Grid & Storage" into "Grid Expansion" and "Battery & Storage" — these are fundamentally different sectors
+2. Added "Hydrogen" as a standalone sector (was buried in "Grid & Storage")
+3. Reclassified 8 projects to their correct sectors (2 Battery, 2 Hydro, 4 Grid)
+4. Rejected 90 non-energy projects that should never have been ingested
+5. Confirmed 82 projects as legitimately Solar
+
+### Rules to Prevent Recurrence
+1. **NEVER default to Solar.** If the AI can't classify, return null and flag for review.
+2. **Reject non-energy at the gate.** The keyword exclusion filter must run BEFORE AI extraction, not after.
+3. **The AI prompt must explicitly list rejection categories** (EV, DFI generic programs, corporate fundraising, policy).
+4. **Every new sector addition requires updating:** the normalization function, the AI prompt, the validation checklist, and the frontend config.
