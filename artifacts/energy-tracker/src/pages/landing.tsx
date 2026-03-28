@@ -4,7 +4,6 @@ import { useGetSummaryStats } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart2, Globe, Layers, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
-import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "@/components/email-gate-modal";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
@@ -118,8 +117,6 @@ function LatestDealCard({ project }: { project: LatestProject }) {
 }
 
 function LatestDealsSection() {
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   const { data, isLoading } = useQuery<{ projects: LatestProject[] }>({
     queryKey: ["latest-projects"],
     queryFn: () => fetch(`${API}/projects/latest?limit=5`).then(r => r.json()),
@@ -169,7 +166,7 @@ function LatestDealsSection() {
             {/* Fade-out right edge on mobile */}
             <div
               className="md:hidden absolute inset-y-0 right-0 w-12 pointer-events-none"
-              style={{ background: `linear-gradient(to left, ${isLight ? "#f1f5f9" : "#0b0f1a"}, transparent)` }}
+              style={{ background: "linear-gradient(to left, #0b0f1a, transparent)" }}
             />
           </div>
         )}
@@ -203,8 +200,6 @@ function formatBillions(mn: number) {
 }
 
 function LandingChoropleth({ onExplore }: { onExplore: () => void }) {
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   const { data: countryStats } = useQuery<CountryStat[]>({
     queryKey: ["country-stats-landing"],
     queryFn: () => fetch(`${API}/stats/by-country`).then(r => r.json()),
@@ -240,29 +235,26 @@ function LandingChoropleth({ onExplore }: { onExplore: () => void }) {
     const name = feature.properties?.name as string;
     const inv = countryStatsMap[name];
     if (inv) {
-      const ttBg = isLight ? "#ffffff" : "#1e293b";
-      const ttBorder = isLight ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(255,255,255,0.12)";
-      const ttText = isLight ? "#0f172a" : "#f1f5f9";
       layer.bindTooltip(
-        `<div style="background:${ttBg};border:${ttBorder};padding:6px 10px;border-radius:8px;font-family:inherit;font-size:12px;color:${ttText};">
+        `<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.12);padding:6px 10px;border-radius:8px;font-family:inherit;font-size:12px;color:#f1f5f9;">
           <strong>${name}</strong><br/>
           <span style="color:#00e676;font-weight:600;font-family:monospace;">${formatBillions(inv)}</span>
         </div>`,
         { sticky: true, className: "leaflet-choropleth-tooltip", offset: [10, 0] }
       );
     }
-  }, [countryStatsMap, isLight]);
+  }, [countryStatsMap]);
 
   const geoKey = useMemo(
-    () => `landing-geo-${Object.keys(countryStatsMap).length}-${isLight ? "light" : "dark"}`,
-    [countryStatsMap, isLight]
+    () => `landing-geo-${Object.keys(countryStatsMap).length}`,
+    [countryStatsMap]
   );
 
   if (!geoJson) {
     return (
       <div
         className="w-full rounded-2xl overflow-hidden border border-white/8"
-        style={{ height: 320, background: isLight ? "#f1f5f9" : "#0d1526", display: "flex", alignItems: "center", justifyContent: "center" }}
+        style={{ height: 320, background: "#0d1526", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <div className="text-white/20 text-sm">Loading map…</div>
       </div>
