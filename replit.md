@@ -24,7 +24,6 @@ The project is structured as a pnpm monorepo, with distinct packages for deploya
 - **AI Integration:** An AI agent leverages OpenAI's GPT for daily news scraping and structured data extraction, with a human-in-the-loop review process.
 - **Authentication:** Magic-link email authentication system for user management and personalized features like watchlists.
 - **SEO & Performance:** Dynamic meta tags, bot prerendering middleware, dynamic sitemap generation, code splitting, and skeleton loaders ensure optimal SEO and user experience.
-- **Light/Dark Theme:** Full application theming via `ThemeProvider` in `App.tsx` and `useTheme()` hook. Theme is toggled by adding/removing the `light` class on `<html>`. Light mode CSS overrides in `index.css` cover: all hardcoded dark hex bg classes (`#1e293b`, `#0b0f1a`, etc.), all `border-white/*` and `bg-white/*` opacity variants, all `hover:text-*` states, `text-white/*` opacity variants, and `text-slate-*` variants. All inline styles across map popups, deal comparison rows, landing map tooltips, embed chart containers, and export backgrounds use `useTheme()` to conditionally switch colors. Chart theming uses the `useChartTheme()` hook (`@/hooks/useChartTheme`) across all Recharts components.
 
 **Key Features:**
 - **Africa Energy Investment Tracker:**

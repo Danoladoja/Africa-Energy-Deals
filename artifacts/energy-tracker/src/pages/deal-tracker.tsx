@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { ShareButton } from "@/components/share-button";
 import { NlqSearchBar, type NlqResult } from "@/components/nlq-search-bar";
 import { useAuth, authedFetch } from "@/contexts/auth";
-import { useTheme } from "@/contexts/theme";
 import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 import { toast } from "sonner";
 
@@ -636,8 +635,6 @@ function ComparisonPanel({
   onNavigate: (id: number) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   const sizes = deals.map((d) => d.dealSizeUsdMn ?? null).filter(Boolean) as number[];
   const maxSize = sizes.length ? Math.max(...sizes) : null;
   const minSize = sizes.length > 1 ? Math.min(...sizes) : null;
@@ -725,7 +722,7 @@ function ComparisonPanel({
             <div
               key={key}
               className="grid items-center"
-              style={{ gridTemplateColumns: `180px repeat(${deals.length}, 1fr)`, backgroundColor: rowIdx % 2 === 0 ? (isLight ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)") : "transparent" }}
+              style={{ gridTemplateColumns: `180px repeat(${deals.length}, 1fr)`, backgroundColor: rowIdx % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}
             >
               <div className="px-2 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
               {deals.map((d) => {

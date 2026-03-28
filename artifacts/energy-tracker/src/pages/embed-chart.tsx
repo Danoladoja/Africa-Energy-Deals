@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useChartTheme } from "@/hooks/useChartTheme";
-import { useTheme } from "@/contexts/theme";
 import {
   useGetStatsByCountry,
   useGetStatsByTechnology,
@@ -124,8 +123,6 @@ function ChartRenderer({ chartType, data, nameKey, metric }: {
 }
 
 export default function EmbedChart() {
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   const params = new URLSearchParams(window.location.search);
   const chartType = (params.get("type") ?? "bar") as ChartType;
   const groupBy = (params.get("groupBy") ?? "technology") as Grouping;
@@ -160,7 +157,7 @@ export default function EmbedChart() {
 
   return (
     <div style={{
-      backgroundColor: isLight ? "#f1f5f9" : "#0b0f1a",
+      backgroundColor: "#0b0f1a",
       height: "100vh",
       display: "flex",
       flexDirection: "column",
@@ -169,7 +166,7 @@ export default function EmbedChart() {
       boxSizing: "border-box",
     }}>
       <div style={{ marginBottom: "12px" }}>
-        <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: isLight ? "#0f172a" : "#f1f5f9" }}>{displayTitle}</h2>
+        <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#f1f5f9" }}>{displayTitle}</h2>
         <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#64748b" }}>Africa Energy Investment Tracker</p>
       </div>
 

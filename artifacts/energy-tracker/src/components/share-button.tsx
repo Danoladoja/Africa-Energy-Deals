@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Share2, Copy, Check, X, FileDown } from "lucide-react";
 import { toPng } from "html-to-image";
-import { useTheme } from "@/contexts/theme";
 
 /* ── Inline brand icons ───────────────────────────────────────────── */
 function WhatsAppIcon() {
@@ -105,8 +104,6 @@ export function ShareButton({
   const [sharingImage, setSharingImage] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const { theme } = useTheme();
-  const isLight = theme === "light";
 
   const shareUrl = url ?? (typeof window !== "undefined" ? window.location.href : "");
 
@@ -145,7 +142,7 @@ export function ShareButton({
     try {
       await new Promise(r => setTimeout(r, 100));
       const dataUrl = await toPng(chartRef.current, {
-        backgroundColor: isLight ? "#f1f5f9" : "#0B0F19",
+        backgroundColor: "#0B0F19",
         pixelRatio: 2,
         cacheBust: true,
         filter: (node: HTMLElement) => !node.dataset?.noExport,
