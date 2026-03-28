@@ -533,6 +533,17 @@ export default function MapPage() {
     if (!mapWrapRef.current) return;
     setExporting(true);
     try {
+      // Wait for every tile <img> in the map to finish loading
+      const imgs = Array.from(mapWrapRef.current.querySelectorAll<HTMLImageElement>("img"));
+      await Promise.all(imgs.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise<void>(resolve => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 3000);
+        });
+      }));
+
       const canvas = await captureToCanvas(mapWrapRef.current, 2);
 
       // Draw title overlay on canvas
@@ -711,6 +722,7 @@ export default function MapPage() {
               <TileLayer
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 attribution='&copy; OpenStreetMap &copy; CARTO'
+                crossOrigin="anonymous"
               />
               {showChoropleth && geoJson && countryStats && (
                 <GeoJSON key={geoKey} data={geoJson} style={geoStyle} onEachFeature={onEachFeature} />

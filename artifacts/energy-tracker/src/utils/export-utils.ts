@@ -19,7 +19,7 @@ export async function captureToCanvas(
     scale,
     backgroundColor: "#0b0f1a",
     useCORS: true,
-    allowTaint: true,
+    allowTaint: false,
     logging: false,
     ignoreElements: (el) => el.hasAttribute("data-no-export"),
   });
