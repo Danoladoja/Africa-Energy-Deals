@@ -15,14 +15,54 @@ export async function captureToCanvas(
   await new Promise((r) => requestAnimationFrame(r));
   await new Promise((r) => setTimeout(r, 350));
 
-  return html2canvas(el, {
-    scale,
-    backgroundColor: "#0b0f1a",
-    useCORS: true,
-    allowTaint: false,
-    logging: false,
-    ignoreElements: (el) => el.hasAttribute("data-no-export"),
+  // html2canvas can't read flex-stretched heights (flex-1 / min-h-0) or
+  // content inside overflow-y-auto children. Temporarily give everything
+  // explicit pixel dimensions, then restore after capture.
+  type Snapshot = { el: HTMLElement; overflowY: string; height: string; maxHeight: string };
+  const scrollers: Snapshot[] = [];
+
+  el.querySelectorAll<HTMLElement>("*").forEach((child) => {
+    const ov = window.getComputedStyle(child).overflowY;
+    if (ov === "auto" || ov === "scroll") {
+      scrollers.push({
+        el: child,
+        overflowY: child.style.overflowY,
+        height: child.style.height,
+        maxHeight: child.style.maxHeight,
+      });
+      child.style.overflowY = "visible";
+      child.style.height = `${child.scrollHeight}px`;
+      child.style.maxHeight = "none";
+    }
   });
+
+  const rootH = el.getBoundingClientRect().height || el.scrollHeight;
+  const savedH = el.style.height;
+  const savedMinH = el.style.minHeight;
+  el.style.height = `${Math.max(rootH, el.scrollHeight)}px`;
+  el.style.minHeight = el.style.height;
+
+  // One more frame so the browser re-paints with the new dimensions
+  await new Promise((r) => requestAnimationFrame(r));
+
+  try {
+    return await html2canvas(el, {
+      scale,
+      backgroundColor: "#0b0f1a",
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      ignoreElements: (child) => child.hasAttribute("data-no-export"),
+    });
+  } finally {
+    el.style.height = savedH;
+    el.style.minHeight = savedMinH;
+    scrollers.forEach(({ el: child, overflowY, height, maxHeight }) => {
+      child.style.overflowY = overflowY;
+      child.style.height = height;
+      child.style.maxHeight = maxHeight;
+    });
+  }
 }
 
 /* ── PNG download ───────────────────────────────────────────────────────── */
