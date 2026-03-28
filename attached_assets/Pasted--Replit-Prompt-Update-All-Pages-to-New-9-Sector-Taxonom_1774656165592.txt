@@ -1,0 +1,269 @@
+# Replit Prompt: Update All Pages to New 9-Sector Taxonomy
+
+Copy and paste this entire prompt into Replit AI:
+
+---
+
+## Context
+
+The Railway production database has been fully migrated. The old "Grid & Storage" category has been split, Solar misclassifications have been corrected, and 90 non-energy junk projects have been rejected. The live database now contains **156 active projects** across **9 sectors** totalling **$115.4B** across **40 African countries**.
+
+### The 12 Canonical Sectors (9 currently active in DB)
+
+These are the ONLY valid technology values. Every page, filter, chart, color map, icon set, and dropdown must use exactly these strings:
+
+| # | Sector | DB Count | Color (hex) | Icon Suggestion |
+|---|---|---|---|---|
+| 1 | **Solar** | 69 | `#F59E0B` (amber) | ☀️ Sun |
+| 2 | **Oil & Gas** | 26 | `#6B7280` (gray) | 🛢️ Oil barrel |
+| 3 | **Hydro** | 23 | `#3B82F6` (blue) | 💧 Water drop |
+| 4 | **Grid Expansion** | 13 | `#8B5CF6` (purple) | ⚡ Zap / transmission tower |
+| 5 | **Wind** | 13 | `#10B981` (emerald) | 🌬️ Wind |
+| 6 | **Battery & Storage** | 5 | `#EC4899` (pink) | 🔋 Battery |
+| 7 | **Bioenergy** | 4 | `#84CC16` (lime) | 🌿 Leaf |
+| 8 | **Coal** | 2 | `#1F2937` (dark gray) | ⛏️ Pick |
+| 9 | **Hydrogen** | 1 | `#06B6D4` (cyan) | 💨 H₂ molecule |
+| 10 | **Geothermal** | 0 (future) | `#DC2626` (red) | 🌋 Volcano |
+| 11 | **Nuclear** | 0 (future) | `#7C3AED` (violet) | ☢️ Atom |
+| 12 | **Clean Cooking** | 0 (future) | `#F97316` (orange) | 🍳 Flame |
+
+**IMPORTANT:** The old category `"Grid & Storage"` no longer exists. It has been split into `"Grid Expansion"` and `"Battery & Storage"` (two separate categories). Every reference to `"Grid & Storage"` in the codebase must be removed and replaced with BOTH new categories.
+
+---
+
+## Task 1: Create a Single Source of Truth — `technologyConfig.ts`
+
+Create a new file at `artifacts/energy-tracker/src/config/technologyConfig.ts` that ALL pages import from. This eliminates the current problem of each page having its own hardcoded color maps and sector arrays.
+
+```typescript
+// artifacts/energy-tracker/src/config/technologyConfig.ts
+
+export const TECHNOLOGY_SECTORS = [
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Grid Expansion", "Battery & Storage", "Hydrogen",
+  "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+] as const;
+
+export type TechnologySector = typeof TECHNOLOGY_SECTORS[number];
+
+// Colors for charts, maps, legends, badges
+export const TECHNOLOGY_COLORS: Record<TechnologySector, string> = {
+  "Solar":             "#F59E0B",
+  "Wind":              "#10B981",
+  "Hydro":             "#3B82F6",
+  "Geothermal":        "#DC2626",
+  "Oil & Gas":         "#6B7280",
+  "Grid Expansion":    "#8B5CF6",
+  "Battery & Storage": "#EC4899",
+  "Hydrogen":          "#06B6D4",
+  "Nuclear":           "#7C3AED",
+  "Bioenergy":         "#84CC16",
+  "Clean Cooking":     "#F97316",
+  "Coal":              "#1F2937",
+};
+
+// Tailwind bg classes for badges/pills (used in deal cards, filters, etc.)
+export const TECHNOLOGY_BG_CLASSES: Record<TechnologySector, string> = {
+  "Solar":             "bg-amber-100 text-amber-800",
+  "Wind":              "bg-emerald-100 text-emerald-800",
+  "Hydro":             "bg-blue-100 text-blue-800",
+  "Geothermal":        "bg-red-100 text-red-800",
+  "Oil & Gas":         "bg-gray-100 text-gray-800",
+  "Grid Expansion":    "bg-purple-100 text-purple-800",
+  "Battery & Storage": "bg-pink-100 text-pink-800",
+  "Hydrogen":          "bg-cyan-100 text-cyan-800",
+  "Nuclear":           "bg-violet-100 text-violet-800",
+  "Bioenergy":         "bg-lime-100 text-lime-800",
+  "Clean Cooking":     "bg-orange-100 text-orange-800",
+  "Coal":              "bg-gray-200 text-gray-900",
+};
+
+// Short labels for chart legends when space is tight
+export const TECHNOLOGY_SHORT_LABELS: Record<TechnologySector, string> = {
+  "Solar":             "Solar",
+  "Wind":              "Wind",
+  "Hydro":             "Hydro",
+  "Geothermal":        "Geothermal",
+  "Oil & Gas":         "Oil & Gas",
+  "Grid Expansion":    "Grid",
+  "Battery & Storage": "Storage",
+  "Hydrogen":          "H₂",
+  "Nuclear":           "Nuclear",
+  "Bioenergy":         "Bio",
+  "Clean Cooking":     "Cooking",
+  "Coal":              "Coal",
+};
+
+// Helper: get color for any technology string (with fallback)
+export function getTechColor(tech: string): string {
+  return TECHNOLOGY_COLORS[tech as TechnologySector] ?? "#9CA3AF";
+}
+
+// Helper: get badge class for any technology string (with fallback)
+export function getTechBadgeClass(tech: string): string {
+  return TECHNOLOGY_BG_CLASSES[tech as TechnologySector] ?? "bg-gray-100 text-gray-800";
+}
+```
+
+---
+
+## Task 2: Update Each Frontend Page
+
+For EVERY file listed below, find all hardcoded technology arrays, color maps, and filter lists, and replace them with imports from `technologyConfig.ts`. Remove ALL references to `"Grid & Storage"`.
+
+### Files to update (search the entire `artifacts/energy-tracker/src/` tree):
+
+#### 2a. `pages/dashboard.tsx` — Main Dashboard
+- **Find:** Any hardcoded color map like `{ Solar: "#...", Wind: "#...", "Grid & Storage": "#..." }`
+- **Replace with:** `import { TECHNOLOGY_COLORS, getTechColor } from '../config/technologyConfig'`
+- **Find:** The sector distribution chart (likely a pie/donut/bar chart using recharts)
+- **Ensure:** It shows ALL sectors returned by `/api/stats/by-technology`, using colors from `TECHNOLOGY_COLORS`
+- **Find:** Any sector filter buttons or pills on the dashboard
+- **Ensure:** They list all 12 sectors (or dynamically render whatever the API returns)
+- **CRITICAL:** The dashboard landing currently only shows 6 of 9 sectors. It must show ALL sectors present in the database. If the chart component limits to top N sectors, increase N or remove the limit.
+
+#### 2b. `pages/map.tsx` — Map View
+- **Find:** The map legend and marker color logic
+- **Replace:** Use `getTechColor(project.technology)` for marker colors
+- **Find:** Any hardcoded legend entries listing sectors
+- **Replace:** Generate legend dynamically from `TECHNOLOGY_SECTORS` or from actual data
+
+#### 2c. `pages/deal-tracker.tsx` — Deal Listing
+- **Find:** Technology filter dropdown or sidebar filter
+- **Replace:** Use `TECHNOLOGY_SECTORS` array for filter options
+- **Find:** Technology badge/pill rendering on each deal card
+- **Replace:** Use `getTechBadgeClass(deal.technology)` for styling
+
+#### 2d. `pages/discovery.tsx` — AI Discovery Page
+- **Find:** Any sector selection for the AI scraper configuration
+- **Replace:** Use `TECHNOLOGY_SECTORS` array
+- **Find:** Any normalization or mapping functions
+- **Replace:** Ensure they map to the new 12-sector taxonomy
+
+#### 2e. `pages/deal-detail.tsx` — Individual Deal Page
+- **Find:** Technology badge rendering
+- **Replace:** Use `getTechBadgeClass()` and `getTechColor()`
+
+#### 2f. `pages/country-profile.tsx` — Country Profile
+- **Find:** Technology breakdown chart/section
+- **Replace:** Use `TECHNOLOGY_COLORS` for chart colors
+- **Ensure:** All sectors present in that country's data are displayed
+
+#### 2g. `pages/countries.tsx` — Countries Listing
+- **Find:** Any technology stats or filters
+- **Replace:** Use centralized config
+
+#### 2h. `pages/developer-profile.tsx` — Developer Profile
+- **Find:** Technology portfolio breakdown
+- **Replace:** Use centralized config
+
+#### 2i. `pages/developers-matrix.tsx` — Developer Matrix
+- **Find:** Technology column headers or filters
+- **Replace:** Use `TECHNOLOGY_SECTORS`
+
+#### 2j. `pages/embed-deals.tsx` — Embeddable Widget
+- **Find:** All hardcoded sector colors/filters (this must also use the central config since it's an external-facing widget)
+
+#### 2k. `components/ai-assistant.tsx` — AI Chat Assistant
+- **Find:** Any hardcoded sector references in the system prompt or classification logic
+- **Replace:** Reference the 12-sector taxonomy
+- **Find:** Any mentions of "Grid & Storage"
+- **Replace:** With "Grid Expansion" and "Battery & Storage"
+
+#### 2l. `components/seo-meta.tsx` — SEO Metadata
+- **Find:** Any meta description or structured data referencing old sectors
+- **Replace:** Update to reflect new taxonomy
+
+#### 2m. `plugins/bot-prerender.ts` — Bot/SEO Prerender
+- **Find:** Any sector references
+- **Replace:** Use new taxonomy
+
+---
+
+## Task 3: Update API Server
+
+#### 3a. `artifacts/api-server/src/routes/projects.ts`
+- **Find:** `const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];`
+- **Replace with:**
+```typescript
+const VALID_TECHNOLOGIES = [
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Grid Expansion", "Battery & Storage", "Hydrogen",
+  "Nuclear", "Bioenergy", "Clean Cooking", "Coal"
+];
+```
+
+#### 3b. `artifacts/api-server/src/routes/nlq.ts` — Natural Language Query
+- **Find:** Any sector references in the NLQ prompt or mapping
+- **Replace:** Use the 12-sector taxonomy
+- **Ensure:** The NLQ system prompt tells the AI about all 12 sectors so it can correctly parse user queries like "show me all grid projects" → `technology = 'Grid Expansion'` or "storage projects" → `technology = 'Battery & Storage'`
+
+---
+
+## Task 4: Search-and-Destroy All "Grid & Storage" References
+
+Run a global search across the ENTIRE codebase for these exact strings and replace every occurrence:
+
+| Find | Replace With | Context |
+|---|---|---|
+| `"Grid & Storage"` | Remove and add BOTH `"Grid Expansion"` and `"Battery & Storage"` | In arrays, filter lists, switch cases |
+| `'Grid & Storage'` | Same as above | Single-quoted variants |
+| `Grid & Storage` | Context-dependent | In comments, update to note the split |
+| Any color assigned to `"Grid & Storage"` | Split into two entries: `"Grid Expansion": "#8B5CF6"` and `"Battery & Storage": "#EC4899"` | Color maps |
+
+**Verification:** After all changes, run this in terminal:
+```bash
+grep -r "Grid & Storage" artifacts/ --include="*.ts" --include="*.tsx"
+```
+This should return ZERO results.
+
+---
+
+## Task 5: Verify the Landing Page Shows All 9 Sectors
+
+The landing page (`dashboard.tsx` or whichever is the `/` route) currently only shows 6 of 9 sectors in the technology breakdown. After your changes:
+
+1. The technology distribution chart must show all 9 sectors: Solar (69), Oil & Gas (26), Hydro (23), Grid Expansion (13), Wind (13), Battery & Storage (5), Bioenergy (4), Coal (2), Hydrogen (1)
+2. The summary stats should show: 156 total projects, $115.4B total investment, 40 countries
+3. Each sector must have a distinct color (no duplicates, no missing)
+4. Filter dropdowns must list all 12 canonical sectors (including future ones with 0 projects)
+
+---
+
+## Task 6: Fix the Review Auth Bug (Backend)
+
+In `artifacts/api-server/src/middleware/reviewAuth.ts` (or wherever the review authentication middleware lives):
+
+- **Find:** The role-checking logic that gates `/api/review/*` endpoints
+- **Bug:** The user's role is stored as `"ADMIN"` (uppercase) in the database, but the middleware checks for lowercase `"admin"` or `"reviewer"`. This causes 403 "Reviewer access required" errors for admin users.
+- **Fix:** Normalize the role comparison to be case-insensitive:
+```typescript
+// Before (broken):
+if (user.role !== 'admin' && user.role !== 'reviewer') {
+  return res.status(403).json({ error: 'Reviewer access required' });
+}
+
+// After (fixed):
+const role = (user.role || '').toUpperCase();
+if (role !== 'ADMIN' && role !== 'REVIEWER') {
+  return res.status(403).json({ error: 'Reviewer access required' });
+}
+```
+
+---
+
+## Summary Checklist
+
+After completing all tasks, verify:
+
+- [ ] New file `technologyConfig.ts` exists and is imported by all pages
+- [ ] `grep -r "Grid & Storage" artifacts/` returns zero results
+- [ ] Dashboard shows all 9 active sectors with correct colors
+- [ ] Map legend shows all sectors with distinct colors
+- [ ] Deal tracker filter dropdown lists all 12 sectors
+- [ ] Country profiles show correct technology breakdowns
+- [ ] API `VALID_TECHNOLOGIES` array has all 12 sectors
+- [ ] NLQ prompt references all 12 sectors
+- [ ] Review auth middleware uses case-insensitive role comparison
+- [ ] No TypeScript compilation errors (`npx tsc --noEmit`)
+- [ ] App builds successfully (`npm run build`)

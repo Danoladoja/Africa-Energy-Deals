@@ -5,7 +5,11 @@ import { ilike, and, gte, lte, eq, sql, desc, isNotNull } from "drizzle-orm";
 const router: IRouter = Router();
 
 // Valid technology categories (canonical sectors)
-const VALID_TECHNOLOGIES = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];
+const VALID_TECHNOLOGIES = [
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Grid Expansion", "Battery & Storage", "Hydrogen",
+  "Nuclear", "Bioenergy", "Clean Cooking", "Coal",
+];
 
 // Valid deal stages
 const VALID_DEAL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned", "Suspended"];

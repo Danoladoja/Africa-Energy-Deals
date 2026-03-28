@@ -9,21 +9,13 @@ import {
   Download, ArrowRight, X, ChevronDown, Shield, Landmark, Briefcase, HelpCircle,
 } from "lucide-react";
 import { exportToPng } from "@/utils/export-utils";
+import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#facc15",
-  "Wind":           "#38bdf8",
-  "Hydro":          "#22d3ee",
-  "Grid & Storage": "#a78bfa",
-  "Oil & Gas":      "#f87171",
-  "Coal":           "#6b7280",
-  "Nuclear":        "#fb923c",
-  "Bioenergy":      "#4ade80",
-};
+const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 
-const ALL_SECTORS = ["Solar", "Wind", "Hydro", "Grid & Storage", "Oil & Gas", "Coal", "Nuclear", "Bioenergy"];
+const ALL_SECTORS = [...TECHNOLOGY_SECTORS];
 const ALL_REGIONS = ["North Africa", "West Africa", "East Africa", "Central Africa", "Southern Africa"];
 
 const STAGE_COLORS: Record<string, string> = {

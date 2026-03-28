@@ -6,6 +6,7 @@ import {
   MessageSquare, RotateCcw, ExternalLink,
 } from "lucide-react";
 import type { NlqProject } from "./nlq-search-bar";
+import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 
 const BASE = "/api";
 
@@ -24,11 +25,7 @@ function fmt(mn: number | null | undefined) {
   return `$${mn.toFixed(0)}M`;
 }
 
-const SECTOR_COLORS: Record<string, string> = {
-  Solar: "#facc15", Wind: "#38bdf8", Hydro: "#22d3ee",
-  "Grid & Storage": "#a78bfa", "Oil & Gas": "#f87171",
-  Coal: "#6b7280", Nuclear: "#fb923c", Bioenergy: "#4ade80",
-};
+const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 
 type Message =
   | { role: "user"; text: string }

@@ -9,21 +9,13 @@ import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
 import { NlqSearchBar } from "@/components/nlq-search-bar";
 import { SEOMeta, organizationSchema, websiteSchema } from "@/components/seo-meta";
+import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
   "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/africa.geojson";
 
-const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#facc15",
-  "Wind":           "#38bdf8",
-  "Hydro":          "#22d3ee",
-  "Grid & Storage": "#a78bfa",
-  "Oil & Gas":      "#f87171",
-  "Coal":           "#6b7280",
-  "Nuclear":        "#fb923c",
-  "Bioenergy":      "#4ade80",
-};
+const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 
 const COUNTRY_FLAGS: Record<string, string> = {
   "South Africa": "🇿🇦", "Nigeria": "🇳🇬", "Kenya": "🇰🇪", "Egypt": "🇪🇬",
@@ -501,7 +493,7 @@ export default function Landing() {
               <ul className="space-y-3 text-sm text-white/70">
                 {[
                   "52 African countries across all major regions",
-                  "8 sector types: Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear & Bioenergy",
+                  "12 sector types: Solar, Wind, Hydro, Geothermal, Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Nuclear, Bioenergy, Clean Cooking, Coal",
                   "Projects ranging from early development to fully operational",
                   "Deal sizes from $10M to multi-billion dollar programmes",
                 ].map(item => (

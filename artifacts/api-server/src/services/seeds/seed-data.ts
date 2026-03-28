@@ -209,7 +209,7 @@ export const SEED_PROJECTS: SeedProject[] = [
   // ── NAMIBIA (6 projects) ────────────────────────────────────────────────────
   {
     projectName: "Hyphen Green Hydrogen Project",
-    country: "Namibia", region: "Southern Africa", technology: "Grid & Storage",
+    country: "Namibia", region: "Southern Africa", technology: "Hydrogen",
     status: "Development", dealSizeUsdMn: 10000, capacityMw: 5000,
     announcedYear: 2021,
     developer: "Hyphen Hydrogen Energy",
@@ -220,7 +220,7 @@ export const SEED_PROJECTS: SeedProject[] = [
   },
   {
     projectName: "Daures Green Hydrogen Hub",
-    country: "Namibia", region: "Southern Africa", technology: "Grid & Storage",
+    country: "Namibia", region: "Southern Africa", technology: "Hydrogen",
     status: "Development", dealSizeUsdMn: 4600, capacityMw: 3000,
     announcedYear: 2022,
     developer: "Enertrag / Namibia Green Hydrogen",
@@ -507,7 +507,7 @@ export const SEED_PROJECTS: SeedProject[] = [
   // ── MAURITANIA (2 additional projects) ─────────────────────────────────────
   {
     projectName: "AMAN Green Hydrogen Project",
-    country: "Mauritania", region: "West Africa", technology: "Grid & Storage",
+    country: "Mauritania", region: "West Africa", technology: "Hydrogen",
     status: "Development", dealSizeUsdMn: 40000, capacityMw: 30000,
     announcedYear: 2021,
     developer: "CWP Global / Mauritanian Government",
@@ -623,7 +623,7 @@ export const SEED_PROJECTS: SeedProject[] = [
   },
   {
     projectName: "Sudan Power Sector Rehabilitation",
-    country: "Sudan", region: "North Africa", technology: "Grid & Storage",
+    country: "Sudan", region: "North Africa", technology: "Grid Expansion",
     status: "Development", dealSizeUsdMn: 230, capacityMw: null,
     announcedYear: 2022,
     developer: "Ministry of Energy / SEDC",

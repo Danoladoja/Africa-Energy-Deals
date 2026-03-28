@@ -34,7 +34,7 @@ Extract structured search filters from the user's query. Return ONLY valid JSON 
 }
 
 VALID FIELD VALUES:
-- technology: "Solar" | "Wind" | "Hydro" | "Grid & Storage" | "Oil & Gas" | "Coal" | "Nuclear" | "Bioenergy"
+- technology: "Solar" | "Wind" | "Hydro" | "Geothermal" | "Oil & Gas" | "Grid Expansion" | "Battery & Storage" | "Hydrogen" | "Nuclear" | "Bioenergy" | "Clean Cooking" | "Coal"
 - region: "West Africa" | "East Africa" | "North Africa" | "Southern Africa" | "Central Africa"
 - country: "Rwanda" | "Nigeria" | "Kenya" | "Mozambique" | "Senegal" | "Mauritania" | "Morocco" | "Ethiopia" | "South Africa" | "Uganda" | "Zambia" | "Egypt" | "Cameroon" | "DRC" | "Côte d'Ivoire" | "Ghana" | "Tanzania" | "Madagascar" | "Cape Verde" | "Benin" | "Mali" | "Zimbabwe" | "Malawi"
 - status: "Announced" | "Construction" | "Operational" | "Financed" | "Commissioned"
@@ -52,7 +52,11 @@ CONVERSION RULES:
 - Only filter on what is explicitly mentioned; leave others null
 - "renewable" or "clean energy" → do NOT set technology (multiple types apply)
 - "fossil" or "oil" → technology = "Oil & Gas"
-- "grid" or "storage" or "battery" → technology = "Grid & Storage"
+- "grid" or "transmission" or "interconnect" → technology = "Grid Expansion"
+- "storage" or "battery" or "bess" → technology = "Battery & Storage"
+- "hydrogen" or "h2" or "electrolyzer" or "ammonia" → technology = "Hydrogen"
+- "geothermal" → technology = "Geothermal"
+- "clean cooking" or "cookstove" or "bioethanol" → technology = "Clean Cooking"
 - "hydro" or "dam" → technology = "Hydro"
 
 Return ONLY the JSON object.`;

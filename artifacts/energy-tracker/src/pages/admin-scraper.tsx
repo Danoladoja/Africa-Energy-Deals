@@ -84,14 +84,18 @@ interface RunProgress {
 type ReviewAction = "approve" | "reject";
 
 const TECH_COLORS: Record<string, string> = {
-  Solar: "text-amber-400 bg-amber-400/10",
-  Wind: "text-blue-400 bg-blue-400/10",
-  Hydro: "text-cyan-400 bg-cyan-400/10",
-  "Grid & Storage": "text-purple-400 bg-purple-400/10",
-  "Oil & Gas": "text-orange-400 bg-orange-400/10",
-  Coal: "text-stone-400 bg-stone-400/10",
-  Nuclear: "text-red-400 bg-red-400/10",
-  Bioenergy: "text-green-400 bg-green-400/10",
+  Solar:               "text-amber-400 bg-amber-400/10",
+  Wind:                "text-blue-400 bg-blue-400/10",
+  Hydro:               "text-cyan-400 bg-cyan-400/10",
+  Geothermal:          "text-red-400 bg-red-400/10",
+  "Oil & Gas":         "text-orange-400 bg-orange-400/10",
+  "Grid Expansion":    "text-purple-400 bg-purple-400/10",
+  "Battery & Storage": "text-pink-400 bg-pink-400/10",
+  Hydrogen:            "text-sky-400 bg-sky-400/10",
+  Nuclear:             "text-violet-400 bg-violet-400/10",
+  Bioenergy:           "text-green-400 bg-green-400/10",
+  "Clean Cooking":     "text-amber-300 bg-amber-300/10",
+  Coal:                "text-stone-400 bg-stone-400/10",
 };
 
 function ConfidenceBadge({ score }: { score: number | null }) {

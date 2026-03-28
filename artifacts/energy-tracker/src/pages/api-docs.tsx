@@ -28,7 +28,7 @@ const ENDPOINTS: Endpoint[] = [
     params: [
       { name: "country",     type: "string",  desc: "Filter by country (partial match)",             example: "Nigeria" },
       { name: "region",      type: "string",  desc: "East Africa | West Africa | North Africa | Southern Africa | Central Africa" },
-      { name: "technology",  type: "string",  desc: "Solar | Wind | Hydro | Grid & Storage | Oil & Gas | Coal | Nuclear | Bioenergy", example: "Solar" },
+      { name: "technology",  type: "string",  desc: "Solar | Wind | Hydro | Geothermal | Oil & Gas | Grid Expansion | Battery & Storage | Hydrogen | Nuclear | Bioenergy | Clean Cooking | Coal", example: "Solar" },
       { name: "dealStage",   type: "string",  desc: "Announced | Mandated | Financial Close | Construction | Commissioned | Suspended" },
       { name: "minDealSize", type: "number",  desc: "Minimum deal size in USD millions",            example: "100" },
       { name: "maxDealSize", type: "number",  desc: "Maximum deal size in USD millions",            example: "5000" },

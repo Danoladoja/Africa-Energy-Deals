@@ -14,19 +14,11 @@ import {
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta } from "@/components/seo-meta";
+import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 
 const API = "/api";
 
-const SECTOR_COLORS: Record<string, string> = {
-  "Solar":          "#facc15",
-  "Wind":           "#38bdf8",
-  "Hydro":          "#22d3ee",
-  "Grid & Storage": "#a78bfa",
-  "Oil & Gas":      "#f87171",
-  "Coal":           "#6b7280",
-  "Nuclear":        "#fb923c",
-  "Bioenergy":      "#4ade80",
-};
+const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 const FALLBACK_COLOR = "#94a3b8";
 
 function fmt(mn: number | null | undefined): string {
