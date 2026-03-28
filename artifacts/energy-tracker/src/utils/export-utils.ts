@@ -6,6 +6,20 @@ const DATE_LONG = () =>
   new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const FOOTER = `Source: AfriEnergy Tracker (afrienergytracker.io) · Data as of ${TODAY()}`;
 
+/* ── Reliable blob download (works in all browsers / async contexts) ─────── */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 150);
+}
+
 /* ── Canvas capture ─────────────────────────────────────────────────────── */
 export async function captureToCanvas(
   el: HTMLElement,
@@ -138,7 +152,7 @@ export async function exportImageToPdf(
   doc.text(FOOTER, M, H - 4);
   doc.text("Page 1", W - M, H - 4, { align: "right" });
 
-  doc.save(filename);
+  triggerBlobDownload(doc.output("blob"), filename);
 }
 
 /* ── Single-image PPTX (16:9 widescreen) ───────────────────────────────── */

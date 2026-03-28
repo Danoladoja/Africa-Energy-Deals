@@ -1,0 +1,46 @@
+There are still 2 export issues to fix:
+
+1. **Dashboard PDF download doesn't trigger** — The Dashboard page's "PDF Report" button generates a 62KB PDF blob in memory but never downloads the file. The Deals page exports were fixed correctly using the downloadBlob() pattern, but the Dashboard PDF handler still uses jsPDF's .save() method which doesn't trigger a download. Find the Dashboard PDF export handler and replace doc.save() with:
+
+   const pdfBlob = doc.output('blob');
+   downloadBlob(pdfBlob, 'afrienergy-dashboard-report.pdf');
+
+   Make sure it imports the shared downloadBlob utility.
+
+2. **html2canvas is not loading at runtime** — ALL PNG screenshot exports fail silently across every page (Dashboard, Map, Countries, Developers, Studio). The html2canvas library appears in the export-utils chunk but is not actually available when the export functions run. This is likely because:
+   - html2canvas might be in devDependencies instead of dependencies
+   - The dynamic import might be failing silently
+
+   Fix:
+   a. Make sure html2canvas is in "dependencies" (not "devDependencies") in package.json
+   b. In the export utility file, use a STATIC import instead of dynamic:
+      Change: const html2canvas = (await import('html2canvas')).default;
+      To: import html2canvas from 'html2canvas';
+   c. After changing to static import, rebuild the app
+   d. Test by clicking "PNG Screenshot" on the Dashboard — it should create and download a PNG file
+
+   The Countries PDF and Developers PDF also depend on html2canvas (they render the page to canvas first, then convert to PDF), so fixing html2canvas will fix those too.
+
+After fixing, test these specific buttons:
+- Dashboard → Export → PDF Report (should download a PDF)
+- Dashboard → Export → PNG Screenshot (should download a PNG)
+- Map → Export → Download PNG (should download a PNG)
+- Countries → Export → Download PNG (should download a PNG)
+- Countries → Export → Download PDF (should download a PDF)
+- Developers → Export → Download PNG (should download a PNG)
+- Developers → Export → Download PDF (should download a PDF)
+- Studio → Download Chart (should download a PNG)
+```
+
+---
+
+## Also Still Open
+
+### reviewAuth.ts Role Case-Sensitivity Bug
+The `/review` page middleware checks for lowercase `"admin"` but the database stores `"ADMIN"`. Fix:
+```typescript
+const role = (user.role || '').toUpperCase();
+if (role !== 'ADMIN' && role !== 'REVIEWER') {
+  return res.status(403).json({ error: 'Reviewer access required' });
+}
+```

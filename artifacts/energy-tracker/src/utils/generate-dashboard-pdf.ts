@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { triggerBlobDownload } from "@/utils/export-utils";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 export interface PdfSectorRow {
@@ -345,7 +346,7 @@ export function generateDashboardPdf(data: DashboardPdfData): void {
   doc.setTextColor(...GREEN);
   doc.text(dateStr, W - MARGIN, 291, { align: "right" });
 
-  /* ── Save ── */
+  /* ── Download ── */
   const fileName = `afrienergy-market-overview-${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(fileName);
+  triggerBlobDownload(doc.output("blob"), fileName);
 }
