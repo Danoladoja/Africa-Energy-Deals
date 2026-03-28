@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth";
 import { AuthProvider, useAuth } from "@/contexts/auth";
+import { ThemeProvider } from "@/contexts/theme";
 import { AdminLockScreen } from "@/components/admin-lock-screen";
 import { Layout } from "@/components/layout";
 
@@ -232,6 +233,7 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
+      <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
@@ -245,6 +247,7 @@ function App() {
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
