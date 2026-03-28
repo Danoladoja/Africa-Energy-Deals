@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useChartTheme } from "@/hooks/useChartTheme";
 import {
   useGetStatsByCountry,
   useGetStatsByTechnology,
@@ -31,10 +32,11 @@ function formatValue(value: number, metric: Metric) {
 }
 
 function CustomTooltip({ active, payload, label, metric }: { active?: boolean; payload?: any[]; label?: string; metric: Metric }) {
+  const ct = useChartTheme();
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 14px", borderRadius: "10px" }}>
-        <p style={{ margin: "0 0 4px", fontSize: "12px", color: "#94a3b8" }}>{label ?? payload[0]?.name}</p>
+      <div style={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, padding: "10px 14px", borderRadius: "10px" }}>
+        <p style={{ margin: "0 0 4px", fontSize: "12px", color: ct.tooltipText }}>{label ?? payload[0]?.name}</p>
         <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#00e676" }}>
           {formatValue(payload[0].value, metric)}
         </p>
@@ -52,15 +54,13 @@ function getCellColor(item: Record<string, unknown>, nameKey: string, index: num
   return COLORS[index % COLORS.length];
 }
 
-const MF = "#334155";
-const MUTED = "#64748b";
-
 function ChartRenderer({ chartType, data, nameKey, metric }: {
   chartType: ChartType;
   data: Record<string, unknown>[];
   nameKey: string;
   metric: Metric;
 }) {
+  const ct = useChartTheme();
   const tooltip = <CustomTooltip metric={metric} />;
   const cells = data.map((entry, i) => <Cell key={i} fill={getCellColor(entry, nameKey, i)} />);
 
@@ -68,25 +68,25 @@ function ChartRenderer({ chartType, data, nameKey, metric }: {
     <ResponsiveContainer width="100%" height="100%">
       {chartType === "bar" ? (
         <BarChart data={data} margin={{ top: 16, right: 20, left: 10, bottom: 70 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={MF} vertical={false} />
-          <XAxis dataKey={nameKey} stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
-          <YAxis stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
-          <Tooltip content={tooltip} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} vertical={false} />
+          <XAxis dataKey={nameKey} stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
+          <YAxis stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
+          <Tooltip content={tooltip} cursor={{ fill: ct.cursorFill }} />
           <Bar dataKey={metric} radius={[5, 5, 0, 0]}>{cells}</Bar>
         </BarChart>
       ) : chartType === "horizontal-bar" ? (
         <BarChart data={data} layout="vertical" margin={{ top: 10, right: 60, left: 10, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={MF} horizontal={false} />
-          <XAxis type="number" stroke={MUTED} fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatValue(v, metric)} />
-          <YAxis type="category" dataKey={nameKey} stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} width={130} tickLine={false} axisLine={false} />
-          <Tooltip content={tooltip} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
+          <XAxis type="number" stroke={ct.tickColor} fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatValue(v, metric)} />
+          <YAxis type="category" dataKey={nameKey} stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} width={130} tickLine={false} axisLine={false} />
+          <Tooltip content={tooltip} cursor={{ fill: ct.cursorFill }} />
           <Bar dataKey={metric} radius={[0, 5, 5, 0]} maxBarSize={24}>{cells}</Bar>
         </BarChart>
       ) : chartType === "line" ? (
         <LineChart data={data} margin={{ top: 16, right: 20, left: 10, bottom: 70 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={MF} />
-          <XAxis dataKey={nameKey} stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
-          <YAxis stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
+          <XAxis dataKey={nameKey} stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
+          <YAxis stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
           <Tooltip content={tooltip} />
           <Line type="monotone" dataKey={metric} stroke="#00e676" strokeWidth={2} dot={{ r: 4, fill: "#0b0f1a", strokeWidth: 2, stroke: "#00e676" }} />
         </LineChart>
@@ -98,9 +98,9 @@ function ChartRenderer({ chartType, data, nameKey, metric }: {
               <stop offset="95%" stopColor="#00e676" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke={MF} />
-          <XAxis dataKey={nameKey} stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
-          <YAxis stroke={MUTED} tick={{ fill: MUTED, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
+          <XAxis dataKey={nameKey} stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} angle={-35} textAnchor="end" height={70} interval={0} />
+          <YAxis stroke={ct.tickColor} tick={{ fill: ct.tickColor, fontSize: 10 }} tickFormatter={(v) => formatValue(v, metric)} width={70} />
           <Tooltip content={tooltip} />
           <Area type="monotone" dataKey={metric} stroke="#00e676" strokeWidth={2} fill="url(#aG)" />
         </AreaChart>
@@ -115,7 +115,7 @@ function ChartRenderer({ chartType, data, nameKey, metric }: {
             {cells}
           </Pie>
           <Tooltip content={tooltip} />
-          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px", paddingTop: "6px", color: MUTED }} />
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px", paddingTop: "6px", color: ct.legendColor }} />
         </PieChart>
       )}
     </ResponsiveContainer>

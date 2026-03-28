@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useChartTheme } from "@/hooks/useChartTheme";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -63,6 +64,7 @@ function entityMatchesProject(entityName: string, project: Project): boolean {
 }
 
 export default function DeveloperProfile() {
+  const ct = useChartTheme();
   const { entityName } = useParams<{ entityName: string }>();
   const [, navigate] = useLocation();
   const [sortKey, setSortKey] = useState<SortKey>("dealSizeUsdMn");
@@ -304,10 +306,10 @@ export default function DeveloperProfile() {
                     layout="vertical"
                     margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                    <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="country" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
-                    <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
+                    <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="country" tick={{ fill: ct.tickColorAlt, fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+                    <RechartsTooltip content={<BarTooltip />} cursor={{ fill: ct.cursorFill }} />
                     <Bar dataKey="investment" fill="#00e676" radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

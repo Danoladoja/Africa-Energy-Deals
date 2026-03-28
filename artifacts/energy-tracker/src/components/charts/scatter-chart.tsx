@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { useLocation } from "wouter";
 import { SECTOR_COLORS, REGION_COLORS, STATUS_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
+import { useChartTheme } from "@/hooks/useChartTheme";
 
 export type ScatterXMetric = "capacityMw" | "dealSizeUsdMn" | "announcedYear" | "projectCount";
 export type ScatterYMetric = "dealSizeUsdMn" | "capacityMw" | "announcedYear" | "projectCount";
@@ -217,6 +218,7 @@ export function ScatterBubbleChart({
   showAverages: boolean;
   height?: number;
 }) {
+  const ct = useChartTheme();
   const [, navigate] = useLocation();
 
   const groups = useMemo(() => {
@@ -244,7 +246,7 @@ export function ScatterBubbleChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
         <XAxis
           type="number" dataKey="x" name={axisLabel(xField)}
           stroke="hsl(var(--muted-foreground))"
@@ -286,8 +288,8 @@ export function ScatterBubbleChart({
         />
         {showAverages && (
           <>
-            <ReferenceLine x={avgX} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
-            <ReferenceLine y={avgY} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
+            <ReferenceLine x={avgX} stroke={ct.referenceStroke} strokeDasharray="4 4" />
+            <ReferenceLine y={avgY} stroke={ct.referenceStroke} strokeDasharray="4 4" />
           </>
         )}
         {allGroups.map(([group, dots], idx) => (
@@ -297,7 +299,7 @@ export function ScatterBubbleChart({
             data={dots}
             fill={getColor(group, colorMap, idx)}
             fillOpacity={0.75}
-            stroke="rgba(255,255,255,0.3)"
+            stroke={ct.scatterDotStroke}
             strokeWidth={1}
             onClick={(dot: DotData) => {
               if (dataLevel === "project" && dot.id) {
