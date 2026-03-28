@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { useTheme } from "@/contexts/theme";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import {
@@ -321,6 +322,8 @@ function ToggleGroup({ label, value, options, onChange }: {
 }
 
 export default function VizStudio() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
 
   // Basic chart state
@@ -460,7 +463,7 @@ export default function VizStudio() {
     try {
       await new Promise(r => setTimeout(r, 150));
       const dataUrl = await toPng(ref.current, {
-        backgroundColor: "#0B0F19", pixelRatio: 2, cacheBust: true,
+        backgroundColor: isLight ? "#f1f5f9" : "#0B0F19", pixelRatio: 2, cacheBust: true,
         filter: (node: HTMLElement) => !node.dataset?.noExport,
       });
       const link = document.createElement("a");

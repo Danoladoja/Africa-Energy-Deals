@@ -67,10 +67,10 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ minHeight: "100vh", background: "#0b0f1a", color: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "16px", padding: "24px", textAlign: "center" }}>
+        <div className="min-h-screen bg-background text-foreground flex items-center justify-center flex-col gap-4 p-6 text-center">
           <div style={{ fontSize: "48px" }}>⚠️</div>
-          <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#f1f5f9" }}>Something went wrong</h1>
-          <p style={{ color: "#94a3b8", maxWidth: "480px", fontSize: "14px" }}>{this.state.error?.message}</p>
+          <h1 className="text-2xl font-bold">Something went wrong</h1>
+          <p className="text-muted-foreground max-w-md text-sm">{this.state.error?.message}</p>
           <button
             onClick={() => window.location.reload()}
             style={{ background: "#00e676", color: "#0b0f1a", border: "none", padding: "10px 28px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "14px" }}

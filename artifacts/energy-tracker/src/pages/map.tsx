@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "@/contexts/theme";
 import { GeoJSON, MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { GeoJsonObject } from "geojson";
@@ -191,6 +192,14 @@ function MapController({
 
 function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: string) => void }) {
   const color = SECTOR_COLORS[project.technology] ?? DEFAULT_COLOR;
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+  const statBg = isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.04)";
+  const statBorder = isLight ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.08)";
+  const investorsBg = isLight ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.03)";
+  const investorsBorder = isLight ? "1px solid rgba(0,0,0,0.07)" : "1px solid rgba(255,255,255,0.07)";
+  const textMuted = isLight ? "#374151" : "#cbd5e1";
+  const textLabel = isLight ? "#6b7280" : "#64748b";
   return (
     <div style={{ fontFamily: "inherit", minWidth: 270, maxWidth: 310 }}>
       <div style={{
@@ -209,50 +218,50 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
 
       <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>📍 {project.country}</span>
+          <span style={{ fontSize: 11, color: textLabel }}>📍 {project.country}</span>
           <span style={{
             fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-            background: "rgba(100,116,139,0.15)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)",
+            background: "rgba(100,116,139,0.15)", color: textLabel, border: "1px solid rgba(100,116,139,0.25)",
           }}>
             {project.dealStage ?? project.status}
           </span>
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Deal Size</div>
+          <div style={{ flex: 1, background: statBg, border: statBorder, borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: textLabel, marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Deal Size</div>
             <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace" }}>{fmt(project.dealSizeUsdMn)}</div>
           </div>
           {project.capacityMw != null && (
-            <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
-              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Capacity</div>
+            <div style={{ flex: 1, background: statBg, border: statBorder, borderRadius: 8, padding: "6px 10px" }}>
+              <div style={{ fontSize: 9, color: textLabel, marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Capacity</div>
               <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace" }}>
                 {project.capacityMw >= 1000 ? `${(project.capacityMw / 1000).toFixed(1)} GW` : `${project.capacityMw} MW`}
               </div>
             </div>
           )}
           {project.announcedYear != null && (
-            <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 10px" }}>
-              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</div>
+            <div style={{ flex: 1, background: statBg, border: statBorder, borderRadius: 8, padding: "6px 10px" }}>
+              <div style={{ fontSize: 9, color: textLabel, marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>{project.announcedYear}</div>
             </div>
           )}
         </div>
 
         {project.financingType && (
-          <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-            <span style={{ color: "#64748b" }}>Financing: </span>{project.financingType}
+          <div style={{ fontSize: 11, color: textMuted }}>
+            <span style={{ color: textLabel }}>Financing: </span>{project.financingType}
           </div>
         )}
         {project.developer && (
-          <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-            <span style={{ color: "#64748b" }}>Developer: </span>{project.developer}
+          <div style={{ fontSize: 11, color: textMuted }}>
+            <span style={{ color: textLabel }}>Developer: </span>{project.developer}
           </div>
         )}
         {project.investors && (
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Investors</div>
-            <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>{project.investors}</div>
+          <div style={{ background: investorsBg, border: investorsBorder, borderRadius: 8, padding: "6px 10px" }}>
+            <div style={{ fontSize: 9, color: textLabel, marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Investors</div>
+            <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.5 }}>{project.investors}</div>
           </div>
         )}
 
@@ -393,6 +402,8 @@ export default function MapPage() {
   const [, navigate] = useLocation();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  const { theme } = useTheme();
+  const isLight = theme === "light";
 
   const mapRef = useRef<L.Map | null>(null);
   const mapWrapRef = useRef<HTMLDivElement>(null);
@@ -495,13 +506,18 @@ export default function MapPage() {
     const name = feature.properties?.name as string;
     const stat = countryStatsMap[name];
 
+    const ttBg = isLight ? "#ffffff" : "#1e293b";
+    const ttBorder = isLight ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(255,255,255,0.12)";
+    const ttTitle = isLight ? "#0f172a" : "#f1f5f9";
+    const ttAccent = isLight ? "#0284c7" : "#60a5fa";
+    const ttMuted = isLight ? "#6b7280" : "#64748b";
     layer.bindTooltip(
-      `<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.12);padding:8px 12px;border-radius:10px;min-width:140px;font-family:inherit;pointer-events:none;">
-        <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">${name}</div>
+      `<div style="background:${ttBg};border:${ttBorder};padding:8px 12px;border-radius:10px;min-width:140px;font-family:inherit;pointer-events:none;">
+        <div style="font-size:13px;font-weight:700;color:${ttTitle};margin-bottom:4px;">${name}</div>
         ${stat
-          ? `<div style="font-size:12px;color:#60a5fa;font-weight:600;font-family:monospace;">${fmt(stat.totalInvestmentUsdMn)}</div>
-             <div style="font-size:11px;color:#64748b;margin-top:2px;">${stat.projectCount} project${stat.projectCount !== 1 ? "s" : ""}</div>`
-          : `<div style="font-size:11px;color:#475569;">No data tracked</div>`}
+          ? `<div style="font-size:12px;color:${ttAccent};font-weight:600;font-family:monospace;">${fmt(stat.totalInvestmentUsdMn)}</div>
+             <div style="font-size:11px;color:${ttMuted};margin-top:2px;">${stat.projectCount} project${stat.projectCount !== 1 ? "s" : ""}</div>`
+          : `<div style="font-size:11px;color:${ttMuted};">No data tracked</div>`}
       </div>`,
       { sticky: true, className: "leaflet-choropleth-tooltip", offset: [14, 0] }
     );
@@ -512,11 +528,11 @@ export default function MapPage() {
       const dbName = GEO_TO_DB[name] ?? name;
       navigateRef.current(`/countries/${encodeURIComponent(dbName)}`);
     });
-  }, [countryStatsMap]);
+  }, [countryStatsMap, isLight]);
 
   const geoKey = useMemo(
-    () => `geo-${Object.keys(countryStatsMap).length}`,
-    [countryStatsMap]
+    () => `geo-${Object.keys(countryStatsMap).length}-${isLight ? "light" : "dark"}`,
+    [countryStatsMap, isLight]
   );
 
   const showChoropleth = layerMode === "both" || layerMode === "choropleth";
