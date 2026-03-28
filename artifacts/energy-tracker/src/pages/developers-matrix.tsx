@@ -1,5 +1,4 @@
 import { useState, useRef, useMemo } from "react";
-import { useChartTheme } from "@/hooks/useChartTheme";
 import { useLocation } from "wouter";
 import {
   PieChart, Pie, Cell as PieCell,
@@ -180,8 +179,8 @@ export function extractMatrixEntities(projects: Project[]): MatrixEntityRow[] {
 
 // ── Helper: heat color ───────────────────────────────────────────────────────
 
-function heatColor(value: number, max: number, emptyFill: string): string {
-  if (!value || !max) return emptyFill;
+function heatColor(value: number, max: number): string {
+  if (!value || !max) return "rgba(255,255,255,0.02)";
   const t = Math.min(value / max, 1);
   const r = Math.round(0 + t * 0);
   const g = Math.round(230 * t);
@@ -198,7 +197,6 @@ const TOP_PAD = 64;
 const MAX_R = 22;
 
 function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
-  const ct = useChartTheme();
   const [tooltip, setTooltip] = useState<{
     investor: string; sector: string; inv: number; count: number;
     x: number; y: number;
@@ -239,7 +237,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
           const cx = LEFT_PAD + si * CELL_W + CELL_W / 2;
           return (
             <g key={sec}>
-              <text x={cx} y={TOP_PAD - 36} textAnchor="middle" fill={ct.matrixAxisText} fontSize={11} fontWeight={600}>
+              <text x={cx} y={TOP_PAD - 36} textAnchor="middle" fill="#94a3b8" fontSize={11} fontWeight={600}>
                 {sec.replace(" & ", "/").replace("Grid/Storage", "Grid")}
               </text>
               <circle cx={cx} cy={TOP_PAD - 20} r={5} fill={SECTOR_COLORS[sec] ?? "#94a3b8"} opacity={0.8} />
@@ -252,7 +250,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
           return (
             <g key={entity.name}>
               {/* Row label */}
-              <text x={LEFT_PAD - 10} y={cy + 4} textAnchor="end" fill={ct.matrixLabelText} fontSize={11}>
+              <text x={LEFT_PAD - 10} y={cy + 4} textAnchor="end" fill="#cbd5e1" fontSize={11}>
                 {entity.name.length > 18 ? entity.name.slice(0, 17) + "…" : entity.name}
               </text>
 
@@ -260,7 +258,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
               <line
                 x1={LEFT_PAD} y1={TOP_PAD + ei * CELL_H}
                 x2={LEFT_PAD + ALL_SECTORS.length * CELL_W} y2={TOP_PAD + ei * CELL_H}
-                stroke={ct.matrixGridStroke} strokeWidth={1}
+                stroke="rgba(255,255,255,0.04)" strokeWidth={1}
               />
 
               {/* Bubbles */}
@@ -305,7 +303,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
             key={si}
             x1={LEFT_PAD + si * CELL_W} y1={TOP_PAD - 8}
             x2={LEFT_PAD + si * CELL_W} y2={TOP_PAD + top15.length * CELL_H}
-            stroke={ct.matrixGridStroke} strokeWidth={1}
+            stroke="rgba(255,255,255,0.04)" strokeWidth={1}
           />
         ))}
       </svg>
@@ -327,9 +325,9 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
       <div className="flex items-center gap-6 mt-3 px-2 flex-wrap">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <svg width="40" height="16">
-            <circle cx={8} cy={8} r={4} fill={ct.matrixAxisText} opacity={0.35} />
-            <circle cx={22} cy={8} r={7} fill={ct.matrixAxisText} opacity={0.55} />
-            <circle cx={36} cy={8} r={10} fill={ct.matrixAxisText} opacity={0.85} />
+            <circle cx={8} cy={8} r={4} fill="#94a3b8" opacity={0.35} />
+            <circle cx={22} cy={8} r={7} fill="#94a3b8" opacity={0.55} />
+            <circle cx={36} cy={8} r={10} fill="#94a3b8" opacity={0.85} />
           </svg>
           Bubble size = investment · Opacity = deal count
         </div>
@@ -341,7 +339,6 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
 // ── Geography × Investor Heatmap ─────────────────────────────────────────────
 
 function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
-  const ct = useChartTheme();
   const top15 = entities.slice(0, 15);
 
   const globalMax = useMemo(() => {
@@ -381,14 +378,14 @@ function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
                     {inv > 0 ? (
                       <div
                         className="h-10 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold text-white transition-all"
-                        style={{ backgroundColor: heatColor(inv, globalMax, ct.emptyFill) }}
+                        style={{ backgroundColor: heatColor(inv, globalMax) }}
                         title={`${entity.name} · ${reg}: ${fmt(inv)}`}
                       >
                         {fmt(inv, 0)}
                       </div>
                     ) : (
                       <div className="h-10 rounded-lg flex items-center justify-center text-[10px] text-slate-700"
-                        style={{ backgroundColor: ct.emptyFill }}>
+                        style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
                         —
                       </div>
                     )}
@@ -795,7 +792,6 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
 // ── Main MatrixView component ─────────────────────────────────────────────────
 
 export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
-  const ct = useChartTheme();
   const [typeFilter, setTypeFilter] = useState<InvestorType | "All">("All");
   const [exporting, setExporting] = useState(false);
   const matrixRef = useRef<HTMLDivElement>(null);

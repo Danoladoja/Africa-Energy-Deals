@@ -1,5 +1,4 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { useChartTheme } from "@/hooks/useChartTheme";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ExportDropdown } from "@/components/export-dropdown";
@@ -185,7 +184,6 @@ function ComparisonCard({
   colorIdx: number;
   winners: Record<string, number>;
 }) {
-  const ct = useChartTheme();
   const color = SLOT_COLORS[colorIdx];
   const flag = COUNTRY_FLAGS[metrics.country] ?? "🌍";
 
@@ -217,7 +215,7 @@ function ComparisonCard({
               <span className="text-xs text-slate-500">{label}</span>
               <span
                 className="text-sm font-semibold font-mono"
-                style={isWinner ? { color } : { color: ct.loserColor }}
+                style={isWinner ? { color } : { color: "#cbd5e1" }}
               >
                 {isWinner && <span className="mr-1 text-[10px]">▲</span>}
                 {value}
@@ -257,7 +255,6 @@ type SortDir = "asc" | "desc";
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
-  const ct = useChartTheme();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const [copied, setCopied] = useState(false);
@@ -666,11 +663,11 @@ export default function ComparePage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={sectorChartData} layout="vertical" margin={{ top: 0, right: 8, left: 64, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
-                      <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="sector" tick={{ fill: ct.tickColorAlt, fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
-                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: ct.cursorFill }} />
-                      <Legend wrapperStyle={{ fontSize: 11, color: ct.legendColor }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="sector" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
+                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                       {selected.map((c, i) => (
                         <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
                       ))}
@@ -686,11 +683,11 @@ export default function ComparePage() {
                 </h2>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={dealSizeData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
-                    <XAxis dataKey="bucket" tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: ct.cursorFill }} />
-                    <Legend wrapperStyle={{ fontSize: 11, color: ct.legendColor }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis dataKey="bucket" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                     {selected.map((c, i) => (
                       <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[3, 3, 0, 0]} maxBarSize={28} />
                     ))}
@@ -708,11 +705,11 @@ export default function ComparePage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={timelineData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
-                      <XAxis dataKey="year" tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
                       <RechartsTooltip content={<ChartTip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, color: ct.legendColor }} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                       {selected.map((c, i) => (
                         <Line
                           key={c}
@@ -740,11 +737,11 @@ export default function ComparePage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={statusData} layout="vertical" margin={{ top: 0, right: 8, left: 80, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="status" tick={{ fill: ct.tickColorAlt, fontSize: 10 }} axisLine={false} tickLine={false} width={76} />
-                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: ct.cursorFill }} />
-                      <Legend wrapperStyle={{ fontSize: 11, color: ct.legendColor }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="status" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={76} />
+                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                       {selected.map((c, i) => (
                         <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
                       ))}

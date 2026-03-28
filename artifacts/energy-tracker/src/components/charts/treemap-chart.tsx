@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronRight, Home } from "lucide-react";
 import { SECTOR_COLORS, REGION_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
-import { useChartTheme } from "@/hooks/useChartTheme";
 
 export type TreemapMetric = "totalInvestmentUsdMn" | "projectCount";
 export type TreemapLevel1 = "region" | "sector" | "year";
@@ -103,7 +102,6 @@ interface CustomCellProps {
 }
 
 function CustomCell(props: CustomCellProps) {
-  const ct = useChartTheme();
   const { x = 0, y = 0, width = 0, height = 0, name, value, colorBy, colorKey, nodeIndex = 0, isInvestment } = props;
   const color = getNodeColor(colorKey, colorBy, nodeIndex);
   const showName = width > 45 && height > 28;
@@ -117,7 +115,7 @@ function CustomCell(props: CustomCellProps) {
         width={Math.max(0, width - 2)} height={Math.max(0, height - 2)}
         fill={color}
         fillOpacity={0.85}
-        stroke={ct.treemapStroke}
+        stroke="rgba(255,255,255,0.15)"
         strokeWidth={1}
         rx={3}
       />

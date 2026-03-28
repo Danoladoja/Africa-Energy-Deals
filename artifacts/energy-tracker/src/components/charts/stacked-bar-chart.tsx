@@ -4,7 +4,6 @@ import {
   Legend, ResponsiveContainer, Cell, LabelList,
 } from "recharts";
 import { SECTOR_COLORS, REGION_COLORS, STATUS_COLORS, FINANCING_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
-import { useChartTheme } from "@/hooks/useChartTheme";
 
 export type StackMetric = "totalInvestmentUsdMn" | "projectCount";
 export type StackXAxis = "year" | "region" | "country";
@@ -150,7 +149,6 @@ export function StackedBarChart({
   mode: StackMode;
   height?: number;
 }) {
-  const ct = useChartTheme();
   const { pivoted, keys } = useMemo(
     () => pivotData(projects, metric, xAxis, stackBy, mode),
     [projects, metric, xAxis, stackBy, mode]
@@ -171,7 +169,7 @@ export function StackedBarChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={pivoted} margin={{ top: 20, right: 30, left: 20, bottom: rotateX ? 90 : 40 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
         <XAxis
           dataKey="x"
           stroke="hsl(var(--muted-foreground))"
@@ -201,7 +199,7 @@ export function StackedBarChart({
               mode={mode}
             />
           )}
-          cursor={{ fill: ct.cursorFill }}
+          cursor={{ fill: "rgba(255,255,255,0.04)" }}
         />
         <Legend
           iconType="square"

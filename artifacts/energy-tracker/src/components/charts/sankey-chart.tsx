@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Sankey, Tooltip, ResponsiveContainer } from "recharts";
 import { SECTOR_COLORS, REGION_COLORS, FINANCING_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
-import { useChartTheme } from "@/hooks/useChartTheme";
 
 export type SankeyFrom = "region" | "financing";
 export type SankeyThrough = "country" | "sector" | "none";
@@ -111,7 +110,6 @@ interface SankeyNodeProps {
 }
 
 function SankeyNode({ x = 0, y = 0, width = 10, height = 0, payload }: SankeyNodeProps) {
-  const ct = useChartTheme();
   const color = payload?.color ?? "#475569";
   const name = payload?.name ?? "";
   const labelLeft = x > 200;
@@ -123,7 +121,7 @@ function SankeyNode({ x = 0, y = 0, width = 10, height = 0, payload }: SankeyNod
         y={y + height / 2}
         textAnchor={labelLeft ? "end" : "start"}
         dominantBaseline="middle"
-        fill={ct.sankeyLabelFill}
+        fill="rgba(255,255,255,0.8)"
         fontSize={11}
         fontWeight={500}
       >

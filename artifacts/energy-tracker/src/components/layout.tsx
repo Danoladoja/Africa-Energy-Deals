@@ -16,10 +16,7 @@ import {
   Code2,
   Database,
   ClipboardList,
-  Sun,
-  Moon,
 } from "lucide-react";
-import { useTheme } from "@/contexts/theme";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
@@ -94,7 +91,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
 
   // Global keyboard shortcut: Cmd+K / Ctrl+K to open AI assistant
@@ -183,8 +179,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )}
         </nav>
         
-        {/* Ask AI + theme toggle */}
-        <div className="px-4 pb-3 flex flex-col gap-2">
+        {/* Ask AI button */}
+        <div className="px-4 pb-3">
           <button
             onClick={() => setAiOpen(true)}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 hover:border-[#00e676]/35 transition-all group"
@@ -192,14 +188,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Sparkles className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
             <span className="text-sm font-semibold flex-1 text-left">Ask AI</span>
             <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
-          </button>
-          <button
-            onClick={toggleTheme}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border border-sidebar-border text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="text-sm">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
           </button>
         </div>
 
@@ -250,13 +238,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span className="font-display font-bold text-base">AfriEnergy</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button
-            onClick={toggleTheme}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            className="p-2 rounded-xl text-foreground/60 hover:text-foreground hover:bg-white/8 transition-colors"
-          >
-            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
           {isAuthenticated ? (
             <Link href="/watches">
               <button className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8 transition-colors">
@@ -321,23 +302,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
-                {/* Ask AI + theme toggle — mobile drawer */}
-                <div className="flex gap-2 mb-2">
-                  <button
-                    onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }}
-                    className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all"
-                  >
-                    <Sparkles className="w-5 h-5 shrink-0" />
-                    <span className="text-base font-semibold">Ask AI</span>
-                  </button>
-                  <button
-                    onClick={toggleTheme}
-                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                    className="flex items-center justify-center px-3.5 rounded-xl border border-sidebar-border text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
-                  >
-                    {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                  </button>
-                </div>
+                {/* Ask AI — mobile drawer */}
+                <button
+                  onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all mb-2"
+                >
+                  <Sparkles className="w-5 h-5 shrink-0" />
+                  <span className="text-base font-semibold">Ask AI</span>
+                </button>
 
                 <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
                 <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">

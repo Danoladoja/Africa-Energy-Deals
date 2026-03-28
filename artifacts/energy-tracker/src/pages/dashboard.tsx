@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useChartTheme } from "@/hooks/useChartTheme";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useGetSummaryStats } from "@workspace/api-client-react";
@@ -392,7 +391,6 @@ function FunnelViz({ data }: { data: { stage: string; count: number; investment:
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const ct = useChartTheme();
   const [, navigate] = useLocation();
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -628,7 +626,7 @@ export default function Dashboard() {
   }, [filtered]);
 
   function heatmapCellColor(inv: number, max: number): string {
-    if (!inv) return ct.emptyFill;
+    if (!inv) return "rgba(255,255,255,0.02)";
     const t = Math.log1p(inv) / Math.log1p(max);
     const g = Math.round(77 + (230 - 77) * t);
     const b = Math.round(42 + (118 - 42) * t);
@@ -782,11 +780,11 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} vertical={false} />
-                  <XAxis dataKey="year" tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
-                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: ct.cursorFill }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
+                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <Area yAxisId="left" type="monotone" dataKey="annual" name="Annual Volume" stroke="#38bdf8" strokeWidth={2} fill="url(#annualGrad)" />
                   <Line yAxisId="right" type="monotone" dataKey="cumulative" name="Cumulative" stroke="#00e676" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
                 </ComposedChart>
@@ -806,9 +804,9 @@ export default function Dashboard() {
             <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={techCountData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
-                  <XAxis type="number" tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="technology" tick={{ fill: ct.tickColorAlt, fontSize: 11 }} axisLine={false} tickLine={false} width={88} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="technology" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={88} />
                   <RechartsTooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
@@ -819,7 +817,7 @@ export default function Dashboard() {
                         <p className="text-slate-400 font-mono">{fmt(d.investment)}</p>
                       </div>
                     );
-                  }} cursor={{ fill: ct.cursorFill }} />
+                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <Bar dataKey="count" name="Deals" radius={[0, 4, 4, 0]}>
                     {techCountData.map(d => <Cell key={d.technology} fill={d.color} />)}
                   </Bar>
@@ -838,9 +836,9 @@ export default function Dashboard() {
             <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={investorData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} horizontal={false} />
-                  <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: ct.tickColorAlt, fontSize: 10 }} axisLine={false} tickLine={false} width={88} tickFormatter={v => v.length > 12 ? v.slice(0, 12) + "…" : v} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={88} tickFormatter={v => v.length > 12 ? v.slice(0, 12) + "…" : v} />
                   <RechartsTooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     return (
@@ -849,7 +847,7 @@ export default function Dashboard() {
                         <p className="text-[#a855f7] font-mono font-bold">{fmt(payload[0].value as number)}</p>
                       </div>
                     );
-                  }} cursor={{ fill: ct.cursorFill }} />
+                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <Bar dataKey="investment" name="Volume" fill="#fb923c" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
                 </BarChart>
               </ResponsiveContainer>
@@ -918,7 +916,7 @@ export default function Dashboard() {
                                   <span className="text-[8px] text-white/50 leading-none">{cell?.count}×</span>
                                 </button>
                               ) : (
-                                <div className="w-full h-10 rounded-lg" style={{ backgroundColor: ct.emptyFill }} />
+                                <div className="w-full h-10 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.02)" }} />
                               )}
                             </td>
                           );

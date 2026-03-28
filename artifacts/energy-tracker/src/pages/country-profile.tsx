@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useChartTheme } from "@/hooks/useChartTheme";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -70,7 +69,6 @@ interface CountryStat {
 const PROJECTS_PER_PAGE = 10;
 
 export default function CountryProfile() {
-  const ct = useChartTheme();
   const { countryName } = useParams<{ countryName: string }>();
   const [, navigate] = useLocation();
   const [page, setPage] = useState(1);
@@ -265,10 +263,10 @@ export default function CountryProfile() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={byYear} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
-                  <XAxis dataKey="year" tick={{ fill: ct.tickColor, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fill: ct.tickColor, fontSize: 11 }} axisLine={false} tickLine={false} width={50} />
-                  <RechartsTooltip content={<BarTooltip />} cursor={{ fill: ct.cursorFill }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={50} />
+                  <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <Bar dataKey="investment" fill="#00e676" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
