@@ -66,7 +66,7 @@ paths:
           schema: { type: string, enum: [East Africa, West Africa, North Africa, Southern Africa, Central Africa] }
         - name: technology
           in: query
-          schema: { type: string, enum: [Solar, Wind, Hydro, "Grid & Storage", "Oil & Gas", Coal, Nuclear, Bioenergy] }
+          schema: { type: string, enum: [Solar, Wind, Hydro, Geothermal, "Oil & Gas", "Grid Expansion", "Battery & Storage", Hydrogen, Nuclear, Bioenergy, "Clean Cooking", Coal] }
         - name: status
           in: query
           schema: { type: string }
@@ -392,7 +392,7 @@ paths:
                   technologies:
                     type: array
                     items: { type: string }
-                    example: [Solar, Wind, Hydro, "Grid & Storage", "Oil & Gas", Coal, Nuclear, Bioenergy]
+                    example: [Solar, Wind, Hydro, Geothermal, "Oil & Gas", "Grid Expansion", "Battery & Storage", Hydrogen, Nuclear, Bioenergy, "Clean Cooking", Coal]
 
   /deal-stages:
     get:

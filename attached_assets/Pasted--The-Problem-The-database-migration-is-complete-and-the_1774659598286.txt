@@ -1,0 +1,81 @@
+## The Problem
+
+The database migration is complete and the API returns correct data (Grid Expansion, Battery & Storage, Hydrogen all showing). But 4 source files still contain "Grid & Storage" references that show on the live site.
+
+## Fix 1: `artifacts/energy-tracker/src/components/seo-meta.tsx`
+
+Find the string:
+```
+8 sector types: Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear & Bioenergy
+```
+
+Replace with:
+```
+12 sector types: Solar, Wind, Hydro, Geothermal, Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Nuclear, Bioenergy, Clean Cooking & Coal
+```
+
+Also search this entire file for any other "Grid & Storage" references and replace them. If there's a meta description or keywords list, update it to use the new taxonomy.
+
+## Fix 2: `artifacts/api-server/src/services/scraper.ts`
+
+Find ALL occurrences of `"Grid & Storage"` in this file and replace based on context:
+- In any `VALID_TECHNOLOGIES` or sector list array, remove `"Grid & Storage"` and add BOTH `"Grid Expansion"` and `"Battery & Storage"` (plus `"Hydrogen"`, `"Geothermal"`, `"Clean Cooking"` if they're missing)
+- In any normalization/mapping function, update mappings to point to the new sector names
+- In any AI prompt text within the scraper, update sector lists to the full 12-sector taxonomy:
+  `"Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Nuclear", "Bioenergy", "Clean Cooking", "Coal"`
+
+## Fix 3: `artifacts/api-server/src/openapi.yaml`
+
+Find any `enum` or `description` that lists sectors and includes "Grid & Storage". Replace with the 12-sector list:
+```yaml
+enum:
+  - Solar
+  - Wind
+  - Hydro
+  - Geothermal
+  - "Oil & Gas"
+  - "Grid Expansion"
+  - "Battery & Storage"
+  - Hydrogen
+  - Nuclear
+  - Bioenergy
+  - "Clean Cooking"
+  - Coal
+```
+
+## Fix 4: `artifacts/energy-tracker/src/plugins/bot-prerender.ts`
+
+Find any hardcoded sector text like "Grid & Storage" in the bot prerender output and replace with the new taxonomy. This file generates static HTML for search engine bots, so it must reflect the real data.
+
+## Verification
+
+After making all changes, run in the Replit Shell:
+```bash
+grep -rn "Grid & Storage" artifacts/energy-tracker/src/ artifacts/api-server/src/ --include="*.ts" --include="*.tsx" --include="*.yaml"
+```
+
+This should return **ZERO results**. (Ignore matches in `attached_assets/` and `migration-to-production.sql` — those are historical and don't affect the live site.)
+
+Then commit and push to master so Railway auto-deploys.
+
+## Alternative: Shell Commands (if Replit AI doesn't work)
+
+Run these `sed` commands in the Replit Shell to do the replacements manually:
+
+```bash
+# Fix seo-meta.tsx
+sed -i 's/8 sector types: Solar, Wind, Hydro, Grid & Storage, Oil & Gas, Coal, Nuclear & Bioenergy/12 sector types: Solar, Wind, Hydro, Geothermal, Oil \& Gas, Grid Expansion, Battery \& Storage, Hydrogen, Nuclear, Bioenergy, Clean Cooking \& Coal/g' artifacts/energy-tracker/src/components/seo-meta.tsx
+
+# Fix all 4 source files - replace "Grid & Storage" with "Grid Expansion" as default
+# (Battery & Storage and Hydrogen should already exist in arrays from the previous push)
+sed -i 's/Grid & Storage/Grid Expansion/g' artifacts/energy-tracker/src/components/seo-meta.tsx
+sed -i 's/Grid & Storage/Grid Expansion/g' artifacts/energy-tracker/src/plugins/bot-prerender.ts
+sed -i 's/Grid & Storage/Grid Expansion/g' artifacts/api-server/src/services/scraper.ts
+sed -i 's/Grid & Storage/Grid Expansion/g' artifacts/api-server/src/openapi.yaml
+
+# Verify
+grep -rn "Grid & Storage" artifacts/energy-tracker/src/ artifacts/api-server/src/ --include="*.ts" --include="*.tsx" --include="*.yaml"
+
+# Commit and push
+git add -A && git commit -m "fix: replace remaining Grid & Storage references with new taxonomy" && git push origin master
+```
