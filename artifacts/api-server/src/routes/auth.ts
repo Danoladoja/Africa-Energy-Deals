@@ -10,6 +10,9 @@ const router = Router();
 const _replitDomain = process.env.REPLIT_DEV_DOMAIN;
 const APP_URL = process.env.APP_URL
   ?? (_replitDomain ? `https://${_replitDomain}/energy-tracker` : "http://localhost:22663/energy-tracker");
+const DEV_BASE_URL = _replitDomain
+  ? `https://${_replitDomain}/energy-tracker`
+  : "http://localhost:22663/energy-tracker";
 const SESSION_DAYS = 30;
 const TOKEN_HOURS = 1;
 
@@ -60,7 +63,9 @@ router.post("/auth/email", async (req, res) => {
     const verifyUrl = `${APP_URL}/auth/verify?token=${token}`;
     await sendEmail(trimmed, "Sign in to AfriEnergy Tracker", magicLinkEmail(verifyUrl, APP_URL));
 
-    const devLink = process.env.NODE_ENV !== "production" ? verifyUrl : undefined;
+    const devLink = process.env.NODE_ENV !== "production"
+      ? `${DEV_BASE_URL}/auth/verify?token=${token}`
+      : undefined;
     res.json({ success: true, devLink });
   } catch (err) {
     console.error("[Auth] Login error:", err);
@@ -98,7 +103,9 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    const devLink = process.env.NODE_ENV !== "production" ? verifyUrl : undefined;
+    const devLink = process.env.NODE_ENV !== "production"
+      ? `${DEV_BASE_URL}/auth/verify?token=${token}`
+      : undefined;
     res.json({ success: true, devLink });
   } catch (err) {
     console.error("[Auth] Login error:", err);
