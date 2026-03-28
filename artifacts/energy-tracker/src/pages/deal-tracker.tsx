@@ -17,6 +17,7 @@ import { ShareButton } from "@/components/share-button";
 import { NlqSearchBar, type NlqResult } from "@/components/nlq-search-bar";
 import { useAuth, authedFetch } from "@/contexts/auth";
 import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
+import { toast } from "sonner";
 
 const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 const FALLBACK_SECTOR_COLOR = "#94a3b8";
@@ -75,8 +76,12 @@ function ExportDropdown({ filters }: {
       const qs = buildExportParams(filters);
       const url = `/api/export?format=csv${qs ? "&" + qs : ""}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error("Server error");
       const blob = await res.blob();
       triggerDownload(blob, `africa_energy_projects_${todayStr()}.csv`);
+      toast.success("CSV downloaded");
+    } catch {
+      toast.error("CSV export failed — try again");
     } finally {
       setLoading(null);
     }
@@ -118,7 +123,16 @@ function ExportDropdown({ filters }: {
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Projects");
-      XLSX.writeFile(wb, `africa_energy_projects_${todayStr()}.xlsx`);
+
+      // Use Blob approach — XLSX.writeFile can fail silently in some browsers
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      triggerDownload(blob, `africa_energy_projects_${todayStr()}.xlsx`);
+      toast.success("Excel file downloaded");
+    } catch {
+      toast.error("Excel export failed — try again");
     } finally {
       setLoading(null);
     }
@@ -218,7 +232,11 @@ function ExportDropdown({ filters }: {
         },
       });
 
-      doc.save(`africa_energy_projects_${todayStr()}.pdf`);
+      const pdfBlob = doc.output("blob");
+      triggerDownload(pdfBlob, `africa_energy_projects_${todayStr()}.pdf`);
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("PDF export failed — try again");
     } finally {
       setLoading(null);
     }
@@ -229,8 +247,12 @@ function ExportDropdown({ filters }: {
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 150);
   }
 
   const isLoading = loading !== null;

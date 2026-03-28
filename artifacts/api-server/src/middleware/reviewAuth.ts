@@ -37,14 +37,14 @@ export async function reviewerAuthMiddleware(
       .where(eq(userEmailsTable.email, session.userEmail))
       .limit(1);
 
-    const role = (userRecord?.role ?? "user").toLowerCase();
-    if (role !== "reviewer" && role !== "admin-reviewer" && role !== "admin") {
+    const role = (userRecord?.role ?? "user").toUpperCase();
+    if (role !== "REVIEWER" && role !== "ADMIN-REVIEWER" && role !== "ADMIN") {
       res.status(403).json({ error: "Reviewer access required" });
       return;
     }
 
     req.reviewerEmail = session.userEmail;
-    req.reviewerRole = role;
+    req.reviewerRole = role.toLowerCase();
     next();
   } catch {
     res.status(500).json({ error: "Auth check failed" });

@@ -1,0 +1,45 @@
+Fix the export/download functionality across the app. There are 3 main issues:
+
+1. **html2canvas is missing** — Install it (`npm install html2canvas`) and make sure it's actually imported in the export utility files. Every "Download PNG" and "Download Chart" button fails silently because html2canvas isn't in the bundle. The Countries and Developers "Download PDF" also fail because they depend on html2canvas to render the page first.
+
+2. **Download trigger doesn't fire** — The Dashboard PDF Report and all 3 Deals exports (CSV, Excel, PDF) generate their blob data correctly but the file never actually downloads. The download mechanism (likely relying on jsPDF's .save() or a missing file-saver library) silently fails. Fix by using an explicit download pattern everywhere:
+
+   function downloadBlob(blob, filename) {
+     const url = URL.createObjectURL(blob);
+     const link = document.createElement('a');
+     link.href = url;
+     link.download = filename;
+     document.body.appendChild(link);
+     link.click();
+     setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
+   }
+
+   For jsPDF, use: const blob = doc.output('blob'); downloadBlob(blob, 'report.pdf');
+   instead of: doc.save('report.pdf');
+
+3. **No user feedback** — Add toast notifications for all export actions. Show "Generating PDF..." while working, then "Downloaded!" on success or "Export failed" on error. Currently buttons give zero feedback.
+
+Search for all export handler functions across the codebase. Key files to check:
+- Any file with "export" in the name under src/
+- dashboard.tsx (PDF Report, PNG Screenshot, Share handlers)
+- deal-tracker.tsx (CSV, Excel, PDF handlers)
+- map.tsx (Download PNG, Copy Share Link)
+- countries.tsx (Download CSV, PNG, PDF)
+- developers-matrix.tsx or developers.tsx (Download CSV, PNG, PDF)
+- studio.tsx (Download Chart, Share, Embed)
+
+After fixing, verify: click each export button and confirm a file actually downloads.
+```
+
+---
+
+## Also Still Open: reviewAuth.ts Bug
+
+The `/review` page shows only "Ask AI" buttons, which suggests it's not loading the review grid (14 projects were visible before). The `reviewAuth.ts` middleware has a case-sensitivity bug: the database stores roles as `"ADMIN"` (uppercase) but the middleware checks for lowercase `"admin"`. Fix:
+
+```typescript
+const role = (user.role || '').toUpperCase();
+if (role !== 'ADMIN' && role !== 'REVIEWER') {
+  return res.status(403).json({ error: 'Reviewer access required' });
+}
+```

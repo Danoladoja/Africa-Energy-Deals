@@ -634,8 +634,7 @@ export default function Dashboard() {
   }
 
   /* ── PDF export ── */
-  const handleDownloadPdf = useCallback(() => {
-    /* Build country rows from heatmapData */
+  const handleDownloadPdf = useCallback(async () => {
     const countryTotals: Record<string, { investment: number; count: number }> = {};
     for (const p of filtered) {
       if (!countryTotals[p.country]) countryTotals[p.country] = { investment: 0, count: 0 };
@@ -647,26 +646,36 @@ export default function Dashboard() {
       .slice(0, 10)
       .map(([country, v]) => ({ country, ...v }));
 
-    generateDashboardPdf({
-      totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
-      totalProjects:        summary?.totalProjects ?? filtered.length,
-      totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
-      totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
-      sectors:              techCountData,
-      transition:           transitionData,
-      countries:            countryRows,
-      yearRange,
-      filters: { countries: selCountries, techs: selTechs },
-    });
+    try {
+      generateDashboardPdf({
+        totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
+        totalProjects:        summary?.totalProjects ?? filtered.length,
+        totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
+        totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
+        sectors:              techCountData,
+        transition:           transitionData,
+        countries:            countryRows,
+        yearRange,
+        filters: { countries: selCountries, techs: selTechs },
+      });
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("PDF export failed — try again");
+    }
   }, [filtered, summary, techCountData, transitionData, yearRange, selCountries, selTechs]);
 
   /* ── PNG export ── */
   const handleDownloadPng = useCallback(async () => {
     if (!contentRef.current) return;
-    await exportToPng(
-      contentRef.current,
-      `afrienergy-dashboard-${new Date().toISOString().slice(0, 10)}.png`,
-    );
+    try {
+      await exportToPng(
+        contentRef.current,
+        `afrienergy-dashboard-${new Date().toISOString().slice(0, 10)}.png`,
+      );
+      toast.success("PNG screenshot downloaded");
+    } catch {
+      toast.error("Screenshot failed — try again");
+    }
   }, []);
 
   /* ── PPTX export ── */
@@ -682,17 +691,22 @@ export default function Dashboard() {
       .slice(0, 10)
       .map(([country, v]) => ({ country, ...v }));
 
-    await generateDashboardPptx({
-      totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
-      totalProjects:        summary?.totalProjects ?? filtered.length,
-      totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
-      totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
-      sectors:              techCountData,
-      transition:           transitionData,
-      countries:            countryRows,
-      yearRange,
-      filters: { countries: selCountries, techs: selTechs },
-    });
+    try {
+      await generateDashboardPptx({
+        totalInvestmentUsdMn: summary?.totalInvestmentUsdMn ?? 0,
+        totalProjects:        summary?.totalProjects ?? filtered.length,
+        totalCountries:       summary?.totalCountries ?? Object.keys(countryTotals).length,
+        totalSectors:         summary?.totalSectors ?? summary?.totalTechnologies ?? techCountData.length,
+        sectors:              techCountData,
+        transition:           transitionData,
+        countries:            countryRows,
+        yearRange,
+        filters: { countries: selCountries, techs: selTechs },
+      });
+      toast.success("Presentation downloaded");
+    } catch {
+      toast.error("Presentation export failed — try again");
+    }
   }, [filtered, summary, techCountData, transitionData, yearRange, selCountries, selTechs]);
 
   const TransitionTooltip = ({ active, payload }: any) => {
