@@ -30,7 +30,7 @@ function isAllowedOrigin(origin: string): boolean {
   if (origin.endsWith(".up.railway.app")) return true;
   // Allow all Replit dev/preview domains
   if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
-  // Allow any localhost origin (dev environment — port may vary)
+  // Allow any localhost origin (dev environment â port may vary)
   if (origin.startsWith("http://localhost:") || origin === "http://localhost") return true;
   return false;
 }
@@ -47,6 +47,18 @@ app.use(cors({
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-API-Key", "Authorization"],
 }));
+
+// Security headers
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 
 // Rate limiter (in-memory, no external deps)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -115,7 +127,7 @@ try {
   console.warn("[Swagger] Failed to load spec:", err);
 }
 
-// Dynamic sitemap.xml — must come BEFORE static files and SPA fallback
+// Dynamic sitemap.xml â must come BEFORE static files and SPA fallback
 app.get("/sitemap.xml", async (_req: Request, res: Response) => {
   const BASE = "https://afrienergytracker.io";
   const now = new Date().toISOString().split("T")[0];
