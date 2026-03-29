@@ -206,21 +206,21 @@ export default function ReviewItem() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-white/[0.03] rounded-xl p-3">
+                <div className="bg-muted/30 rounded-xl p-3">
                   <p className="text-xs text-muted-foreground mb-1">Sector</p>
                   <p className="text-sm font-medium text-foreground">{project.technology}</p>
                 </div>
-                <div className="bg-white/[0.03] rounded-xl p-3">
+                <div className="bg-muted/30 rounded-xl p-3">
                   <p className="text-xs text-muted-foreground mb-1">Deal Size</p>
                   <p className="text-sm font-medium text-foreground">
                     {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn >= 1000 ? (project.dealSizeUsdMn / 1000).toFixed(1) + "B" : project.dealSizeUsdMn + "M"}` : "Unknown"}
                   </p>
                 </div>
-                <div className="bg-white/[0.03] rounded-xl p-3">
+                <div className="bg-muted/30 rounded-xl p-3">
                   <p className="text-xs text-muted-foreground mb-1">Project Status</p>
                   <p className="text-sm font-medium text-foreground capitalize">{project.status}</p>
                 </div>
-                <div className="bg-white/[0.03] rounded-xl p-3">
+                <div className="bg-muted/30 rounded-xl p-3">
                   <p className="text-xs text-muted-foreground mb-1">AI Confidence</p>
                   <p className="text-sm font-medium text-foreground">
                     {project.confidenceScore !== null ? `${Math.round(project.confidenceScore * 100)}%` : "Unknown"}
@@ -255,7 +255,7 @@ export default function ReviewItem() {
               </h2>
 
               {project.sourceUrl && (
-                <div className="flex items-center gap-2 mb-3 p-3 rounded-xl bg-white/[0.03] border border-border">
+                <div className="flex items-center gap-2 mb-3 p-3 rounded-xl bg-muted/30 border border-border">
                   <p className="text-xs text-muted-foreground truncate flex-1" title={project.sourceUrl}>{project.sourceUrl}</p>
                   <a href={project.sourceUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary hover:text-primary/80">
                     <ExternalLink className="w-4 h-4" />
@@ -286,7 +286,7 @@ export default function ReviewItem() {
                 <button
                   onClick={handleTestUrl}
                   disabled={testLoading}
-                  className="px-3 py-2 rounded-xl bg-white/5 border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-xl bg-muted/30 border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {testLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                   Test

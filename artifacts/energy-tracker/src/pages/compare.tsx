@@ -103,7 +103,7 @@ function CountrySelector({
     <div className="relative">
       {/* Pills + trigger */}
       <div
-        className="flex flex-wrap items-center gap-2 bg-[#1e293b] border border-white/10 rounded-xl p-2.5 cursor-text min-h-[48px]"
+        className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-2.5 cursor-text min-h-[48px]"
         onClick={() => setOpen(true)}
       >
         {selected.map((c, i) => (
@@ -123,24 +123,24 @@ function CountrySelector({
         ))}
         {selected.length < 3 && (
           <input
-            className="flex-1 bg-transparent text-sm text-slate-300 placeholder:text-slate-600 outline-none min-w-[120px]"
+            className="flex-1 bg-transparent text-sm text-foreground/80 placeholder:text-muted-foreground/50 outline-none min-w-[120px]"
             placeholder={selected.length === 0 ? "Search and select countries…" : "Add another country…"}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
           />
         )}
-        <ChevronDown className="w-4 h-4 text-slate-600 ml-auto shrink-0" />
+        <ChevronDown className="w-4 h-4 text-muted-foreground/50 ml-auto shrink-0" />
       </div>
 
       {/* Dropdown */}
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
             <div className="max-h-60 overflow-y-auto">
               {filtered.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-slate-500">
+                <div className="px-4 py-3 text-sm text-muted-foreground/70">
                   {selected.length >= 3 ? "Maximum 3 countries selected" : "No countries match"}
                 </div>
               ) : (
@@ -149,10 +149,10 @@ function CountrySelector({
                     key={c}
                     disabled={selected.length >= 3}
                     onClick={() => { toggle(c); setOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="text-lg">{COUNTRY_FLAGS[c] ?? "🌍"}</span>
-                    <span className="text-slate-200">{c}</span>
+                    <span className="text-foreground">{c}</span>
                   </button>
                 ))
               )}
@@ -196,23 +196,23 @@ function ComparisonCard({
 
   return (
     <div
-      className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden flex-1"
+      className="bg-card border border-border/50 rounded-2xl overflow-hidden flex-1"
       style={{ borderLeft: `3px solid ${color}` }}
     >
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-white/5" style={{ background: `${color}08` }}>
+      <div className="px-5 pt-5 pb-4 border-b border-border/50" style={{ background: `${color}08` }}>
         <span className="text-3xl mb-1 block">{flag}</span>
-        <h3 className="text-lg font-bold text-white leading-tight">{metrics.country}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{metrics.region}</p>
+        <h3 className="text-lg font-bold text-foreground leading-tight">{metrics.country}</h3>
+        <p className="text-xs text-muted-foreground/70 mt-0.5">{metrics.region}</p>
       </div>
 
       {/* Metrics */}
-      <div className="divide-y divide-white/5">
+      <div className="divide-y divide-border/50">
         {rows.map(({ label, key, value }) => {
           const isWinner = winners[key] === colorIdx;
           return (
             <div key={key} className="px-5 py-3 flex items-center justify-between gap-2">
-              <span className="text-xs text-slate-500">{label}</span>
+              <span className="text-xs text-muted-foreground/70">{label}</span>
               <span
                 className="text-sm font-semibold font-mono"
                 style={isWinner ? { color } : { color: "#cbd5e1" }}
@@ -233,12 +233,12 @@ function ComparisonCard({
 function ChartTip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0f1724] border border-white/10 rounded-xl p-3 shadow-xl text-xs min-w-[140px]">
-      {label && <p className="text-slate-400 font-semibold mb-2">{label}</p>}
+    <div className="bg-popover border border-border rounded-xl p-3 shadow-xl text-xs min-w-[140px]">
+      {label && <p className="text-muted-foreground font-semibold mb-2">{label}</p>}
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-3">
           <span style={{ color: p.color }}>{p.name}</span>
-          <span className="font-mono text-slate-200">
+          <span className="font-mono text-foreground">
             {typeof p.value === "number" && p.value > 10 ? fmt(p.value) : p.value}
           </span>
         </div>
@@ -521,7 +521,7 @@ export default function ComparePage() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-sm text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm text-foreground/80 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
                 {copied ? "Copied!" : "Share"}
@@ -571,14 +571,14 @@ export default function ComparePage() {
         </div>
 
         {/* Country selector */}
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 mb-6">
+        <div className="bg-card border border-border/50 rounded-2xl p-4 mb-6">
           <div className="flex items-center gap-3 mb-3">
-            <p className="text-sm font-semibold text-slate-300 flex-1">Select countries to compare</p>
+            <p className="text-sm font-semibold text-foreground/80 flex-1">Select countries to compare</p>
             <div className="flex items-center gap-2">
               {selected.length === 2 && (
                 <button
                   onClick={() => setSelected([selected[1], selected[0]])}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/10"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border"
                   title="Swap countries"
                 >
                   <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -588,7 +588,7 @@ export default function ComparePage() {
               {selected.length === 3 && (
                 <button
                   onClick={() => setSelected([selected[1], selected[2], selected[0]])}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/10"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border"
                   title="Rotate order"
                 >
                   <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -598,7 +598,7 @@ export default function ComparePage() {
               {hasSelection && (
                 <button
                   onClick={() => setSelected([])}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-colors border border-white/10"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground/70 hover:text-red-400 hover:bg-red-400/10 transition-colors border border-border"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   Clear All
@@ -620,16 +620,16 @@ export default function ComparePage() {
 
         {/* Empty state */}
         {!hasSelection && (
-          <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-16 text-center">
-            <p className="text-slate-400 font-medium mb-1">Select at least 2 countries above to start comparing</p>
-            <p className="text-slate-600 text-sm">Use the search box to find African markets</p>
+          <div className="bg-card border border-border/50 rounded-2xl p-16 text-center">
+            <p className="text-muted-foreground font-medium mb-1">Select at least 2 countries above to start comparing</p>
+            <p className="text-muted-foreground/50 text-sm">Use the search box to find African markets</p>
           </div>
         )}
 
         {/* Single country hint */}
         {selected.length === 1 && (
-          <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-10 text-center">
-            <p className="text-slate-400 font-medium">Add one more country to see the comparison</p>
+          <div className="bg-card border border-border/50 rounded-2xl p-10 text-center">
+            <p className="text-muted-foreground font-medium">Add one more country to see the comparison</p>
           </div>
         )}
 
@@ -639,7 +639,7 @@ export default function ComparePage() {
             {isLoading ? (
               <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: `repeat(${selected.length}, 1fr)` }}>
                 {selected.map((_, i) => (
-                  <div key={i} className="bg-[#1e293b] border border-white/5 rounded-2xl h-48 animate-pulse" />
+                  <div key={i} className="bg-card border border-border/50 rounded-2xl h-48 animate-pulse" />
                 ))}
               </div>
             ) : (
@@ -654,19 +654,19 @@ export default function ComparePage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
 
               {/* Sector Mix */}
-              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+              <div className="bg-card border border-border/50 rounded-2xl p-5">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                   <Layers className="w-3.5 h-3.5" /> Sector Mix (Investment $M)
                 </h2>
                 {sectorChartData.length === 0 ? (
-                  <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No data</div>
+                  <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No data</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={sectorChartData} layout="vertical" margin={{ top: 0, right: 8, left: 64, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                       <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                       <YAxis type="category" dataKey="sector" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
-                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                       <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                       {selected.map((c, i) => (
                         <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
@@ -677,16 +677,16 @@ export default function ComparePage() {
               </div>
 
               {/* Deal Size Distribution */}
-              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+              <div className="bg-card border border-border/50 rounded-2xl p-5">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                   <DollarSign className="w-3.5 h-3.5" /> Deal Size Distribution (# projects)
                 </h2>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={dealSizeData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="bucket" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                     {selected.map((c, i) => (
                       <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[3, 3, 0, 0]} maxBarSize={28} />
@@ -696,16 +696,16 @@ export default function ComparePage() {
               </div>
 
               {/* Investment Timeline */}
-              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+              <div className="bg-card border border-border/50 rounded-2xl p-5">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                   <TrendingUp className="w-3.5 h-3.5" /> Annual Investment Timeline
                 </h2>
                 {timelineData.length === 0 ? (
-                  <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
+                  <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No year data available</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={timelineData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                       <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                       <YAxis tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
                       <RechartsTooltip content={<ChartTip />} />
@@ -728,19 +728,19 @@ export default function ComparePage() {
               </div>
 
               {/* Status Breakdown */}
-              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+              <div className="bg-card border border-border/50 rounded-2xl p-5">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                   <Activity className="w-3.5 h-3.5" /> Deal Status Breakdown (# projects)
                 </h2>
                 {statusData.length === 0 ? (
-                  <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No status data</div>
+                  <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No status data</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={statusData} layout="vertical" margin={{ top: 0, right: 8, left: 80, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                       <XAxis type="number" allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                       <YAxis type="category" dataKey="status" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={76} />
-                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                       <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                       {selected.map((c, i) => (
                         <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
@@ -752,15 +752,15 @@ export default function ComparePage() {
             </div>
 
             {/* ── Combined Projects Table ──────────────────────────────────── */}
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden mb-6">
-              <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            <div className="bg-card border border-border/50 rounded-2xl overflow-hidden mb-6">
+              <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
                   All Projects ({allProjects.length})
                 </h2>
                 {/* Country legend */}
                 <div className="flex items-center gap-3">
                   {selected.map((c, i) => (
-                    <span key={c} className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span key={c} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: SLOT_COLORS[i] }} />
                       {c}
                     </span>
@@ -772,7 +772,7 @@ export default function ComparePage() {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
+                    <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50 bg-muted/30">
                       {(
                         [
                           { key: "projectName", label: "Project" },
@@ -784,7 +784,7 @@ export default function ComparePage() {
                       ).map(({ key, label }) => (
                         <th
                           key={key}
-                          className="py-3 px-4 text-left cursor-pointer hover:text-slate-300 transition-colors select-none"
+                          className="py-3 px-4 text-left cursor-pointer hover:text-foreground/80 transition-colors select-none"
                           onClick={() => toggleSort(key)}
                         >
                           <span className="flex items-center gap-1">
@@ -794,13 +794,13 @@ export default function ComparePage() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-border/50">
                     {isLoading
                       ? Array.from({ length: 5 }).map((_, i) => (
                           <tr key={i}>
                             {Array.from({ length: 5 }).map((_, j) => (
                               <td key={j} className="py-3 px-4">
-                                <div className="h-4 bg-white/5 rounded animate-pulse" />
+                                <div className="h-4 bg-muted/30 rounded animate-pulse" />
                               </td>
                             ))}
                           </tr>
@@ -811,10 +811,10 @@ export default function ComparePage() {
                             <tr
                               key={`${p.id}-${p.country}`}
                               onClick={() => navigate(`/deals/${p.id}`)}
-                              className="cursor-pointer hover:bg-white/5 transition-colors group"
+                              className="cursor-pointer hover:bg-muted/50 transition-colors group"
                             >
                               <td className="py-3 px-4">
-                                <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">
+                                <span className="font-medium text-foreground group-hover:text-foreground transition-colors line-clamp-1">
                                   {p.projectName}
                                 </span>
                               </td>
@@ -836,12 +836,12 @@ export default function ComparePage() {
                                     className="w-2 h-2 rounded-full shrink-0"
                                     style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? "#94a3b8" }}
                                   />
-                                  <span className="text-slate-400 text-xs">{p.technology}</span>
+                                  <span className="text-muted-foreground text-xs">{p.technology}</span>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 font-mono text-slate-300 text-xs">{fmt(p.dealSizeUsdMn)}</td>
+                              <td className="py-3 px-4 font-mono text-foreground/80 text-xs">{fmt(p.dealSizeUsdMn)}</td>
                               <td className="py-3 px-4">
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{p.status}</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 text-foreground/80">{p.status}</span>
                               </td>
                             </tr>
                           );
@@ -849,32 +849,32 @@ export default function ComparePage() {
                   </tbody>
                 </table>
                 {sortedProjects.length > 50 && (
-                  <div className="px-5 py-3 border-t border-white/5 text-xs text-slate-600 text-center">
+                  <div className="px-5 py-3 border-t border-border/50 text-xs text-muted-foreground/50 text-center">
                     Showing top 50 of {sortedProjects.length} projects — use the Deal Tracker for the full list
                   </div>
                 )}
               </div>
 
               {/* Mobile */}
-              <div className="md:hidden divide-y divide-white/5">
+              <div className="md:hidden divide-y divide-border/50">
                 {sortedProjects.slice(0, 30).map((p) => {
                   const countryColor = countryColorMap[p.country];
                   return (
                     <div
                       key={`${p.id}-${p.country}`}
                       onClick={() => navigate(`/deals/${p.id}`)}
-                      className="p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                      className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                       style={{ borderLeft: `3px solid ${countryColor}` }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <p className="font-medium text-slate-100 text-sm leading-tight flex-1">{p.projectName}</p>
+                        <p className="font-medium text-foreground text-sm leading-tight flex-1">{p.projectName}</p>
                         {p.dealSizeUsdMn && (
                           <span className="font-mono text-xs font-bold shrink-0" style={{ color: countryColor }}>
                             {fmt(p.dealSizeUsdMn)}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground/70 flex-wrap">
                         <span style={{ color: countryColor }}>{COUNTRY_FLAGS[p.country] ?? "🌍"} {p.country}</span>
                         <span>·</span>
                         <span>{p.technology}</span>

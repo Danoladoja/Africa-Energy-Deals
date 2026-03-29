@@ -167,13 +167,13 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   }
   return (
     <div className="relative group">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0b0f1a] border border-white/10 rounded-t-xl">
-        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{language}</span>
-        <button onClick={copy} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+      <div className="flex items-center justify-between px-4 py-2 bg-background border border-border rounded-t-xl">
+        <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">{language}</span>
+        <button onClick={copy} className="flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-foreground/80 transition-colors">
           {copied ? <><Check className="w-3 h-3 text-[#00e676]" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
         </button>
       </div>
-      <pre className="bg-[#060a12] border border-t-0 border-white/10 rounded-b-xl px-4 py-4 text-sm text-slate-300 overflow-x-auto leading-relaxed whitespace-pre">
+      <pre className="bg-[#060a12] border border-t-0 border-border rounded-b-xl px-4 py-4 text-sm text-foreground/80 overflow-x-auto leading-relaxed whitespace-pre">
         {code}
       </pre>
     </div>
@@ -184,32 +184,32 @@ function EndpointRow({ ep, apiKey, lang }: { ep: Endpoint; apiKey: string; lang:
   const [open, setOpen] = useState(false);
   const methodColor = ep.method === "GET" ? "text-[#00e676] bg-[#00e67615] border-[#00e67630]" : "text-[#f59e0b] bg-[#f59e0b15] border-[#f59e0b30]";
   return (
-    <div className="border border-white/8 rounded-xl overflow-hidden">
+    <div className="border border-border/80 rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 bg-card hover:bg-white/[0.02] transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3.5 bg-card hover:bg-muted/20 transition-colors text-left"
       >
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border font-mono ${methodColor}`}>{ep.method}</span>
-        <code className="text-sm font-mono text-slate-200 flex-1">{ep.path}</code>
+        <code className="text-sm font-mono text-foreground flex-1">{ep.path}</code>
         {ep.auth && <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded font-semibold">Auth</span>}
-        {open ? <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />}
+        {open ? <ChevronDown className="w-4 h-4 text-muted-foreground/70 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground/70 flex-shrink-0" />}
       </button>
 
       {open && (
-        <div className="bg-[#080d18] border-t border-white/8 px-4 py-4 space-y-4">
-          <p className="text-sm text-slate-400">{ep.desc}</p>
+        <div className="bg-[#080d18] border-t border-border/80 px-4 py-4 space-y-4">
+          <p className="text-sm text-muted-foreground">{ep.desc}</p>
 
           {ep.params && ep.params.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Parameters</h4>
+              <h4 className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">Parameters</h4>
               <div className="space-y-1.5">
                 {ep.params.map((p) => (
                   <div key={p.name} className="flex gap-3 text-sm">
                     <code className="text-[#00e676] font-mono w-28 flex-shrink-0">{p.name}</code>
-                    <span className="text-slate-600 w-16 flex-shrink-0">{p.type}</span>
-                    <span className="text-slate-400 flex-1">{p.desc}</span>
+                    <span className="text-muted-foreground/50 w-16 flex-shrink-0">{p.type}</span>
+                    <span className="text-muted-foreground flex-1">{p.desc}</span>
                     {p.required && <span className="text-red-400 text-xs self-center">required</span>}
-                    {p.example && <code className="text-slate-500 text-xs self-center">e.g. {p.example}</code>}
+                    {p.example && <code className="text-muted-foreground/70 text-xs self-center">e.g. {p.example}</code>}
                   </div>
                 ))}
               </div>
@@ -218,19 +218,19 @@ function EndpointRow({ ep, apiKey, lang }: { ep: Endpoint; apiKey: string; lang:
 
           {ep.body && (
             <div>
-              <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Request Body</h4>
+              <h4 className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">Request Body</h4>
               <CodeBlock code={JSON.stringify(ep.body, null, 2)} language="json" />
             </div>
           )}
 
           <div>
-            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Code Example</h4>
+            <h4 className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">Code Example</h4>
             <CodeBlock code={buildCode(lang, ep, apiKey)} language={lang} />
           </div>
 
           {ep.responseExample && (
             <div>
-              <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Example Response</h4>
+              <h4 className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">Example Response</h4>
               <CodeBlock code={JSON.stringify(ep.responseExample, null, 2)} language="json" />
             </div>
           )}
@@ -440,7 +440,7 @@ Content-Type: application/json`}
                   {apiKey && (
                     <div className="mt-3">
                       <p className="text-xs text-muted-foreground mb-1">Your key (dev mode):</p>
-                      <code className="text-sm bg-[#0b0f1a] px-3 py-1.5 rounded text-[#00e676] block">{apiKey}</code>
+                      <code className="text-sm bg-background px-3 py-1.5 rounded text-[#00e676] block">{apiKey}</code>
                       <button
                         onClick={() => setApiKey(apiKey)}
                         className="mt-2 text-xs text-primary hover:underline"

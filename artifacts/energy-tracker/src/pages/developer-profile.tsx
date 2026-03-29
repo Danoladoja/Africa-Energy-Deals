@@ -156,10 +156,10 @@ export default function DeveloperProfile() {
   const PieTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="bg-[#1e293b] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
-        <p className="font-semibold text-white mb-0.5">{payload[0].name}</p>
+      <div className="bg-card border border-border p-3 rounded-xl text-xs shadow-xl">
+        <p className="font-semibold text-foreground mb-0.5">{payload[0].name}</p>
         <p className="text-[#00e676]">{fmt(payload[0].value)}</p>
-        <p className="text-slate-400">{payload[0].payload.count} project{payload[0].payload.count !== 1 ? "s" : ""}</p>
+        <p className="text-muted-foreground">{payload[0].payload.count} project{payload[0].payload.count !== 1 ? "s" : ""}</p>
       </div>
     );
   };
@@ -167,10 +167,10 @@ export default function DeveloperProfile() {
   const BarTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="bg-[#1e293b] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
-        <p className="font-semibold text-white mb-0.5">{label}</p>
+      <div className="bg-card border border-border p-3 rounded-xl text-xs shadow-xl">
+        <p className="font-semibold text-foreground mb-0.5">{label}</p>
         <p className="text-[#00e676]">{fmt(payload[0].value)}</p>
-        <p className="text-slate-400">{payload[0].payload.count} project{payload[0].payload.count !== 1 ? "s" : ""}</p>
+        <p className="text-muted-foreground">{payload[0].payload.count} project{payload[0].payload.count !== 1 ? "s" : ""}</p>
       </div>
     );
   };
@@ -181,15 +181,15 @@ export default function DeveloperProfile() {
         <PageTransition className="p-4 md:p-8 max-w-4xl mx-auto">
           <button
             onClick={() => navigate("/developers")}
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6 text-sm"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6 text-sm"
           >
             <ArrowLeft className="w-4 h-4" />
             All Investors & Developers
           </button>
-          <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-12 text-center">
+          <div className="bg-card border border-border/50 rounded-2xl p-12 text-center">
             <p className="text-4xl mb-4">🔍</p>
-            <h2 className="text-xl font-bold text-white mb-2">{name}</h2>
-            <p className="text-slate-400 text-sm">No deals found for this entity, or data is still being populated.</p>
+            <h2 className="text-xl font-bold text-foreground mb-2">{name}</h2>
+            <p className="text-muted-foreground text-sm">No deals found for this entity, or data is still being populated.</p>
           </div>
         </PageTransition>
       </Layout>
@@ -213,7 +213,7 @@ export default function DeveloperProfile() {
         {/* Back */}
         <button
           onClick={() => navigate("/developers")}
-          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6 text-sm"
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6 text-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           All Investors & Developers
@@ -221,8 +221,8 @@ export default function DeveloperProfile() {
 
         {/* ── Header ── */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">{name}</h1>
-          <p className="text-slate-400 text-sm">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-1">{name}</h1>
+          <p className="text-muted-foreground text-sm">
             Active in {countries.length} {countries.length === 1 ? "country" : "countries"} across{" "}
             {[...new Set(projects.map((p) => p.region))].join(", ")}
           </p>
@@ -236,22 +236,22 @@ export default function DeveloperProfile() {
             { icon: Globe, label: "Countries", value: isLoading ? "—" : String(countries.length) },
             { icon: TrendingUp, label: "Primary Focus", value: isLoading ? "—" : primarySector, color: SECTOR_COLORS[primarySector] },
           ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <div key={label} className="bg-card border border-border/50 rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground/70 mb-2">
                 <Icon className="w-3.5 h-3.5" style={color ? { color } : undefined} />
                 <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
               </div>
-              <p className="text-lg font-bold text-white font-mono">{value}</p>
+              <p className="text-lg font-bold text-foreground font-mono">{value}</p>
             </div>
           ))}
         </div>
 
         {/* ── Portfolio Map ── */}
         {!isLoading && mapProjects.length > 0 && (
-          <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden mb-6">
+          <div className="bg-card border border-border/50 rounded-2xl overflow-hidden mb-6">
             <div className="px-5 pt-4 pb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Portfolio Map</h2>
-              <p className="text-xs text-slate-600 mt-0.5">{mapProjects.length} projects with coordinates</p>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">Portfolio Map</h2>
+              <p className="text-xs text-muted-foreground/50 mt-0.5">{mapProjects.length} projects with coordinates</p>
             </div>
             <div style={{ height: 260 }}>
               <MapContainer
@@ -293,10 +293,10 @@ export default function DeveloperProfile() {
         {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
             {/* Projects by Country */}
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">By Country</h2>
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4">By Country</h2>
               {countryData.length === 0 ? (
-                <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No data</div>
+                <div className="h-40 flex items-center justify-center text-muted-foreground/50 text-sm">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart
@@ -304,10 +304,10 @@ export default function DeveloperProfile() {
                     layout="vertical"
                     margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                     <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="country" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
-                    <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "var(--chart-grid)" }} />
                     <Bar dataKey="investment" fill="#00e676" radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -315,10 +315,10 @@ export default function DeveloperProfile() {
             </div>
 
             {/* Projects by Sector */}
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">By Technology</h2>
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4">By Technology</h2>
               {sectorData.length === 0 ? (
-                <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No data</div>
+                <div className="h-40 flex items-center justify-center text-muted-foreground/50 text-sm">No data</div>
               ) : (
                 <div className="flex items-center gap-4">
                   <ResponsiveContainer width="55%" height={160}>
@@ -348,9 +348,9 @@ export default function DeveloperProfile() {
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: SECTOR_COLORS[s.name] ?? FALLBACK_COLOR }}
                           />
-                          <span className="text-xs text-slate-400 truncate">{s.name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{s.name}</span>
                         </div>
-                        <span className="text-xs text-slate-500 shrink-0">{s.count}×</span>
+                        <span className="text-xs text-muted-foreground/70 shrink-0">{s.count}×</span>
                       </div>
                     ))}
                   </div>
@@ -361,9 +361,9 @@ export default function DeveloperProfile() {
         )}
 
         {/* ── Projects Table ── */}
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden mb-6">
-          <div className="px-5 py-4 border-b border-white/5">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+        <div className="bg-card border border-border/50 rounded-2xl overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-border/50">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">
               All Deals ({projects.length})
             </h2>
           </div>
@@ -372,51 +372,51 @@ export default function DeveloperProfile() {
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
+                <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50 bg-muted/30">
                   <th className="text-left py-3 px-5 font-semibold">Project Name</th>
-                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("country")}>
+                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-foreground transition-colors select-none" onClick={() => handleSort("country")}>
                     <div className="flex items-center gap-1">Country <SortIcon col="country" /></div>
                   </th>
                   <th className="text-left py-3 px-4 font-semibold">Sector</th>
-                  <th className="text-right py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("dealSizeUsdMn")}>
+                  <th className="text-right py-3 px-4 font-semibold cursor-pointer hover:text-foreground transition-colors select-none" onClick={() => handleSort("dealSizeUsdMn")}>
                     <div className="flex items-center justify-end gap-1">Deal Size <SortIcon col="dealSizeUsdMn" /></div>
                   </th>
-                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("status")}>
+                  <th className="text-left py-3 px-4 font-semibold cursor-pointer hover:text-foreground transition-colors select-none" onClick={() => handleSort("status")}>
                     <div className="flex items-center gap-1">Status <SortIcon col="status" /></div>
                   </th>
-                  <th className="text-right py-3 px-5 font-semibold cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort("announcedYear")}>
+                  <th className="text-right py-3 px-5 font-semibold cursor-pointer hover:text-foreground transition-colors select-none" onClick={() => handleSort("announcedYear")}>
                     <div className="flex items-center justify-end gap-1">Year <SortIcon col="announcedYear" /></div>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border/50">
                 {isLoading
                   ? Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
                         {Array.from({ length: 6 }).map((_, j) => (
                           <td key={j} className="py-3 px-4">
-                            <div className="h-4 bg-white/5 rounded animate-pulse" />
+                            <div className="h-4 bg-muted/30 rounded animate-pulse" />
                           </td>
                         ))}
                       </tr>
                     ))
                   : pageRows.map((p) => (
-                      <tr key={p.id} onClick={() => navigate(`/deals/${p.id}`)} className="cursor-pointer hover:bg-white/5 transition-colors group">
+                      <tr key={p.id} onClick={() => navigate(`/deals/${p.id}`)} className="cursor-pointer hover:bg-muted/50 transition-colors group">
                         <td className="py-3 px-5">
-                          <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">{p.projectName}</span>
+                          <span className="font-medium text-foreground group-hover:text-foreground transition-colors line-clamp-1">{p.projectName}</span>
                         </td>
-                        <td className="py-3 px-4 text-slate-400 text-xs">{p.country}</td>
+                        <td className="py-3 px-4 text-muted-foreground text-xs">{p.country}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }} />
-                            <span className="text-slate-400 text-xs">{p.technology}</span>
+                            <span className="text-muted-foreground text-xs">{p.technology}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">{fmt(p.dealSizeUsdMn)}</td>
+                        <td className="py-3 px-4 text-right font-mono text-foreground/80 text-xs">{fmt(p.dealSizeUsdMn)}</td>
                         <td className="py-3 px-4">
-                          <span className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">{p.dealStage ?? p.status}</span>
+                          <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full">{p.dealStage ?? p.status}</span>
                         </td>
-                        <td className="py-3 px-5 text-right text-slate-500 text-xs">{p.announcedYear ?? "—"}</td>
+                        <td className="py-3 px-5 text-right text-muted-foreground/70 text-xs">{p.announcedYear ?? "—"}</td>
                       </tr>
                     ))}
               </tbody>
@@ -424,34 +424,34 @@ export default function DeveloperProfile() {
           </div>
 
           {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-white/5">
+          <div className="md:hidden divide-y divide-border/50">
             {isLoading
               ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="p-4 animate-pulse">
-                    <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
-                    <div className="h-3 bg-white/5 rounded w-1/2" />
+                    <div className="h-4 bg-muted/30 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-muted/30 rounded w-1/2" />
                   </div>
                 ))
               : pageRows.map((p) => (
                   <div
                     key={p.id}
                     onClick={() => navigate(`/deals/${p.id}`)}
-                    className="p-4 cursor-pointer hover:bg-white/5 transition-colors active:bg-white/5"
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-colors active:bg-muted/30"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-medium text-slate-100 text-sm leading-tight flex-1">{p.projectName}</h3>
+                      <h3 className="font-medium text-foreground text-sm leading-tight flex-1">{p.projectName}</h3>
                       {p.dealSizeUsdMn ? (
                         <span className="font-mono text-xs font-bold text-[#00e676] shrink-0">{fmt(p.dealSizeUsdMn)}</span>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground/70 flex-wrap">
                       <span>{p.country}</span>
                       <span className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }} />
                         {p.technology}
                       </span>
                       {(p.dealStage ?? p.status) && (
-                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">{p.dealStage ?? p.status}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground">{p.dealStage ?? p.status}</span>
                       )}
                       {p.announcedYear && <span>{p.announcedYear}</span>}
                     </div>
@@ -460,20 +460,20 @@ export default function DeveloperProfile() {
           </div>
 
           {totalPages > 1 && (
-            <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-500">Page {page} of {totalPages}</span>
+            <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground/70">Page {page} of {totalPages}</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -486,7 +486,7 @@ export default function DeveloperProfile() {
         <div className="pb-6">
           <button
             onClick={() => navigate("/developers")}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to All Investors & Developers

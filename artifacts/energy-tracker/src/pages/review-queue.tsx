@@ -39,7 +39,7 @@ function confidenceBar(score: number | null) {
   const color = score >= 0.85 ? "bg-emerald-400" : score >= 0.65 ? "bg-amber-400" : "bg-red-400";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+      <div className="w-16 h-1.5 bg-muted/50 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs text-muted-foreground">{pct}%</span>
@@ -118,7 +118,7 @@ export default function ReviewQueue() {
           <div className="flex gap-2">
             {["pending", "needs_source", "approved"].map((s) => (
               <Link key={s} href={`/review/queue?status=${s}`}>
-                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"}`}>
+                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   {statusLabels[s]}
                 </div>
               </Link>
@@ -143,7 +143,7 @@ export default function ReviewQueue() {
             <div className="rounded-2xl border border-border overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-border bg-white/[0.02]">
+                  <tr className="border-b border-border bg-muted/20">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sector</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Deal Size</th>
@@ -155,7 +155,7 @@ export default function ReviewQueue() {
                 </thead>
                 <tbody>
                   {data.projects.map((p, i) => (
-                    <tr key={p.id} className={`border-b border-border/50 hover:bg-white/[0.02] transition-colors ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}>
+                    <tr key={p.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
                       <td className="px-4 py-3">
                         <div className="font-medium text-sm text-foreground truncate max-w-[240px]" title={p.projectName}>{p.projectName}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">{p.country}</div>
@@ -204,12 +204,12 @@ export default function ReviewQueue() {
                 <p className="text-sm text-muted-foreground">Page {data.page} of {data.pages}</p>
                 <div className="flex gap-2">
                   <Link href={`/review/queue?status=${statusFilter}&page=${Math.max(1, pageParam - 1)}`}>
-                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${pageParam <= 1 ? "opacity-30 pointer-events-none" : "hover:bg-white/5"} text-muted-foreground`}>
+                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${pageParam <= 1 ? "opacity-30 pointer-events-none" : "hover:bg-muted/50"} text-muted-foreground`}>
                       <ChevronLeft className="w-4 h-4" /> Prev
                     </div>
                   </Link>
                   <Link href={`/review/queue?status=${statusFilter}&page=${Math.min(data.pages, pageParam + 1)}`}>
-                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${pageParam >= data.pages ? "opacity-30 pointer-events-none" : "hover:bg-white/5"} text-muted-foreground`}>
+                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${pageParam >= data.pages ? "opacity-30 pointer-events-none" : "hover:bg-muted/50"} text-muted-foreground`}>
                       Next <ChevronRight className="w-4 h-4" />
                     </div>
                   </Link>
