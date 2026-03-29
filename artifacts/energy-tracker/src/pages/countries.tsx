@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { WatchButton } from "@/components/watch-button";
-import { SEOMeta } from "@/components/seo-meta";
+import { SEOMeta, organizationSchema } from "@/components/seo-meta";
 import { ExportDropdown } from "@/components/export-dropdown";
 import { exportToPng, exportImageToPdf, exportImageToPptx } from "@/utils/export-utils";
 import { ShareButton } from "@/components/share-button";
@@ -1284,7 +1284,20 @@ export default function CountriesPage() {
       <SEOMeta
         title="Country Profiles"
         description="Explore energy investment activity across African markets. Detailed profiles, sector breakdowns, and side-by-side country comparisons."
+        keywords="Africa energy investment by country, African energy markets, country energy profiles, African power sector"
         url="/countries"
+        jsonLd={[
+          organizationSchema(),
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: "African Energy Investment Country Profiles",
+            description: "Browse energy investment profiles for 40+ African countries including deal counts, investment totals, and sector breakdowns.",
+            url: "https://afrienergytracker.io/countries",
+            publisher: { "@type": "Organization", name: "AfriEnergy Tracker", url: "https://afrienergytracker.io" },
+            about: { "@type": "Thing", name: "African energy investment" },
+          },
+        ]}
       />
       <PageTransition className="p-4 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
 

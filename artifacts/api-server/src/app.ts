@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
 import router from "./routes";
+import { db, projectsTable } from "@workspace/db";
+import { isNotNull } from "drizzle-orm";
 
 const require = createRequire(import.meta.url);
 const swaggerUi = require("swagger-ui-express") as typeof import("swagger-ui-express");
@@ -112,6 +114,77 @@ try {
 } catch (err) {
   console.warn("[Swagger] Failed to load spec:", err);
 }
+
+// Dynamic sitemap.xml — must come BEFORE static files and SPA fallback
+app.get("/sitemap.xml", async (_req: Request, res: Response) => {
+  const BASE = "https://afrienergytracker.io";
+  const now = new Date().toISOString().split("T")[0];
+
+  try {
+    const [countryRows, developerRows, projectRows] = await Promise.all([
+      db
+        .selectDistinct({ country: projectsTable.country })
+        .from(projectsTable)
+        .where(isNotNull(projectsTable.country)),
+      db
+        .selectDistinct({ developer: projectsTable.developer })
+        .from(projectsTable)
+        .where(isNotNull(projectsTable.developer)),
+      db
+        .select({ id: projectsTable.id })
+        .from(projectsTable)
+        .limit(2000),
+    ]);
+
+    const staticPages = [
+      { loc: `${BASE}/`, priority: "1.0", freq: "daily" },
+      { loc: `${BASE}/deals`, priority: "0.9", freq: "daily" },
+      { loc: `${BASE}/countries`, priority: "0.9", freq: "weekly" },
+      { loc: `${BASE}/developers`, priority: "0.8", freq: "weekly" },
+      { loc: `${BASE}/insights`, priority: "0.7", freq: "weekly" },
+    ];
+
+    const countryPages = countryRows
+      .filter((r) => r.country)
+      .map((r) => ({
+        loc: `${BASE}/countries/${encodeURIComponent(r.country!)}`,
+        priority: "0.8",
+        freq: "weekly",
+      }));
+
+    const developerPages = developerRows
+      .filter((r) => r.developer)
+      .map((r) => ({
+        loc: `${BASE}/developers/${encodeURIComponent(r.developer!)}`,
+        priority: "0.7",
+        freq: "monthly",
+      }));
+
+    const dealPages = projectRows.map((r) => ({
+      loc: `${BASE}/deals/${r.id}`,
+      priority: "0.6",
+      freq: "monthly",
+    }));
+
+    const allPages = [...staticPages, ...countryPages, ...developerPages, ...dealPages];
+
+    const urls = allPages
+      .map(
+        (p) =>
+          `  <url>\n    <loc>${p.loc}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.freq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+      )
+      .join("\n");
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=43200"); // 12 h
+    res.send(xml);
+  } catch (err) {
+    console.error("[Sitemap] Error generating sitemap:", err);
+    res.status(500).send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"></urlset>");
+  }
+});
 
 // Mount API routes
 app.use("/api", router);

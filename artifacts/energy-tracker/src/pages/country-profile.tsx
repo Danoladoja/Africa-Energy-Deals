@@ -8,7 +8,7 @@ import {
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { WatchButton } from "@/components/watch-button";
-import { SEOMeta } from "@/components/seo-meta";
+import { SEOMeta, countryDatasetSchema } from "@/components/seo-meta";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Shield,
   TrendingUp, Building2, DollarSign, Layers, Activity, GitCompareArrows,
@@ -196,7 +196,9 @@ export default function CountryProfile() {
             ? `Energy deals in ${name}: ${totalStr} across ${projects.length} projects. Leading sector: ${topSector}.`
             : `Energy investment portfolio for ${name} — explore projects, sectors, and deal flow.`
         }
+        keywords={`${name} energy investment, ${name} renewable energy, ${name} solar, ${name} power projects`}
         url={`/countries/${encodeURIComponent(name)}`}
+        jsonLd={projects.length ? countryDatasetSchema(name, encodeURIComponent(name), projects.length, totalInvestment) : undefined}
       />
       <PageTransition className="p-4 md:p-8 max-w-6xl mx-auto">
 

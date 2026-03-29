@@ -1,0 +1,531 @@
+## ⚠️ DO NOT DISRUPT EXISTING APP
+
+**This is an ADDITIVE improvement only.** Do NOT modify any existing functionality, page design, layout, styling, or features. Only add/improve SEO-related metadata, tags, and files. Every page must continue to look and work EXACTLY as it does today.
+
+---
+
+## SEO Audit Findings
+
+An audit of the live site revealed these issues, grouped by severity:
+
+### 🔴 Critical Issues
+
+| # | Issue | Detail |
+|---|-------|--------|
+| 1 | **Sitemap.xml is broken** | `robots.txt` references `/sitemap.xml` but the URL returns a 404 (SPA fallback HTML). Google cannot discover or crawl the site's pages. |
+| 2 | **Country profile pages have ZERO SEO metadata** | `/countries/egypt`, `/countries/nigeria`, etc. show only the generic default title "Africa Energy Investment Tracker" — no description, no OG tags, no canonical, no H1, no JSON-LD. These are high-value pages for organic search. |
+| 3 | **No `robots` meta tag on any page** | None of the pages include a `<meta name="robots" content="index, follow">` tag. While crawlers will index by default, explicit directives are best practice. |
+| 4 | **No `keywords` meta tag** | No page includes meta keywords. While Google doesn't use this directly, Bing and other engines still consider it. |
+| 5 | **Stale data in descriptions** | Homepage description says "360+ deals across 52 countries" and deal tracker says "123+ deals across 26 countries" but actual database has 156 projects across 40 countries. These mismatches hurt credibility with both users and search engines. |
+
+### 🟡 Important Issues
+
+| # | Issue | Detail |
+|---|-------|--------|
+| 6 | **Developer profile pages likely missing SEO** | `/developers/:id` pages probably have the same issue as country profiles — no dynamic metadata. |
+| 7 | **JSON-LD structured data is inconsistent** | Homepage and deal detail pages have JSON-LD, but countries page has NONE. Country profiles and developer profiles also missing. |
+| 8 | **No JSON-LD Organization/WebSite schema on homepage** | The homepage should have Organization and WebSite structured data for Google Knowledge Panel eligibility. |
+| 9 | **Map page likely missing unique meta** | `/map` may not have a differentiated description since it's a visualization page. |
+| 10 | **No `alternate` hreflang tags** | If targeting international users, hreflang could signal English as primary language. |
+
+### 🟢 What's Working Well
+
+| # | Feature | Detail |
+|---|---------|--------|
+| ✅ | `robots.txt` exists | Properly configured with `Allow: /` |
+| ✅ | Homepage has good SEO | Title, description, OG tags, Twitter card, canonical, JSON-LD all present |
+| ✅ | Deal detail pages have dynamic SEO | `/deals/1` shows "Benban Solar Park Expansion | AfriEnergy Tracker" with description, OG, canonical |
+| ✅ | Dashboard has SEO | Title, description, OG, canonical all present |
+| ✅ | Countries listing page has SEO | Title, description, OG, canonical present |
+| ✅ | Deal Tracker listing has SEO | Title, description, OG, canonical present |
+| ✅ | `react-helmet-async` is used | The `seo-meta.tsx` component manages head tags via react-helmet |
+| ✅ | Canonical URLs are set | On pages that have SEO, canonical URLs are correct |
+| ✅ | Twitter card `summary_large_image` | Set on pages that have SEO |
+
+---
+
+## Fix Instructions
+
+### 1. Fix the Sitemap — Create a Dynamic Sitemap Generator
+
+**This is the #1 priority.** Without a working sitemap, Google cannot efficiently discover the site's pages.
+
+**File:** Add a server-side route that generates `sitemap.xml` dynamically from the database.
+
+```
+GET /sitemap.xml → Returns XML content-type with a valid sitemap
+```
+
+**Implementation:**
+
+```javascript
+// In railway-server.mjs or a route file
+app.get('/sitemap.xml', async (req, res) => {
+  const baseUrl = 'https://afrienergytracker.io';
+
+  // Static pages
+  const staticPages = [
+    { url: '/', changefreq: 'daily', priority: '1.0' },
+    { url: '/dashboard', changefreq: 'daily', priority: '0.9' },
+    { url: '/deals', changefreq: 'daily', priority: '0.9' },
+    { url: '/map', changefreq: 'weekly', priority: '0.8' },
+    { url: '/countries', changefreq: 'weekly', priority: '0.8' },
+    { url: '/developers', changefreq: 'weekly', priority: '0.7' },
+    { url: '/studio', changefreq: 'monthly', priority: '0.5' },
+    { url: '/api-docs', changefreq: 'monthly', priority: '0.4' },
+  ];
+
+  // Dynamic pages from database
+  const projects = await db.query('SELECT id, "projectName", "createdAt" FROM projects');
+  const countries = await db.query('SELECT DISTINCT country FROM projects WHERE country IS NOT NULL');
+  const developers = await db.query('SELECT DISTINCT developer FROM projects WHERE developer IS NOT NULL');
+
+  // Build XML
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
+  // Static pages
+  for (const page of staticPages) {
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}${page.url}</loc>\n`;
+    xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
+    xml += `    <priority>${page.priority}</priority>\n`;
+    xml += `  </url>\n`;
+  }
+
+  // Deal detail pages
+  for (const project of projects) {
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}/deals/${project.id}</loc>\n`;
+    xml += `    <changefreq>weekly</changefreq>\n`;
+    xml += `    <priority>0.7</priority>\n`;
+    if (project.createdAt) {
+      xml += `    <lastmod>${new Date(project.createdAt).toISOString().split('T')[0]}</lastmod>\n`;
+    }
+    xml += `  </url>\n`;
+  }
+
+  // Country profile pages
+  for (const row of countries) {
+    const slug = row.country.toLowerCase().replace(/\s+/g, '-');
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}/countries/${slug}</loc>\n`;
+    xml += `    <changefreq>weekly</changefreq>\n`;
+    xml += `    <priority>0.7</priority>\n`;
+    xml += `  </url>\n`;
+  }
+
+  // Developer profile pages
+  for (const row of developers) {
+    const slug = row.developer.toLowerCase().replace(/\s+/g, '-');
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}/developers/${slug}</loc>\n`;
+    xml += `    <changefreq>monthly</changefreq>\n`;
+    xml += `    <priority>0.5</priority>\n`;
+    xml += `  </url>\n`;
+  }
+
+  xml += '</urlset>';
+
+  res.set('Content-Type', 'application/xml');
+  res.send(xml);
+});
+```
+
+**IMPORTANT:** This server-side route MUST be registered BEFORE the SPA catch-all route. Otherwise the catch-all will intercept `/sitemap.xml` and return the HTML shell (which is the current bug).
+
+### 2. Add SEO to Country Profile Pages
+
+**File:** `artifacts/energy-tracker/src/pages/country-profile.tsx`
+
+Country profile pages (`/countries/egypt`, `/countries/nigeria`, etc.) currently have NO SEO metadata. Add dynamic metadata using the existing `seo-meta.tsx` component (or `react-helmet-async` directly):
+
+```tsx
+// Inside the country profile component, after fetching country data:
+<SeoMeta
+  title={`${countryName} Energy Investment | AfriEnergy Tracker`}
+  description={`Energy investment tracker for ${countryName}. ${dealCount} tracked projects worth $${totalInvestment}M across ${sectorCount} sectors including ${topSectors}.`}
+  url={`https://afrienergytracker.io/countries/${countrySlug}`}
+  type="website"
+/>
+```
+
+Also add JSON-LD structured data for each country profile:
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "${countryName} Energy Investment Data",
+  "description": "Energy investment deals tracked in ${countryName}",
+  "url": "https://afrienergytracker.io/countries/${slug}",
+  "publisher": {
+    "@type": "Organization",
+    "name": "AfriEnergy Tracker"
+  },
+  "spatialCoverage": {
+    "@type": "Place",
+    "name": "${countryName}"
+  }
+}
+```
+
+### 3. Add SEO to Developer/Investor Profile Pages
+
+**File:** `artifacts/energy-tracker/src/pages/developer-profile.tsx`
+
+Same pattern as country profiles:
+
+```tsx
+<SeoMeta
+  title={`${developerName} — African Energy Investments | AfriEnergy Tracker`}
+  description={`${developerName}'s energy investment portfolio in Africa. ${dealCount} tracked projects worth $${totalInvestment}M across ${countryCount} countries.`}
+  url={`https://afrienergytracker.io/developers/${developerSlug}`}
+  type="website"
+/>
+```
+
+### 4. Fix Stale Numbers in Existing Descriptions
+
+**File:** `artifacts/energy-tracker/src/components/seo-meta.tsx` and all page files that hardcode deal counts
+
+Search the entire codebase for hardcoded numbers like "360+", "123+", "26 countries", "52 countries" and replace with either:
+- Accurate current numbers (156+ projects, 40 countries, 9 sectors), OR
+- Dynamic values fetched from the `/api/stats/summary` endpoint
+
+**Pages to check and update:**
+
+| Page | Current (wrong) | Should be |
+|------|-----------------|-----------|
+| Homepage `/` | "360+ deals across 52 countries" | "156+ deals across 40 countries" (or dynamic) |
+| Deal Tracker `/deals` | "123+ deals across 26 countries" | "156+ deals across 40 countries" (or dynamic) |
+| Dashboard `/dashboard` | "123+ deals across 26 countries" | "156+ deals across 40 countries" (or dynamic) |
+
+**Recommended approach:** Make the SEO component fetch stats dynamically so the numbers stay accurate as the database grows:
+
+```tsx
+// In seo-meta.tsx or a shared hook:
+const { data: stats } = useSWR('/api/stats/summary');
+const dealCount = stats?.totalProjects || '150+';
+const countryCount = stats?.totalCountries || '40';
+```
+
+### 5. Add `robots` Meta Tag to All Pages
+
+**File:** `artifacts/energy-tracker/src/components/seo-meta.tsx`
+
+Add a default robots meta tag that is included on every page:
+
+```html
+<meta name="robots" content="index, follow" />
+```
+
+For admin-only pages (Review Portal), use:
+
+```html
+<meta name="robots" content="noindex, nofollow" />
+```
+
+### 6. Add `keywords` Meta Tag to All Pages
+
+**File:** `artifacts/energy-tracker/src/components/seo-meta.tsx`
+
+Add a base set of keywords, with page-specific additions:
+
+**Base keywords (all pages):**
+```
+African energy investment, Africa renewable energy, energy deals Africa, solar Africa, wind energy Africa, infrastructure investment Africa, DFI Africa, development finance
+```
+
+**Page-specific keyword additions:**
+
+| Page | Additional Keywords |
+|------|--------------------|
+| Homepage | energy tracker, investment database, Africa energy data |
+| Dashboard | energy dashboard, investment analytics, sector analysis |
+| Deal Tracker | deal tracker, project finance, energy deals, financial close |
+| Map | energy map, Africa energy map, project locations |
+| Countries | country profiles, energy markets, investment by country |
+| Country Profile (e.g. Egypt) | Egypt energy, Egypt solar, Egypt investment, North Africa energy |
+| Investors | energy investors, DFI, development finance, project developers |
+| Deal Detail | {project name}, {country} energy, {technology} project |
+
+### 7. Enhance Homepage JSON-LD Structured Data
+
+**File:** Homepage component or `seo-meta.tsx`
+
+The homepage should include both `Organization` and `WebSite` schema:
+
+```json
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "AfriEnergy Tracker",
+    "url": "https://afrienergytracker.io",
+    "logo": "https://afrienergytracker.io/logo.png",
+    "description": "Africa's leading energy investment tracking platform covering 156+ deals across 40 countries.",
+    "sameAs": []
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "AfriEnergy Tracker",
+    "url": "https://afrienergytracker.io",
+    "description": "Track African energy investment deals — solar, wind, hydro, gas and storage projects with live data.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://afrienergytracker.io/deals?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+]
+```
+
+The `SearchAction` enables Google's sitelinks search box, letting users search your deal tracker directly from Google results.
+
+### 8. Add JSON-LD to the Countries Listing Page
+
+**File:** `artifacts/energy-tracker/src/pages/countries.tsx`
+
+Currently has zero JSON-LD. Add a `Dataset` or `DataCatalog` schema:
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "DataCatalog",
+  "name": "African Energy Markets — Country Profiles",
+  "description": "Energy investment profiles for 40 African countries covering solar, wind, hydro, gas and storage projects.",
+  "url": "https://afrienergytracker.io/countries",
+  "publisher": {
+    "@type": "Organization",
+    "name": "AfriEnergy Tracker"
+  }
+}
+```
+
+### 9. Improve Deal Detail Page JSON-LD
+
+**File:** `artifacts/energy-tracker/src/pages/deal-detail.tsx`
+
+The deal detail pages already have JSON-LD but it should be enhanced to use the `Dataset` or `InvestmentOrDeposit` schema with richer fields:
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "${projectName}",
+  "description": "${description}",
+  "url": "https://afrienergytracker.io/deals/${id}",
+  "spatialCoverage": {
+    "@type": "Place",
+    "name": "${country}, ${region}"
+  },
+  "temporalCoverage": "${announcedYear}/${closedYear || 'present'}",
+  "publisher": {
+    "@type": "Organization",
+    "name": "AfriEnergy Tracker"
+  },
+  "keywords": ["${technology}", "${country}", "energy investment", "Africa"]
+}
+```
+
+### 10. Add Open Graph Image for Dynamic Pages
+
+Currently the OG image is a static `og-image.png` for all pages. For dynamic pages, consider generating or selecting contextual OG images:
+
+- **Country profiles:** Use a generic image with the country flag or a map highlight
+- **Deal details:** Use a sector-themed image (solar panel for Solar, wind turbine for Wind, etc.)
+
+At minimum, ensure ALL dynamic pages include the fallback OG image:
+
+```html
+<meta property="og:image" content="https://afrienergytracker.io/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="AfriEnergy Tracker — African Energy Investment Database" />
+```
+
+### 11. Add Missing Meta Tags to All Pages
+
+Ensure EVERY page rendered by the SPA includes these baseline tags via `seo-meta.tsx`:
+
+```html
+<!-- Already present on most pages, verify on ALL: -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="AfriEnergy Tracker" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@afrienergypulse" />  <!-- if a Twitter handle exists -->
+
+<!-- NEW — add to all pages: -->
+<meta name="robots" content="index, follow" />
+<meta name="author" content="AfriEnergy Tracker" />
+<meta name="theme-color" content="#0f172a" />  <!-- matches dark theme -->
+<link rel="alternate" hreflang="en" href="https://afrienergytracker.io${currentPath}" />
+```
+
+### 12. Improve the `robots.txt`
+
+**File:** The static `robots.txt` file (likely in `public/` directory)
+
+Current robots.txt is minimal. Enhance it:
+
+```
+User-agent: *
+Allow: /
+
+# Block admin/internal pages from indexing
+Disallow: /review
+Disallow: /review/*
+Disallow: /api/
+Disallow: /embed-*
+
+Sitemap: https://afrienergytracker.io/sitemap.xml
+```
+
+Note: Use the FULL URL for the sitemap reference (currently it's just `/sitemap.xml` which is technically valid but the full URL is more robust).
+
+### 13. Server-Side Rendering (SSR) Consideration for Crawlers
+
+Since this is a client-side React SPA, search engine crawlers see the initial HTML shell before JavaScript renders the content. While Googlebot can execute JavaScript, other crawlers (Bing, social media previews) may not.
+
+**Recommended:** Add a lightweight server-side meta tag injection for crawlers. In `railway-server.mjs`, before serving the SPA HTML for any route:
+
+```javascript
+// For bot requests, inject meta tags into the HTML shell
+app.get('*', async (req, res, next) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const isBot = /googlebot|bingbot|slurp|duckduckbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp/i.test(userAgent);
+
+  if (isBot) {
+    // Read the index.html template
+    let html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+
+    // Generate meta tags based on the URL path
+    const meta = await generateMetaForPath(req.path);
+
+    // Inject into <head>
+    html = html.replace('</head>',
+      `<title>${meta.title}</title>
+       <meta name="description" content="${meta.description}" />
+       <meta property="og:title" content="${meta.title}" />
+       <meta property="og:description" content="${meta.description}" />
+       <meta property="og:url" content="https://afrienergytracker.io${req.path}" />
+       <meta property="og:image" content="${meta.ogImage || 'https://afrienergytracker.io/og-image.png'}" />
+       <link rel="canonical" href="https://afrienergytracker.io${req.path}" />
+       ${meta.jsonLd ? `<script type="application/ld+json">${JSON.stringify(meta.jsonLd)}</script>` : ''}
+       </head>`
+    );
+
+    return res.send(html);
+  }
+
+  next(); // For non-bot requests, serve the SPA normally
+});
+```
+
+The `generateMetaForPath()` function should:
+- Parse the URL path (e.g., `/countries/egypt` → lookup Egypt data)
+- Query the database for dynamic pages (deal details, country profiles, developer profiles)
+- Return title, description, OG tags, and JSON-LD appropriate for that page
+- Fall back to generic site-level metadata for unknown paths
+
+This ensures that when Google, Facebook, Twitter, LinkedIn, or WhatsApp crawl any URL, they receive proper metadata in the initial HTML — even before JavaScript executes.
+
+---
+
+## Page-by-Page SEO Specification
+
+| Page | Route | Title | Description | JSON-LD Type |
+|------|-------|-------|-------------|--------------|
+| Homepage | `/` | Africa Energy Investment Database \| AfriEnergy Tracker | Track 156+ energy investment deals across 40 African countries. Solar, wind, hydro, gas & storage projects with live data. | Organization + WebSite |
+| Dashboard | `/dashboard` | Market Overview \| AfriEnergy Tracker | Interactive dashboard — African energy investment by sector, country, and year. Live charts covering 156+ deals across 40 countries. | Dataset |
+| Deal Tracker | `/deals` | Deal Tracker \| AfriEnergy Tracker | Search and filter 156+ African energy investment deals. Filter by country, technology, status, and deal size across solar, wind, hydro, gas and more. | DataCatalog |
+| Deal Detail | `/deals/:id` | {projectName} \| AfriEnergy Tracker | {technology} project in {country}, ${dealSize} investment. Status: {status}. | Dataset |
+| Map | `/map` | Interactive Energy Map \| AfriEnergy Tracker | Explore African energy investment projects on an interactive map. 156+ deals across 40 countries with sector and status filters. | Dataset |
+| Countries | `/countries` | Country Profiles \| AfriEnergy Tracker | Explore energy investment activity across 40 African markets. Detailed profiles, sector breakdowns, and side-by-side country comparisons. | DataCatalog |
+| Country Profile | `/countries/:slug` | {Country} Energy Investment \| AfriEnergy Tracker | Energy investment tracker for {Country}. {N} tracked projects worth ${X}M across {N} sectors. | Dataset + Place |
+| Investors | `/developers` | Investors & Developers \| AfriEnergy Tracker | Profiles of 57+ energy investors and developers active in African markets. Portfolio analysis and deal history. | DataCatalog |
+| Developer Profile | `/developers/:slug` | {Name} — African Energy Investments \| AfriEnergy Tracker | {Name}'s energy investment portfolio in Africa. {N} tracked projects worth ${X}M across {N} countries. | Organization |
+| Vis Studio | `/studio` | Visualization Studio \| AfriEnergy Tracker | Create custom energy investment visualizations and charts from Africa's most comprehensive deal database. | WebApplication |
+| API Docs | `/api-docs` | API Documentation \| AfriEnergy Tracker | REST API for African energy investment data. Programmatic access to 156+ deals across 40 countries. | APIReference |
+| Review Portal | `/review` | (noindex) Review Portal \| AfriEnergy Tracker | — | None (noindex) |
+
+---
+
+## File Summary
+
+| Action | File | What |
+|--------|------|------|
+| CREATE | Server route: `GET /sitemap.xml` | Dynamic sitemap generator |
+| MODIFY | `artifacts/energy-tracker/src/pages/country-profile.tsx` | Add dynamic SEO meta tags + JSON-LD |
+| MODIFY | `artifacts/energy-tracker/src/pages/developer-profile.tsx` | Add dynamic SEO meta tags + JSON-LD |
+| MODIFY | `artifacts/energy-tracker/src/components/seo-meta.tsx` | Add robots, keywords, author, theme-color, og:image dimensions |
+| MODIFY | `artifacts/energy-tracker/src/pages/landing.tsx` | Fix stale numbers, enhance JSON-LD to Organization + WebSite |
+| MODIFY | `artifacts/energy-tracker/src/pages/deal-tracker.tsx` | Fix stale numbers in description |
+| MODIFY | `artifacts/energy-tracker/src/pages/dashboard.tsx` | Fix stale numbers in description |
+| MODIFY | `artifacts/energy-tracker/src/pages/countries.tsx` | Add JSON-LD DataCatalog |
+| MODIFY | `artifacts/energy-tracker/src/pages/map.tsx` | Verify/add SEO meta if missing |
+| MODIFY | `artifacts/energy-tracker/src/pages/deal-detail.tsx` | Enhance JSON-LD with richer schema |
+| MODIFY | `public/robots.txt` (or equivalent) | Block admin pages, use full sitemap URL |
+| MODIFY | `railway-server.mjs` | Add sitemap route + optional bot meta injection (before SPA catch-all) |
+
+---
+
+## Testing Checklist
+
+After implementing, verify:
+
+**Sitemap:**
+- [ ] `https://afrienergytracker.io/sitemap.xml` returns valid XML (not HTML 404)
+- [ ] Sitemap includes all static pages (/, /dashboard, /deals, /map, /countries, etc.)
+- [ ] Sitemap includes all 156+ deal detail pages (/deals/1, /deals/2, etc.)
+- [ ] Sitemap includes all 40 country profile pages
+- [ ] Sitemap includes developer profile pages
+- [ ] XML validates at https://www.xml-sitemaps.com/validate-xml-sitemap.html
+
+**Country Profile Pages:**
+- [ ] `/countries/egypt` has title "Egypt Energy Investment | AfriEnergy Tracker" (not generic)
+- [ ] Has meta description with deal count and investment total
+- [ ] Has OG tags (title, description, image, url)
+- [ ] Has canonical URL
+- [ ] Has JSON-LD structured data
+
+**Developer Profile Pages:**
+- [ ] Same checks as country profiles
+
+**Stale Numbers:**
+- [ ] Homepage description references accurate project/country counts
+- [ ] Deal Tracker description references accurate counts
+- [ ] Dashboard description references accurate counts
+
+**Baseline Tags (all pages):**
+- [ ] Every page has `<meta name="robots" content="index, follow">` (except /review → noindex)
+- [ ] Every page has `<meta name="keywords">` with relevant terms
+- [ ] Every page has `<meta name="author" content="AfriEnergy Tracker">`
+- [ ] Every page has `<meta name="theme-color" content="#0f172a">`
+- [ ] Every page has `og:image` with width/height/alt
+
+**JSON-LD:**
+- [ ] Homepage has Organization + WebSite with SearchAction
+- [ ] Countries listing has DataCatalog
+- [ ] Deal detail pages have enhanced Dataset schema
+- [ ] Validate all JSON-LD at https://validator.schema.org/
+
+**robots.txt:**
+- [ ] `/review` and `/api/` are disallowed
+- [ ] Sitemap URL is the full `https://` version
+
+---
+
+## Priority Order
+
+1. **Fix sitemap.xml** (Critical — blocking Google discovery)
+2. **Add SEO to country profile pages** (High — these are prime organic search targets)
+3. **Fix stale numbers** (High — damages credibility)
+4. **Add robots, keywords, author meta to all pages** (Medium)
+5. **Enhance JSON-LD structured data** (Medium)
+6. **Add SEO to developer profile pages** (Medium)
+7. **Server-side meta injection for bots** (Nice-to-have — significant effort)
+8. **After making ALL changes, rebuild**: `cd artifacts/energy-tracker && pnpm run build`
+9. **Commit and push ALL changes** including updated build output

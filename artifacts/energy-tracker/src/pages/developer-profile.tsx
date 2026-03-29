@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
-import { SEOMeta } from "@/components/seo-meta";
+import { SEOMeta, developerOrganizationSchema } from "@/components/seo-meta";
 import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 
 const API = "/api";
@@ -206,7 +206,9 @@ export default function DeveloperProfile() {
       <SEOMeta
         title={`${name} Africa Portfolio`}
         description={`${name} energy portfolio across Africa: ${projects.length} deals${totalInvestment ? `, ${devTotalStr} deployed` : ""}${topSectors ? ` in ${topSectors}` : ""}. Active in ${countries.length} countries.`}
+        keywords={`${name} Africa, ${name} energy, ${name} investment, ${name} renewable`}
         url={`/developers/${encodeURIComponent(name)}`}
+        jsonLd={projects.length ? developerOrganizationSchema(name, encodeURIComponent(name), projects.length, countries) : undefined}
       />
       <PageTransition className="p-4 md:p-8 max-w-6xl mx-auto">
 

@@ -1108,7 +1108,7 @@ export default function Dashboard() {
     <Layout>
       <SEOMeta
         title="Market Overview"
-        description="Interactive dashboard — African energy investment by sector, country, and year. Live charts covering 123+ deals across 26 countries."
+        description="Interactive dashboard — African energy investment by sector, country, and year. Live charts covering 156+ deals across 40 countries."
         url="/dashboard"
         jsonLd={datasetSchema()}
       />

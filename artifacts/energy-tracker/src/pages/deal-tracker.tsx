@@ -933,7 +933,7 @@ export default function DealTracker() {
     <Layout>
       <SEOMeta
         title="Deal Tracker"
-        description="Search and filter 123+ African energy investment deals. Filter by country, technology, status, and deal size across solar, wind, hydro, gas and more."
+        description="Search and filter 156+ African energy investment deals. Filter by country, technology, status, and deal size across solar, wind, hydro, gas and more."
         url="/deals"
         jsonLd={datasetSchema()}
       />

@@ -1,4 +1,18 @@
 User-agent: *
 Allow: /
 
-Sitemap: /sitemap.xml
+Disallow: /review
+Disallow: /api/
+Disallow: /energy-tracker/review
+
+# Block AI training crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+Sitemap: https://afrienergytracker.io/sitemap.xml
