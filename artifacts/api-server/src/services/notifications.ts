@@ -12,7 +12,11 @@ interface ProjectData {
   dealStage?: string | null;
 }
 
-const APP_URL = process.env.APP_URL ?? "http://localhost:22663/energy-tracker";
+const _replitDomain = process.env.REPLIT_DEV_DOMAIN;
+const APP_URL =
+  (_replitDomain && process.env.NODE_ENV !== "production")
+    ? `https://${_replitDomain}/energy-tracker`
+    : (process.env.APP_URL ?? "http://localhost:22663/energy-tracker");
 
 export async function checkWatchesAndNotify(project: ProjectData): Promise<void> {
   try {

@@ -8,8 +8,12 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 const router = Router();
 
 const _replitDomain = process.env.REPLIT_DEV_DOMAIN;
-const APP_URL = process.env.APP_URL
-  ?? (_replitDomain ? `https://${_replitDomain}/energy-tracker` : "http://localhost:22663/energy-tracker");
+// In dev, always use the Replit dev domain so magic-link tokens (stored in the dev
+// DB) are verified against this dev server — not the production domain set in APP_URL.
+const APP_URL =
+  (_replitDomain && process.env.NODE_ENV !== "production")
+    ? `https://${_replitDomain}/energy-tracker`
+    : (process.env.APP_URL ?? "http://localhost:22663/energy-tracker");
 const SESSION_DAYS = 30;
 const TOKEN_HOURS = 1;
 
