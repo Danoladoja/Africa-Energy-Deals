@@ -175,10 +175,10 @@ function CountryProfilePanel({
   const PieTooltip = ({ active, payload }: any) => {
     if (active && payload?.length) {
       return (
-        <div className="bg-[#0f1724] border border-white/10 p-3 rounded-xl shadow-xl text-xs">
-          <p className="font-semibold text-white mb-1">{payload[0].name}</p>
+        <div className="bg-popover border border-border p-3 rounded-xl shadow-xl text-xs">
+          <p className="font-semibold text-foreground mb-1">{payload[0].name}</p>
           <p className="text-[#00e676]">{fmt(payload[0].value)}</p>
-          <p className="text-slate-400">{payload[0].payload.count} projects</p>
+          <p className="text-muted-foreground">{payload[0].payload.count} projects</p>
         </div>
       );
     }
@@ -188,8 +188,8 @@ function CountryProfilePanel({
   const BarTooltip = ({ active, payload, label }: any) => {
     if (active && payload?.length) {
       return (
-        <div className="bg-[#0f1724] border border-white/10 p-3 rounded-xl shadow-xl text-xs">
-          <p className="font-semibold text-white mb-1">{label}</p>
+        <div className="bg-popover border border-border p-3 rounded-xl shadow-xl text-xs">
+          <p className="font-semibold text-foreground mb-1">{label}</p>
           <p className="text-[#00e676]">{fmt(payload[0].value)}</p>
         </div>
       );
@@ -205,24 +205,24 @@ function CountryProfilePanel({
           <span className="text-5xl">{flag}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight">{countryName}</h2>
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground leading-tight">{countryName}</h2>
               <WatchButton watchType="country" watchValue={countryName} label={`Watch ${countryName}`} size="sm" />
               <button
                 onClick={() => onCompare(countryName)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/10 text-slate-400 hover:text-[#00e676] hover:border-[#00e676]/30 hover:bg-[#00e676]/10 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-border text-muted-foreground hover:text-[#00e676] hover:border-[#00e676]/30 hover:bg-[#00e676]/10 transition-all"
               >
                 <GitCompareArrows className="w-3.5 h-3.5" />
                 Compare with…
               </button>
               <button
                 onClick={() => navigate(`/countries/${encodeURIComponent(countryName)}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
               >
                 Full page →
               </button>
             </div>
             {countryStat && (
-              <p className="text-slate-400 text-sm mt-0.5">{countryStat.region}</p>
+              <p className="text-muted-foreground text-sm mt-0.5">{countryStat.region}</p>
             )}
           </div>
         </div>
@@ -236,43 +236,43 @@ function CountryProfilePanel({
           { icon: TrendingUp, label: "Top Sector", value: isLoading ? "—" : topSector, color: SECTOR_COLORS[topSector] },
           { icon: Activity, label: "Avg Deal Size", value: isLoading ? "—" : fmt(avgDealSize) },
         ].map(({ icon: Icon, label, value, color }) => (
-          <div key={label} className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-slate-500 mb-2">
+          <div key={label} className="bg-card border border-border/50 rounded-2xl p-4">
+            <div className="flex items-center gap-2 text-muted-foreground/70 mb-2">
               <Icon className="w-3.5 h-3.5" style={color ? { color } : undefined} />
               <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
             </div>
-            <p className="text-lg font-bold text-white font-mono">{value}</p>
+            <p className="text-lg font-bold text-foreground font-mono">{value}</p>
           </div>
         ))}
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">Deal Flow by Year</h3>
+        <div className="bg-card border border-border/50 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4">Deal Flow by Year</h3>
           {isLoading ? (
-            <div className="h-48 animate-pulse bg-white/5 rounded-xl" />
+            <div className="h-48 animate-pulse bg-muted/30 rounded-xl" />
           ) : byYear.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
+            <div className="h-48 flex items-center justify-center text-muted-foreground/50 text-sm">No year data available</div>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={byYear} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={50} />
-                <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                <RechartsTooltip content={<BarTooltip />} cursor={{ fill: "var(--chart-grid)" }} />
                 <Bar dataKey="investment" fill="#00e676" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">Sector Breakdown</h3>
+        <div className="bg-card border border-border/50 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4">Sector Breakdown</h3>
           {isLoading ? (
-            <div className="h-48 animate-pulse bg-white/5 rounded-xl" />
+            <div className="h-48 animate-pulse bg-muted/30 rounded-xl" />
           ) : sectorTotals.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-slate-600 text-sm">No sector data</div>
+            <div className="h-48 flex items-center justify-center text-muted-foreground/50 text-sm">No sector data</div>
           ) : (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="50%" height={160}>
@@ -292,9 +292,9 @@ function CountryProfilePanel({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <div className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: SECTOR_COLORS[s.name] ?? FALLBACK_COLOR }} />
-                      <span className="text-xs text-slate-400 truncate">{s.name}</span>
+                      <span className="text-xs text-muted-foreground truncate">{s.name}</span>
                     </div>
-                    <span className="text-xs font-mono font-medium text-slate-200 shrink-0">{fmt(s.investment)}</span>
+                    <span className="text-xs font-mono font-medium text-foreground shrink-0">{fmt(s.investment)}</span>
                   </div>
                 ))}
               </div>
@@ -304,21 +304,21 @@ function CountryProfilePanel({
       </div>
 
       {/* Top Developers */}
-      <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5 mb-6">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+      <div className="bg-card border border-border/50 rounded-2xl p-5 mb-6">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
           <Building2 className="w-4 h-4" />
           Top Developers
         </h3>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-10 bg-white/5 rounded-xl animate-pulse" />
+              <div key={i} className="h-10 bg-muted/30 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : developerTable.length === 0 ? (
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <p className="text-slate-400 text-sm font-medium">Data coming soon</p>
-            <p className="text-slate-600 text-xs mt-1">
+          <div className="bg-muted/30 rounded-xl p-4 text-center">
+            <p className="text-muted-foreground text-sm font-medium">Data coming soon</p>
+            <p className="text-muted-foreground/50 text-xs mt-1">
               Developer attribution is being added to existing projects via the AI Discovery Agent.
             </p>
           </div>
@@ -326,7 +326,7 @@ function CountryProfilePanel({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
+                <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50">
                   <th className="text-left py-2 pr-4 font-semibold">Developer</th>
                   <th className="text-right py-2 pr-4 font-semibold">Investment</th>
                   <th className="text-right py-2 font-semibold">Projects</th>
@@ -334,10 +334,10 @@ function CountryProfilePanel({
               </thead>
               <tbody className="divide-y divide-white/5">
                 {developerTable.slice(0, 8).map((d) => (
-                  <tr key={d.name} className="hover:bg-white/5 transition-colors">
+                  <tr key={d.name} className="hover:bg-muted/50 transition-colors">
                     <td className="py-3 pr-4 font-medium text-slate-100">{d.name}</td>
-                    <td className="py-3 pr-4 text-right font-mono text-slate-300">{fmt(d.investment)}</td>
-                    <td className="py-3 text-right text-slate-400">{d.count}</td>
+                    <td className="py-3 pr-4 text-right font-mono text-foreground/80">{fmt(d.investment)}</td>
+                    <td className="py-3 text-right text-muted-foreground">{d.count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -347,33 +347,33 @@ function CountryProfilePanel({
       </div>
 
       {/* Risk & Regulatory */}
-      <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5 mb-6">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+      <div className="bg-card border border-border/50 rounded-2xl p-5 mb-6">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4" />
           Risk & Regulatory Environment
         </h3>
-        <div className="bg-white/5 rounded-xl p-4 border border-white/5">
-          <p className="text-slate-400 text-sm leading-relaxed">
+        <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             Regulatory environment data coming soon. This section will include:{" "}
-            <span className="text-slate-300">grid connection policies</span>,{" "}
-            <span className="text-slate-300">renewable energy targets</span>,{" "}
-            <span className="text-slate-300">IPP framework status</span>, and{" "}
-            <span className="text-slate-300">sovereign risk indicators</span> for {countryName}.
+            <span className="text-foreground/80">grid connection policies</span>,{" "}
+            <span className="text-foreground/80">renewable energy targets</span>,{" "}
+            <span className="text-foreground/80">IPP framework status</span>, and{" "}
+            <span className="text-foreground/80">sovereign risk indicators</span> for {countryName}.
           </p>
         </div>
       </div>
 
       {/* All Projects */}
-      <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-white/5">
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+      <div className="bg-card border border-border/50 rounded-2xl overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-border/50">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">
             All Projects ({projects.length})
           </h3>
         </div>
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
+              <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50 bg-muted/30">
                 <th className="text-left py-3 px-5 font-semibold">Project Name</th>
                 <th className="text-left py-3 px-4 font-semibold">Sector</th>
                 <th className="text-right py-3 px-4 font-semibold">Deal Size</th>
@@ -387,7 +387,7 @@ function CountryProfilePanel({
                     <tr key={i}>
                       {Array.from({ length: 5 }).map((_, j) => (
                         <td key={j} className="py-3 px-4">
-                          <div className="h-4 bg-white/5 rounded animate-pulse" />
+                          <div className="h-4 bg-muted/30 rounded animate-pulse" />
                         </td>
                       ))}
                     </tr>
@@ -396,10 +396,10 @@ function CountryProfilePanel({
                     <tr
                       key={project.id}
                       onClick={() => navigate(`/deals/${project.id}`)}
-                      className="cursor-pointer hover:bg-white/5 transition-colors group"
+                      className="cursor-pointer hover:bg-muted/50 transition-colors group"
                     >
                       <td className="py-3 px-5">
-                        <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">
+                        <span className="font-medium text-slate-100 group-hover:text-foreground transition-colors line-clamp-1">
                           {project.projectName}
                         </span>
                       </td>
@@ -407,16 +407,16 @@ function CountryProfilePanel({
                         <div className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_COLOR }} />
-                          <span className="text-slate-400 text-xs">{project.technology}</span>
+                          <span className="text-muted-foreground text-xs">{project.technology}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-300 text-xs">{fmt(project.dealSizeUsdMn)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-foreground/80 text-xs">{fmt(project.dealSizeUsdMn)}</td>
                       <td className="py-3 px-4">
                         {project.dealStage
-                          ? <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{project.dealStage}</span>
-                          : <span className="text-slate-600 text-xs">—</span>}
+                          ? <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-foreground/80">{project.dealStage}</span>
+                          : <span className="text-muted-foreground/50 text-xs">—</span>}
                       </td>
-                      <td className="py-3 px-5 text-right text-slate-500 text-xs">{project.announcedYear ?? "—"}</td>
+                      <td className="py-3 px-5 text-right text-muted-foreground/70 text-xs">{project.announcedYear ?? "—"}</td>
                     </tr>
                   ))}
             </tbody>
@@ -426,15 +426,15 @@ function CountryProfilePanel({
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="p-4 animate-pulse">
-                  <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-white/5 rounded w-1/2" />
+                  <div className="h-4 bg-muted/30 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-muted/30 rounded w-1/2" />
                 </div>
               ))
             : paginatedProjects.map((project) => (
                 <div
                   key={project.id}
                   onClick={() => navigate(`/deals/${project.id}`)}
-                  className="p-4 cursor-pointer hover:bg-white/5 transition-colors active:bg-white/5"
+                  className="p-4 cursor-pointer hover:bg-muted/50 transition-colors active:bg-muted/30"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h4 className="font-medium text-slate-100 text-sm leading-tight flex-1">{project.projectName}</h4>
@@ -442,13 +442,13 @@ function CountryProfilePanel({
                       <span className="font-mono text-xs font-bold text-[#00e676] shrink-0">{fmt(project.dealSizeUsdMn)}</span>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground/70 flex-wrap">
                     <span className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[project.technology] ?? FALLBACK_COLOR }} />
                       {project.technology}
                     </span>
                     {project.dealStage && (
-                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">{project.dealStage}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-muted-foreground">{project.dealStage}</span>
                     )}
                     {project.announcedYear && <span>{project.announcedYear}</span>}
                   </div>
@@ -456,22 +456,22 @@ function CountryProfilePanel({
               ))}
         </div>
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
-            <span className="text-xs text-slate-500">
+          <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground/70">
               Page {page} of {totalPages} · {projects.length} projects
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -530,7 +530,7 @@ function CountrySelector({
   return (
     <div className="relative">
       <div
-        className="flex flex-wrap items-center gap-2 bg-[#1e293b] border border-white/10 rounded-xl p-2.5 cursor-text min-h-[48px]"
+        className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-2.5 cursor-text min-h-[48px]"
         onClick={() => setOpen(true)}
       >
         {selected.map((c, i) => (
@@ -550,22 +550,22 @@ function CountrySelector({
         ))}
         {selected.length < 3 && (
           <input
-            className="flex-1 bg-transparent text-sm text-slate-300 placeholder:text-slate-600 outline-none min-w-[120px]"
+            className="flex-1 bg-transparent text-sm text-foreground/80 placeholder:text-muted-foreground/50 outline-none min-w-[120px]"
             placeholder={selected.length === 0 ? "Search and select countries…" : "Add another country…"}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
           />
         )}
-        <ChevronDown className="w-4 h-4 text-slate-600 ml-auto shrink-0" />
+        <ChevronDown className="w-4 h-4 text-muted-foreground/50 ml-auto shrink-0" />
       </div>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
             <div className="max-h-60 overflow-y-auto">
               {filtered.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-slate-500">
+                <div className="px-4 py-3 text-sm text-muted-foreground/70">
                   {selected.length >= 3 ? "Maximum 3 countries selected" : "No countries match"}
                 </div>
               ) : (
@@ -574,10 +574,10 @@ function CountrySelector({
                     key={c}
                     disabled={selected.length >= 3}
                     onClick={() => { toggle(c); setOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="text-lg">{COUNTRY_FLAGS[c] ?? "🌍"}</span>
-                    <span className="text-slate-200">{c}</span>
+                    <span className="text-foreground">{c}</span>
                   </button>
                 ))
               )}
@@ -607,19 +607,19 @@ function ComparisonCard({
     { label: "Avg Deal Size",   key: "avgDealSize",    value: fmt(metrics.avgDealSize) },
   ];
   return (
-    <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden flex-1"
+    <div className="bg-card border border-border/50 rounded-2xl overflow-hidden flex-1"
       style={{ borderLeft: `3px solid ${color}` }}>
-      <div className="px-5 pt-5 pb-4 border-b border-white/5" style={{ background: `${color}08` }}>
+      <div className="px-5 pt-5 pb-4 border-b border-border/50" style={{ background: `${color}08` }}>
         <span className="text-3xl mb-1 block">{flag}</span>
-        <h3 className="text-lg font-bold text-white leading-tight">{metrics.country}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{metrics.region}</p>
+        <h3 className="text-lg font-bold text-foreground leading-tight">{metrics.country}</h3>
+        <p className="text-xs text-muted-foreground/70 mt-0.5">{metrics.region}</p>
       </div>
       <div className="divide-y divide-white/5">
         {rows.map(({ label, key, value }) => {
           const isWinner = winners[key] === colorIdx;
           return (
             <div key={key} className="px-5 py-3 flex items-center justify-between gap-2">
-              <span className="text-xs text-slate-500">{label}</span>
+              <span className="text-xs text-muted-foreground/70">{label}</span>
               <span className="text-sm font-semibold font-mono" style={isWinner ? { color } : { color: "#cbd5e1" }}>
                 {isWinner && <span className="mr-1 text-[10px]">▲</span>}
                 {value}
@@ -635,12 +635,12 @@ function ComparisonCard({
 function ChartTip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0f1724] border border-white/10 rounded-xl p-3 shadow-xl text-xs min-w-[140px]">
-      {label && <p className="text-slate-400 font-semibold mb-2">{label}</p>}
+    <div className="bg-popover border border-border rounded-xl p-3 shadow-xl text-xs min-w-[140px]">
+      {label && <p className="text-muted-foreground font-semibold mb-2">{label}</p>}
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-3">
           <span style={{ color: p.color }}>{p.name}</span>
-          <span className="font-mono text-slate-200">
+          <span className="font-mono text-foreground">
             {typeof p.value === "number" && p.value > 10 ? fmt(p.value) : p.value}
           </span>
         </div>
@@ -850,14 +850,14 @@ function CompareTab({
   return (
     <div ref={contentRef}>
       {/* Selector card */}
-      <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 mb-6">
+      <div className="bg-card border border-border/50 rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-3 mb-3">
-          <p className="text-sm font-semibold text-slate-300 flex-1">Select up to 3 countries to compare</p>
+          <p className="text-sm font-semibold text-foreground/80 flex-1">Select up to 3 countries to compare</p>
           <div className="flex items-center gap-2">
             {selected.length === 2 && (
               <button
                 onClick={() => setSelected([selected[1], selected[0]])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/10"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border"
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
                 Swap
@@ -866,7 +866,7 @@ function CompareTab({
             {selected.length === 3 && (
               <button
                 onClick={() => setSelected([selected[1], selected[2], selected[0]])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/10"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border"
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
                 Rotate
@@ -875,7 +875,7 @@ function CompareTab({
             {hasSelection && (
               <button
                 onClick={() => setSelected([])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-colors border border-white/10"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground/70 hover:text-red-400 hover:bg-red-400/10 transition-colors border border-border"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Clear
@@ -884,7 +884,7 @@ function CompareTab({
             {hasComparison && (
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground/80 hover:border-[#00e676]/40 hover:text-[#00e676] transition-all"
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
                 {copied ? "Copied!" : "Share"}
@@ -901,15 +901,15 @@ function CompareTab({
       </div>
 
       {!hasSelection && (
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-16 text-center">
+        <div className="bg-card border border-border/50 rounded-2xl p-16 text-center">
           <GitCompareArrows className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-          <p className="text-slate-400 font-medium mb-1">Select at least 2 countries above to start comparing</p>
-          <p className="text-slate-600 text-sm">Use the search box to find African markets</p>
+          <p className="text-muted-foreground font-medium mb-1">Select at least 2 countries above to start comparing</p>
+          <p className="text-muted-foreground/50 text-sm">Use the search box to find African markets</p>
         </div>
       )}
       {selected.length === 1 && (
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-10 text-center">
-          <p className="text-slate-400 font-medium">Add one more country to see the comparison</p>
+        <div className="bg-card border border-border/50 rounded-2xl p-10 text-center">
+          <p className="text-muted-foreground font-medium">Add one more country to see the comparison</p>
         </div>
       )}
 
@@ -965,7 +965,7 @@ function CompareTab({
           {isLoading ? (
             <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: `repeat(${selected.length}, 1fr)` }}>
               {selected.map((_, i) => (
-                <div key={i} className="bg-[#1e293b] border border-white/5 rounded-2xl h-48 animate-pulse" />
+                <div key={i} className="bg-card border border-border/50 rounded-2xl h-48 animate-pulse" />
               ))}
             </div>
           ) : (
@@ -978,19 +978,19 @@ function CompareTab({
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                 <Layers className="w-3.5 h-3.5" /> Sector Mix (Investment $M)
               </h3>
               {sectorChartData.length === 0 ? (
-                <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No data</div>
+                <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={sectorChartData} layout="vertical" margin={{ top: 0, right: 8, left: 64, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                     <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="sector" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
-                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                     {selected.map((c, i) => (
                       <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
@@ -1000,16 +1000,16 @@ function CompareTab({
               )}
             </div>
 
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                 <DollarSign className="w-3.5 h-3.5" /> Deal Size Distribution (# projects)
               </h3>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={dealSizeData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="bucket" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                   <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                   {selected.map((c, i) => (
                     <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[3, 3, 0, 0]} maxBarSize={28} />
@@ -1018,16 +1018,16 @@ function CompareTab({
               </ResponsiveContainer>
             </div>
 
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                 <TrendingUp className="w-3.5 h-3.5" /> Annual Investment Timeline
               </h3>
               {timelineData.length === 0 ? (
-                <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
+                <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No year data available</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={timelineData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
                     <RechartsTooltip content={<ChartTip />} />
@@ -1041,19 +1041,19 @@ function CompareTab({
               )}
             </div>
 
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 flex items-center gap-2">
                 <Activity className="w-3.5 h-3.5" /> Deal Status Breakdown (# projects)
               </h3>
               {statusData.length === 0 ? (
-                <div className="h-52 flex items-center justify-center text-slate-600 text-sm">No status data</div>
+                <div className="h-52 flex items-center justify-center text-muted-foreground/50 text-sm">No status data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={statusData} layout="vertical" margin={{ top: 0, right: 8, left: 80, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                     <XAxis type="number" allowDecimals={false} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="status" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={76} />
-                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <RechartsTooltip content={<ChartTip />} cursor={{ fill: "var(--chart-grid)" }} />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                     {selected.map((c, i) => (
                       <Bar key={c} dataKey={c} name={c} fill={SLOT_COLORS[i]} radius={[0, 3, 3, 0]} maxBarSize={16} />
@@ -1065,14 +1065,14 @@ function CompareTab({
           </div>
 
           {/* Combined projects table */}
-          <div className="bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden mb-6">
-            <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <div className="bg-card border border-border/50 rounded-2xl overflow-hidden mb-6">
+            <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
                 All Projects ({allProjects.length})
               </h3>
               <div className="flex items-center gap-3">
                 {selected.map((c, i) => (
-                  <span key={c} className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span key={c} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: SLOT_COLORS[i] }} />
                     {c}
                   </span>
@@ -1082,7 +1082,7 @@ function CompareTab({
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
+                  <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50 bg-muted/30">
                     {(
                       [
                         { key: "projectName", label: "Project" },
@@ -1094,7 +1094,7 @@ function CompareTab({
                     ).map(({ key, label }) => (
                       <th
                         key={key}
-                        className="py-3 px-4 text-left cursor-pointer hover:text-slate-300 transition-colors select-none"
+                        className="py-3 px-4 text-left cursor-pointer hover:text-foreground/80 transition-colors select-none"
                         onClick={() => toggleSort(key)}
                       >
                         <span className="flex items-center gap-1">{label} <SortIcon k={key} /></span>
@@ -1107,7 +1107,7 @@ function CompareTab({
                     ? Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i}>
                           {Array.from({ length: 5 }).map((_, j) => (
-                            <td key={j} className="py-3 px-4"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>
+                            <td key={j} className="py-3 px-4"><div className="h-4 bg-muted/30 rounded animate-pulse" /></td>
                           ))}
                         </tr>
                       ))
@@ -1117,10 +1117,10 @@ function CompareTab({
                           <tr
                             key={`${p.id}-${p.country}`}
                             onClick={() => navigate(`/deals/${p.id}`)}
-                            className="cursor-pointer hover:bg-white/5 transition-colors group"
+                            className="cursor-pointer hover:bg-muted/50 transition-colors group"
                           >
                             <td className="py-3 px-4">
-                              <span className="font-medium text-slate-100 group-hover:text-white transition-colors line-clamp-1">
+                              <span className="font-medium text-slate-100 group-hover:text-foreground transition-colors line-clamp-1">
                                 {p.projectName}
                               </span>
                             </td>
@@ -1136,12 +1136,12 @@ function CompareTab({
                               <div className="flex items-center gap-1.5">
                                 <div className="w-2 h-2 rounded-full shrink-0"
                                   style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? FALLBACK_COLOR }} />
-                                <span className="text-slate-400 text-xs">{p.technology}</span>
+                                <span className="text-muted-foreground text-xs">{p.technology}</span>
                               </div>
                             </td>
-                            <td className="py-3 px-4 font-mono text-slate-300 text-xs">{fmt(p.dealSizeUsdMn)}</td>
+                            <td className="py-3 px-4 font-mono text-foreground/80 text-xs">{fmt(p.dealSizeUsdMn)}</td>
                             <td className="py-3 px-4">
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{p.status}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-foreground/80">{p.status}</span>
                             </td>
                           </tr>
                         );
@@ -1149,7 +1149,7 @@ function CompareTab({
                 </tbody>
               </table>
               {sortedProjects.length > 50 && (
-                <div className="px-5 py-3 border-t border-white/5 text-xs text-slate-600 text-center">
+                <div className="px-5 py-3 border-t border-border/50 text-xs text-muted-foreground/50 text-center">
                   Showing top 50 of {sortedProjects.length} projects — use the Deal Tracker for the full list
                 </div>
               )}
@@ -1161,7 +1161,7 @@ function CompareTab({
                   <div
                     key={`${p.id}-${p.country}`}
                     onClick={() => navigate(`/deals/${p.id}`)}
-                    className="p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                     style={{ borderLeft: `3px solid ${countryColor}` }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -1172,7 +1172,7 @@ function CompareTab({
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground/70 flex-wrap">
                       <span style={{ color: countryColor }}>{COUNTRY_FLAGS[p.country] ?? "🌍"} {p.country}</span>
                       <span>·</span>
                       <span>{p.technology}</span>
@@ -1339,17 +1339,17 @@ export default function CountriesPage() {
         {/* Summary banner */}
         {!isLoading && sorted.length > 0 && (
           <div className="grid grid-cols-3 gap-3 mb-6 shrink-0">
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Markets Tracked</p>
-              <p className="text-2xl font-bold text-white">{sorted.length} <span className="text-base font-normal text-slate-400">countries</span></p>
+            <div className="bg-card border border-border/50 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground/70 uppercase tracking-wider mb-1">Markets Tracked</p>
+              <p className="text-2xl font-bold text-foreground">{sorted.length} <span className="text-base font-normal text-muted-foreground">countries</span></p>
             </div>
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Combined Investment</p>
-              <p className="text-2xl font-bold text-white font-mono">{fmt2(totalInvestment)}</p>
+            <div className="bg-card border border-border/50 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground/70 uppercase tracking-wider mb-1">Combined Investment</p>
+              <p className="text-2xl font-bold text-foreground font-mono">{fmt2(totalInvestment)}</p>
             </div>
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Largest Market</p>
-              <p className="text-2xl font-bold text-white">
+            <div className="bg-card border border-border/50 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground/70 uppercase tracking-wider mb-1">Largest Market</p>
+              <p className="text-2xl font-bold text-foreground">
                 {COUNTRY_FLAGS[sorted[0]?.country] ?? "🌍"} {sorted[0]?.country}
               </p>
             </div>
@@ -1357,7 +1357,7 @@ export default function CountriesPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 bg-[#1e293b] border border-white/5 rounded-2xl p-1 w-fit shrink-0">
+        <div className="flex items-center gap-1 mb-6 bg-card border border-border/50 rounded-2xl p-1 w-fit shrink-0">
           {(["profiles", "compare"] as const).map((tab) => (
             <button
               key={tab}
@@ -1365,7 +1365,7 @@ export default function CountriesPage() {
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === tab
                   ? "bg-[#00e676] text-black shadow"
-                  : "text-slate-400 hover:text-white"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {tab === "profiles" ? "Country Profiles" : "Compare Markets"}
@@ -1382,7 +1382,7 @@ export default function CountriesPage() {
               {/* Mobile: dropdown */}
               <div className="md:hidden mb-4">
                 <select
-                  className="w-full bg-[#1e293b] border border-white/10 text-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                  className="w-full bg-card border border-border text-foreground rounded-xl px-4 py-3 text-sm outline-none"
                   value={selectedCountry ?? ""}
                   onChange={(e) => setSelectedCountry(e.target.value || null)}
                 >
@@ -1396,12 +1396,12 @@ export default function CountriesPage() {
               </div>
 
               {/* Desktop: searchable list */}
-              <div className="hidden md:flex flex-col min-h-0 bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden">
-                <div className="p-3 border-b border-white/5 shrink-0">
+              <div className="hidden md:flex flex-col min-h-0 bg-card border border-border/50 rounded-2xl overflow-hidden">
+                <div className="p-3 border-b border-border/50 shrink-0">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/70" />
                     <input
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-sm text-slate-300 placeholder:text-slate-600 outline-none focus:border-[#00e676]/30 focus:bg-[#00e676]/5 transition-all"
+                      className="w-full bg-muted/30 border border-border rounded-xl pl-8 pr-3 py-2 text-sm text-foreground/80 placeholder:text-muted-foreground/50 outline-none focus:border-[#00e676]/30 focus:bg-[#00e676]/5 transition-all"
                       placeholder="Filter countries…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
@@ -1411,9 +1411,9 @@ export default function CountriesPage() {
                 <div className="flex-1 overflow-y-auto">
                   {isLoading
                     ? Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="px-4 py-3 border-b border-white/5 animate-pulse">
-                          <div className="h-4 bg-white/5 rounded w-3/4 mb-1.5" />
-                          <div className="h-3 bg-white/5 rounded w-1/2" />
+                        <div key={i} className="px-4 py-3 border-b border-border/50 animate-pulse">
+                          <div className="h-4 bg-muted/30 rounded w-3/4 mb-1.5" />
+                          <div className="h-3 bg-muted/30 rounded w-1/2" />
                         </div>
                       ))
                     : filteredCountries.map((stat, rank) => {
@@ -1423,25 +1423,25 @@ export default function CountriesPage() {
                           <button
                             key={stat.country}
                             onClick={() => setSelectedCountry(stat.country)}
-                            className={`w-full text-left px-4 py-3 border-b border-white/5 transition-all flex items-center gap-3 group ${
+                            className={`w-full text-left px-4 py-3 border-b border-border/50 transition-all flex items-center gap-3 group ${
                               isSelected
                                 ? "bg-[#00e676]/10 border-l-2 border-l-[#00e676]"
-                                : "hover:bg-white/5"
+                                : "hover:bg-muted/50"
                             }`}
                           >
                             <span className="text-lg shrink-0">{flag}</span>
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-semibold truncate ${isSelected ? "text-[#00e676]" : "text-slate-200"}`}>
+                              <p className={`text-sm font-semibold truncate ${isSelected ? "text-[#00e676]" : "text-foreground"}`}>
                                 {stat.country}
                               </p>
-                              <p className="text-xs text-slate-500 font-mono">{fmt2(stat.totalInvestmentUsdMn)}</p>
+                              <p className="text-xs text-muted-foreground/70 font-mono">{fmt2(stat.totalInvestmentUsdMn)}</p>
                             </div>
                             <span className="text-xs text-slate-700 shrink-0">#{rank + 1}</span>
                           </button>
                         );
                       })}
                   {filteredCountries.length === 0 && !isLoading && (
-                    <div className="px-4 py-8 text-center text-slate-600 text-sm">No countries match</div>
+                    <div className="px-4 py-8 text-center text-muted-foreground/50 text-sm">No countries match</div>
                   )}
                 </div>
               </div>
@@ -1459,8 +1459,8 @@ export default function CountriesPage() {
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <p className="text-slate-400 text-base font-medium mb-1">Select a country from the list</p>
-                    <p className="text-slate-600 text-sm">Click any market to view its investment profile</p>
+                    <p className="text-muted-foreground text-base font-medium mb-1">Select a country from the list</p>
+                    <p className="text-muted-foreground/50 text-sm">Click any market to view its investment profile</p>
                   </div>
                 </div>
               )}

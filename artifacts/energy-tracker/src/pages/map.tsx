@@ -310,9 +310,9 @@ function ProjectList({
     <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
       {isLoading
         ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="p-3.5 rounded-xl border border-white/5 bg-white/2 animate-pulse">
-              <div className="h-3.5 bg-white/5 w-3/4 mb-2 rounded" />
-              <div className="h-3 bg-white/5 w-1/2 rounded" />
+            <div key={i} className="p-3.5 rounded-xl border border-border/50 bg-muted/10 animate-pulse">
+              <div className="h-3.5 bg-muted/30 w-3/4 mb-2 rounded" />
+              <div className="h-3 bg-muted/30 w-1/2 rounded" />
             </div>
           ))
         : projects.map((p) => (
@@ -322,7 +322,7 @@ function ProjectList({
               className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
                 activeProject?.id === p.id
                   ? "bg-[#00e676]/8 border-[#00e676]/25"
-                  : "bg-white/2 border-white/5 hover:border-white/15"
+                  : "bg-muted/10 border-border/50 hover:border-primary/30"
               }`}
             >
               <div
@@ -331,7 +331,7 @@ function ProjectList({
               />
               <div className="pl-3">
                 <div className="flex items-start justify-between gap-2 mb-0.5">
-                  <h3 className="font-semibold text-xs leading-tight flex-1 text-slate-200 line-clamp-2">
+                  <h3 className="font-semibold text-xs leading-tight flex-1 text-foreground line-clamp-2">
                     {p.projectName}
                   </h3>
                   {p.dealSizeUsdMn && (
@@ -340,7 +340,7 @@ function ProjectList({
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
+                <p className="text-[11px] text-muted-foreground/70 flex items-center gap-2 mt-1">
                   <span className="flex items-center gap-1">
                     <MapPin className="w-2.5 h-2.5" /> {p.country}
                   </span>
@@ -374,7 +374,7 @@ function FilterDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-[#1e293b]/95 backdrop-blur border border-white/10 text-slate-300 text-xs font-semibold rounded-xl pl-3 pr-7 py-2 outline-none cursor-pointer hover:border-white/20 transition-colors"
+        className="appearance-none bg-card/95 backdrop-blur border border-border text-foreground/80 text-xs font-semibold rounded-xl pl-3 pr-7 py-2 outline-none cursor-pointer hover:border-primary/40 transition-colors"
         style={{ minWidth: 110 }}
       >
         <option value="all">{label}: All</option>
@@ -382,7 +382,7 @@ function FilterDropdown({
           <option key={o} value={o}>{o}</option>
         ))}
       </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/70 pointer-events-none" />
     </div>
   );
 }
@@ -614,18 +614,18 @@ export default function MapPage() {
         <div className="flex-1 flex flex-col h-full">
 
           {/* ── Toolbar ── */}
-          <div className="shrink-0 bg-[#0b0f1a] border-b border-white/6 px-4 py-2 flex items-center gap-2.5 flex-wrap md:flex-nowrap">
+          <div className="shrink-0 bg-background border-b border-border/60 px-4 py-2 flex items-center gap-2.5 flex-wrap md:flex-nowrap">
 
             {/* Title (left) */}
             <div className="flex-1 min-w-0 mr-1">
-              <p className="text-[13px] font-bold text-white leading-tight truncate">{mapTitle}</p>
-              <p className="text-[10px] text-slate-500 leading-none mt-0.5">
+              <p className="text-[13px] font-bold text-foreground leading-tight truncate">{mapTitle}</p>
+              <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5">
                 {isLoading ? "Loading…" : `${filteredProjects.length} deals · ${Object.keys(countryStatsMap).length} markets`}
               </p>
             </div>
 
             {/* Layer toggle */}
-            <div className="flex items-center gap-0.5 bg-white/5 border border-white/8 rounded-lg p-0.5 shrink-0">
+            <div className="flex items-center gap-0.5 bg-muted/30 border border-border/80 rounded-lg p-0.5 shrink-0">
               {(["both", "choropleth", "markers"] as LayerMode[]).map(mode => (
                 <button
                   key={mode}
@@ -633,7 +633,7 @@ export default function MapPage() {
                   className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors capitalize ${
                     layerMode === mode
                       ? "bg-[#00e676] text-[#0b0f1a]"
-                      : "text-slate-400 hover:text-white hover:bg-white/8"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
                   {mode}
@@ -648,7 +648,7 @@ export default function MapPage() {
               {(sectorFilter !== "all" || financingFilter !== "all") && (
                 <button
                   onClick={() => { setSectorFilter("all"); setFinancingFilter("all"); }}
-                  className="text-[11px] text-slate-500 hover:text-red-400 transition-colors px-1"
+                  className="text-[11px] text-muted-foreground/70 hover:text-red-400 transition-colors px-1"
                   title="Clear filters"
                 >
                   <XIcon className="w-3.5 h-3.5" />
@@ -660,13 +660,13 @@ export default function MapPage() {
             <div className="relative shrink-0" ref={exportMenuRef}>
               <button
                 onClick={() => setExportMenuOpen(v => !v)}
-                className="flex items-center gap-1.5 bg-white/5 border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors"
+                className="flex items-center gap-1.5 bg-muted/30 border border-border hover:border-primary/40 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground/80 transition-colors"
               >
                 {exporting
                   ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                   : <Download className="w-3.5 h-3.5" />}
                 Export
-                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3 h-3 text-muted-foreground/70 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} />
               </button>
 
               <AnimatePresence>
@@ -676,30 +676,30 @@ export default function MapPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.97 }}
                     transition={{ duration: 0.12 }}
-                    className="absolute right-0 top-full mt-1.5 w-48 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden"
+                    className="absolute right-0 top-full mt-1.5 w-48 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
                   >
                     <button
                       onClick={() => { handleDownload(); setExportMenuOpen(false); }}
                       disabled={exporting}
-                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-slate-200 hover:bg-white/6 transition-colors text-left disabled:opacity-60"
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-white/6 transition-colors text-left disabled:opacity-60"
                     >
-                      <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <Download className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span>
                         <span className="font-semibold block">Download PNG</span>
-                        <span className="text-[10px] text-slate-500">With title + source</span>
+                        <span className="text-[10px] text-muted-foreground/70">With title + source</span>
                       </span>
                     </button>
-                    <div className="h-px bg-white/5 mx-3" />
+                    <div className="h-px bg-muted/30 mx-3" />
                     <button
                       onClick={() => { handleShare(); setExportMenuOpen(false); }}
-                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-slate-200 hover:bg-white/6 transition-colors text-left"
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-white/6 transition-colors text-left"
                     >
                       {copied
                         ? <Check className="w-3.5 h-3.5 text-[#00e676] shrink-0" />
-                        : <Share2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                        : <Share2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                       <span>
                         <span className="font-semibold block">{copied ? "Copied!" : "Copy Share Link"}</span>
-                        <span className="text-[10px] text-slate-500">Includes active filters</span>
+                        <span className="text-[10px] text-muted-foreground/70">Includes active filters</span>
                       </span>
                     </button>
                   </motion.div>
@@ -756,15 +756,15 @@ export default function MapPage() {
             <button
               onClick={handleZoomFit}
               title="Fit Africa"
-              className="absolute bottom-16 right-4 md:bottom-6 md:right-4 z-[1000] bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-xl p-2.5 shadow-xl hover:bg-white/10 transition-colors"
+              className="absolute bottom-16 right-4 md:bottom-6 md:right-4 z-[1000] bg-card/95 backdrop-blur border border-border rounded-xl p-2.5 shadow-xl hover:bg-muted transition-colors"
             >
-              <Maximize2 className="w-4 h-4 text-slate-300" />
+              <Maximize2 className="w-4 h-4 text-foreground/80" />
             </button>
 
             {/* Mobile: toggle project list */}
             <button
               onClick={() => setShowProjects(true)}
-              className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-slate-200"
+              className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-card/95 backdrop-blur border border-border rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-foreground"
             >
               <ChevronUp className="w-4 h-4 text-[#00e676]" />
               {isLoading ? "Loading…" : `${filteredProjects.length} Projects`}
@@ -774,39 +774,39 @@ export default function MapPage() {
             <div className="absolute bottom-4 left-4 md:bottom-6 md:left-4 z-[1000]">
               <button
                 onClick={() => setLegendOpen(v => !v)}
-                className="md:hidden flex items-center gap-2 bg-[#1e293b]/95 backdrop-blur border border-white/10 px-3 py-2 rounded-xl text-xs font-semibold"
+                className="md:hidden flex items-center gap-2 bg-card/95 backdrop-blur border border-border px-3 py-2 rounded-xl text-xs font-semibold"
               >
                 <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
                 {legendOpen ? "Hide legend" : "Legend"}
               </button>
 
-              <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[#1e293b]/95 backdrop-blur border border-white/10 p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[50vh] overflow-y-auto`}>
+              <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-card/95 backdrop-blur border border-border p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[50vh] overflow-y-auto`}>
                 {showChoropleth && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Investment Scale</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Investment Scale</p>
                     <div
                       className="h-2 w-28 rounded-full mb-1.5"
                       style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
                     />
-                    <div className="flex justify-between text-[10px] text-slate-500">
+                    <div className="flex justify-between text-[10px] text-muted-foreground/70">
                       <span>None</span>
                       <span>{fmt(maxInvestment)}</span>
                     </div>
-                    <p className="text-[9px] text-slate-600 mt-1.5">Click country → profile</p>
+                    <p className="text-[9px] text-muted-foreground/50 mt-1.5">Click country → profile</p>
                   </div>
                 )}
                 {showMarkers && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Technologies</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Technologies</p>
                     <div className="space-y-1.5">
                       {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
-                        <div key={tech} className="flex items-center gap-2 text-[11px] text-slate-300">
+                        <div key={tech} className="flex items-center gap-2 text-[11px] text-foreground/80">
                           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                           {tech}
                         </div>
                       ))}
                     </div>
-                    <p className="text-[9px] text-slate-600 mt-2">Dot size ∝ deal size</p>
+                    <p className="text-[9px] text-muted-foreground/50 mt-2">Dot size ∝ deal size</p>
                   </div>
                 )}
               </div>
@@ -815,10 +815,10 @@ export default function MapPage() {
         </div>
 
         {/* ── Desktop Sidebar ── */}
-        <div className="hidden md:flex w-[290px] bg-[#1e293b] border-l border-white/5 flex-col h-full z-10">
-          <div className="p-4 border-b border-white/5 shrink-0">
+        <div className="hidden md:flex w-[290px] bg-card border-l border-border/50 flex-col h-full z-10">
+          <div className="p-4 border-b border-border/50 shrink-0">
             <h2 className="text-sm font-bold mb-0.5">Project Explorer</h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground/70">
               {isLoading
                 ? "Loading…"
                 : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
@@ -850,17 +850,17 @@ export default function MapPage() {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", stiffness: 320, damping: 35 }}
-                className="md:hidden fixed bottom-0 left-0 right-0 z-[1200] bg-[#1e293b] rounded-t-2xl border-t border-white/10 flex flex-col"
+                className="md:hidden fixed bottom-0 left-0 right-0 z-[1200] bg-card rounded-t-2xl border-t border-border flex flex-col"
                 style={{ maxHeight: "70vh" }}
               >
-                <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
+                <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
                   <div>
                     <h2 className="text-sm font-bold">Project Explorer</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
                       {isLoading ? "Loading…" : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
                     </p>
                   </div>
-                  <button onClick={() => setShowProjects(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8">
+                  <button onClick={() => setShowProjects(false)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50">
                     <XIcon className="w-4 h-4" />
                   </button>
                 </div>

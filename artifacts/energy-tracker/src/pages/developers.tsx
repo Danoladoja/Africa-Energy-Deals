@@ -145,7 +145,7 @@ export default function DevelopersIndex() {
 
   const Th = ({ label, col }: { label: string; col: SortKey }) => (
     <th
-      className="text-left py-3 px-4 font-semibold cursor-pointer select-none hover:text-white transition-colors"
+      className="text-left py-3 px-4 font-semibold cursor-pointer select-none hover:text-foreground transition-colors"
       onClick={() => handleSort(col)}
     >
       <div className="flex items-center gap-1.5">
@@ -208,13 +208,13 @@ export default function DevelopersIndex() {
               </div>
 
               {/* View mode toggle */}
-              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+              <div className="flex items-center gap-1 bg-muted/30 border border-border rounded-xl p-1">
                 <button
                   onClick={() => setViewMode("table")}
                   className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
                     ${viewMode === "table"
                       ? "bg-[#00e676] text-black"
-                      : "text-slate-400 hover:text-white"}`}
+                      : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <List className="w-4 h-4" /> Table View
                 </button>
@@ -223,7 +223,7 @@ export default function DevelopersIndex() {
                   className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-all
                     ${viewMode === "matrix"
                       ? "bg-[#00e676] text-black"
-                      : "text-slate-400 hover:text-white"}`}
+                      : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <LayoutGrid className="w-4 h-4" /> Matrix View
                 </button>
@@ -248,26 +248,26 @@ export default function DevelopersIndex() {
         {/* Summary Strip */}
         {!isLoading && entities.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground/70 mb-2">
                 <Users className="w-3.5 h-3.5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Entities tracked</span>
               </div>
-              <p className="text-2xl font-bold text-white">{entities.length}</p>
+              <p className="text-2xl font-bold text-foreground">{entities.length}</p>
             </div>
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground/70 mb-2">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Capital tracked</span>
               </div>
-              <p className="text-2xl font-bold text-white font-mono">{fmt(totalInvestment)}</p>
+              <p className="text-2xl font-bold text-foreground font-mono">{fmt(totalInvestment)}</p>
             </div>
-            <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <div className="bg-card border border-border/50 rounded-2xl p-4 col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2 text-muted-foreground/70 mb-2">
                 <Globe className="w-3.5 h-3.5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Most active</span>
               </div>
-              <p className="text-xl font-bold text-white">{sorted[0]?.name ?? "—"}</p>
+              <p className="text-xl font-bold text-foreground">{sorted[0]?.name ?? "—"}</p>
             </div>
           </div>
         )}
@@ -278,17 +278,17 @@ export default function DevelopersIndex() {
             {isLoading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="bg-[#1e293b] border border-white/5 rounded-2xl p-6 animate-pulse">
-                    <div className="h-4 bg-white/5 rounded w-1/3 mb-3" />
-                    <div className="h-48 bg-white/5 rounded-xl" />
+                  <div key={i} className="bg-card border border-border/50 rounded-2xl p-6 animate-pulse">
+                    <div className="h-4 bg-muted/30 rounded w-1/3 mb-3" />
+                    <div className="h-48 bg-muted/30 rounded-xl" />
                   </div>
                 ))}
               </div>
             ) : matrixEntities.length === 0 ? (
-              <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-8 text-center">
-                <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 font-medium mb-1">No entity data yet</p>
-                <p className="text-slate-600 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
+              <div className="bg-card border border-border/50 rounded-2xl p-8 text-center">
+                <Building2 className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-muted-foreground font-medium mb-1">No entity data yet</p>
+                <p className="text-muted-foreground/50 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
               </div>
             ) : (
               <MatrixView entities={matrixEntities} />
@@ -300,11 +300,11 @@ export default function DevelopersIndex() {
         {viewMode === "table" && (
           <>
             {/* Desktop Table */}
-            <div className="hidden md:block bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden">
+            <div className="hidden md:block bg-card border border-border/50 rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
+                    <tr className="text-xs text-muted-foreground/70 uppercase tracking-wider border-b border-border/50 bg-muted/30">
                       <Th label="Entity Name" col="name" />
                       <Th label="Total Investment" col="totalInvestment" />
                       <Th label="Deals" col="projectCount" />
@@ -319,7 +319,7 @@ export default function DevelopersIndex() {
                           <tr key={i}>
                             {Array.from({ length: 6 }).map((_, j) => (
                               <td key={j} className="py-4 px-4">
-                                <div className="h-4 bg-white/5 rounded animate-pulse" style={{ width: j === 0 ? "60%" : "40%" }} />
+                                <div className="h-4 bg-muted/30 rounded animate-pulse" style={{ width: j === 0 ? "60%" : "40%" }} />
                               </td>
                             ))}
                           </tr>
@@ -328,36 +328,36 @@ export default function DevelopersIndex() {
                       ? (
                         <tr>
                           <td colSpan={6} className="py-16 text-center">
-                            <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                            <p className="text-slate-400 font-medium mb-1">No entity data yet</p>
-                            <p className="text-slate-600 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
+                            <Building2 className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
+                            <p className="text-muted-foreground font-medium mb-1">No entity data yet</p>
+                            <p className="text-muted-foreground/50 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
                           </td>
                         </tr>
                       )
                       : sorted.map((entity) => (
                           <tr
                             key={entity.name}
-                            className="hover:bg-white/5 transition-colors cursor-pointer group"
+                            className="hover:bg-muted/50 transition-colors cursor-pointer group"
                             onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
                           >
                             <td className="py-4 px-4">
-                              <span className="font-semibold text-slate-100 group-hover:text-white transition-colors">
+                              <span className="font-semibold text-slate-100 group-hover:text-foreground transition-colors">
                                 {entity.name}
                               </span>
                             </td>
-                            <td className="py-4 px-4 font-mono text-sm text-slate-300">
+                            <td className="py-4 px-4 font-mono text-sm text-foreground/80">
                               {fmt(entity.totalInvestment)}
                             </td>
-                            <td className="py-4 px-4 text-slate-400 text-sm">{entity.projectCount}</td>
+                            <td className="py-4 px-4 text-muted-foreground text-sm">{entity.projectCount}</td>
                             <td className="py-4 px-4">
                               <div className="flex flex-wrap gap-1 max-w-xs">
                                 {entity.countries.slice(0, 3).map((c) => (
-                                  <span key={c} className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">
+                                  <span key={c} className="text-xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full">
                                     {c}
                                   </span>
                                 ))}
                                 {entity.countries.length > 3 && (
-                                  <span className="text-xs text-slate-600 bg-white/5 px-2 py-0.5 rounded-full">
+                                  <span className="text-xs text-muted-foreground/50 bg-muted/30 px-2 py-0.5 rounded-full">
                                     +{entity.countries.length - 3}
                                   </span>
                                 )}
@@ -375,7 +375,7 @@ export default function DevelopersIndex() {
                               </span>
                             </td>
                             <td className="py-4 px-4 text-right">
-                              <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all" />
+                              <ArrowRight className="w-4 h-4 text-muted-foreground/70 group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all" />
                             </td>
                           </tr>
                         ))}
@@ -383,8 +383,8 @@ export default function DevelopersIndex() {
                 </table>
               </div>
               {entities.length > 0 && (
-                <div className="px-4 py-3 border-t border-white/5 bg-white/5">
-                  <p className="text-xs text-slate-500">
+                <div className="px-4 py-3 border-t border-border/50 bg-muted/30">
+                  <p className="text-xs text-muted-foreground/70">
                     {entities.length} entities · min. 2 deal appearances · click any row to view full profile
                   </p>
                 </div>
@@ -395,50 +395,50 @@ export default function DevelopersIndex() {
             <div className="md:hidden flex flex-col gap-3">
               {isLoading
                 ? Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 animate-pulse">
-                      <div className="h-4 bg-white/5 rounded w-2/3 mb-3" />
-                      <div className="h-3 bg-white/5 rounded w-1/3" />
+                    <div key={i} className="bg-card border border-border/50 rounded-2xl p-4 animate-pulse">
+                      <div className="h-4 bg-muted/30 rounded w-2/3 mb-3" />
+                      <div className="h-3 bg-muted/30 rounded w-1/3" />
                     </div>
                   ))
                 : entities.length === 0
                 ? (
-                  <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-8 text-center">
-                    <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                    <p className="text-slate-400 font-medium mb-1">No entity data yet</p>
-                    <p className="text-slate-600 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
+                  <div className="bg-card border border-border/50 rounded-2xl p-8 text-center">
+                    <Building2 className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
+                    <p className="text-muted-foreground font-medium mb-1">No entity data yet</p>
+                    <p className="text-muted-foreground/50 text-sm">Check back soon as the AI Discovery Agent enriches project data.</p>
                   </div>
                 )
                 : sorted.map((entity) => (
                   <div
                     key={entity.name}
                     onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
-                    className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/30 hover:bg-white/[0.03] transition-all active:scale-[0.99] group"
+                    className="bg-card border border-border/50 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/30 hover:bg-muted/30 transition-all active:scale-[0.99] group"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1 group-hover:text-white transition-colors">{entity.name}</h3>
-                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+                      <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1 group-hover:text-foreground transition-colors">{entity.name}</h3>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                     </div>
                     <div className="grid grid-cols-3 gap-2 mb-3">
                       <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Investment</p>
+                        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Investment</p>
                         <p className="text-sm font-bold font-mono text-[#00e676]">{fmt(entity.totalInvestment)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Deals</p>
-                        <p className="text-sm font-bold text-white">{entity.projectCount}</p>
+                        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Deals</p>
+                        <p className="text-sm font-bold text-foreground">{entity.projectCount}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Countries</p>
-                        <p className="text-sm font-bold text-white">{entity.countries.length}</p>
+                        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Countries</p>
+                        <p className="text-sm font-bold text-foreground">{entity.countries.length}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap gap-1">
                         {entity.countries.slice(0, 2).map((c) => (
-                          <span key={c} className="text-xs text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">{c}</span>
+                          <span key={c} className="text-xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full">{c}</span>
                         ))}
                         {entity.countries.length > 2 && (
-                          <span className="text-xs text-slate-600 bg-white/5 px-2 py-0.5 rounded-full">+{entity.countries.length - 2}</span>
+                          <span className="text-xs text-muted-foreground/50 bg-muted/30 px-2 py-0.5 rounded-full">+{entity.countries.length - 2}</span>
                         )}
                       </div>
                       <span
@@ -451,15 +451,15 @@ export default function DevelopersIndex() {
                         {entity.topSector}
                       </span>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-end">
-                      <span className="text-xs text-slate-500 group-hover:text-[#00e676] transition-colors flex items-center gap-1">
+                    <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-end">
+                      <span className="text-xs text-muted-foreground/70 group-hover:text-[#00e676] transition-colors flex items-center gap-1">
                         View full profile <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
                   </div>
                 ))}
               {entities.length > 0 && (
-                <p className="text-xs text-slate-600 text-center py-2">
+                <p className="text-xs text-muted-foreground/50 text-center py-2">
                   {entities.length} entities · min. 2 deal appearances
                 </p>
               )}

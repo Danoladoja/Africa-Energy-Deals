@@ -119,7 +119,7 @@ function SortableWidget({
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg bg-[#0f172a]/80 backdrop-blur-sm border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+            className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
             title="Drag to reorder"
           >
             <GripVertical className="w-4 h-4" />
@@ -131,12 +131,12 @@ function SortableWidget({
           <button
             onClick={onToggleHide}
             disabled={!canHide}
-            className={`p-1.5 rounded-lg bg-[#0f172a]/80 backdrop-blur-sm border transition-colors ${
+            className={`p-1.5 rounded-lg bg-background/80 backdrop-blur-sm border transition-colors ${
               isHidden
                 ? "border-[#00e676]/30 text-[#00e676] hover:border-[#00e676]/60"
                 : canHide
-                  ? "border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30"
-                  : "border-white/5 text-slate-700 cursor-not-allowed"
+                  ? "border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30"
+                  : "border-border/50 text-slate-700 cursor-not-allowed"
             }`}
             title={isHidden ? "Show widget" : canHide ? "Hide widget" : "At least 2 widgets must be visible"}
           >
@@ -207,21 +207,21 @@ function ChartCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={`bg-[#1e293b] border border-white/5 rounded-2xl overflow-hidden ${className}`}>
+    <div className={`bg-card border border-border/50 rounded-2xl overflow-hidden ${className}`}>
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/3 transition-colors text-left"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
           <Icon className="w-4 h-4 shrink-0" style={{ color: iconColor ?? "#00e676" }} />
           <div>
-            <h3 className="font-bold text-base text-white">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+            <h3 className="font-bold text-base text-foreground">{title}</h3>
+            {subtitle && <p className="text-xs text-muted-foreground/70 mt-0.5">{subtitle}</p>}
           </div>
         </div>
         {open
-          ? <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-slate-600 shrink-0" />}
+          ? <ChevronUp className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground/50 shrink-0" />}
       </button>
       {open && <div className="px-6 pb-6">{children}</div>}
     </div>
@@ -231,13 +231,13 @@ function ChartCard({
 function StdTooltip({ active, payload, label, fmt: fmtFn = fmt }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl shadow-xl text-xs">
-      {label && <p className="font-semibold text-white mb-1.5">{label}</p>}
+    <div className="bg-popover border border-border p-3 rounded-xl shadow-xl text-xs">
+      {label && <p className="font-semibold text-foreground mb-1.5">{label}</p>}
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2 mb-0.5">
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-slate-400">{p.name}:</span>
-          <span className="text-white font-medium font-mono">
+          <span className="text-muted-foreground">{p.name}:</span>
+          <span className="text-foreground font-medium font-mono">
             {typeof p.value === "number" && p.name?.toLowerCase().includes("count")
               ? p.value
               : fmtFn(p.value)}
@@ -290,7 +290,7 @@ function MultiSelect({
         className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
           !isAll
             ? "bg-[#00e676]/10 border-[#00e676]/30 text-[#00e676]"
-            : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20 hover:text-white"
+            : "bg-muted/30 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
         }`}
       >
         <Filter className="w-3.5 h-3.5" />
@@ -303,15 +303,15 @@ function MultiSelect({
         <ChevronDown className="w-3.5 h-3.5 opacity-50" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-2 z-50 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl py-2 min-w-44 max-h-64 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-2xl py-2 min-w-44 max-h-64 overflow-y-auto">
           {/* All option */}
           <button
             onClick={() => { onChange([]); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-white/5 cursor-pointer text-sm text-slate-300 hover:text-white text-left border-b border-white/5 mb-1"
+            className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-muted/50 cursor-pointer text-sm text-foreground/80 hover:text-foreground text-left border-b border-border/50 mb-1"
           >
             <div
               className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                isAll ? "bg-[#00e676] border-[#00e676]" : "border-white/20"
+                isAll ? "bg-[#00e676] border-[#00e676]" : "border-border"
               }`}
             >
               {isAll && <Checkmark />}
@@ -322,13 +322,13 @@ function MultiSelect({
             <button
               key={opt}
               onClick={() => toggle(opt)}
-              className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-white/5 cursor-pointer text-sm text-slate-300 hover:text-white text-left"
+              className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-muted/50 cursor-pointer text-sm text-foreground/80 hover:text-foreground text-left"
             >
               <div
                 className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                   selected.includes(opt)
                     ? "bg-[#00e676] border-[#00e676]"
-                    : "border-white/20"
+                    : "border-border"
                 }`}
               >
                 {selected.includes(opt) && <Checkmark />}
@@ -337,7 +337,7 @@ function MultiSelect({
             </button>
           ))}
           {!isAll && (
-            <div className="border-t border-white/5 mt-1 pt-1">
+            <div className="border-t border-border/50 mt-1 pt-1">
               <button
                 onClick={() => { onChange([]); setOpen(false); }}
                 className="w-full px-4 py-1.5 text-xs text-red-400 hover:text-red-300 text-left"
@@ -365,20 +365,20 @@ function FunnelViz({ data }: { data: { stage: string; count: number; investment:
           <div key={d.stage}>
             {convPct !== null && (
               <div className="flex items-center justify-center gap-2 py-0.5">
-                <div className="h-px flex-1 bg-white/5" />
-                <span className="text-[10px] text-slate-600 font-medium">↓ {convPct}% conversion</span>
-                <div className="h-px flex-1 bg-white/5" />
+                <div className="h-px flex-1 bg-muted/30" />
+                <span className="text-[10px] text-muted-foreground/50 font-medium">↓ {convPct}% conversion</span>
+                <div className="h-px flex-1 bg-muted/30" />
               </div>
             )}
             <div className="flex items-center gap-4">
-              <div className="w-28 text-right text-xs text-slate-400 font-medium shrink-0">{d.stage}</div>
+              <div className="w-28 text-right text-xs text-muted-foreground font-medium shrink-0">{d.stage}</div>
               <div className="flex-1 relative h-11 flex items-center justify-center" style={{ paddingLeft: `${(100 - widthPct) / 2}%`, paddingRight: `${(100 - widthPct) / 2}%` }}>
                 <div
                   className="w-full h-full rounded-lg flex items-center justify-between px-3 gap-2"
                   style={{ backgroundColor: `${d.color}22`, border: `1px solid ${d.color}44` }}
                 >
                   <span className="text-xs font-bold" style={{ color: d.color }}>{d.count} deals</span>
-                  <span className="text-xs font-mono text-white/70">{fmt(d.investment)}</span>
+                  <span className="text-xs font-mono text-foreground/70">{fmt(d.investment)}</span>
                 </div>
               </div>
             </div>
@@ -713,10 +713,10 @@ export default function Dashboard() {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     return (
-      <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl shadow-xl text-xs">
-        <p className="font-semibold text-white mb-1">{d.name}</p>
+      <div className="bg-popover border border-border p-3 rounded-xl shadow-xl text-xs">
+        <p className="font-semibold text-foreground mb-1">{d.name}</p>
         <p style={{ color: d.color }} className="font-bold font-mono">{fmt(d.investment)}</p>
-        <p className="text-slate-400">{d.count} projects · {d.pct}% of total</p>
+        <p className="text-muted-foreground">{d.count} projects · {d.pct}% of total</p>
       </div>
     );
   };
@@ -744,21 +744,21 @@ export default function Dashboard() {
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-white">{d.name}</span>
+                        <span className="text-sm font-semibold text-foreground">{d.name}</span>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-slate-500">{d.count} projects</span>
+                          <span className="text-xs text-muted-foreground/70">{d.count} projects</span>
                           <span className="font-mono text-sm font-bold" style={{ color: d.color }}>{fmt(d.investment)}</span>
                         </div>
                       </div>
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: `${d.pct}%`, backgroundColor: d.color, opacity: 0.8 }} />
                       </div>
-                      <p className="text-right text-[10px] text-slate-500 mt-0.5">{d.pct}% of total</p>
+                      <p className="text-right text-[10px] text-muted-foreground/70 mt-0.5">{d.pct}% of total</p>
                     </div>
                   </div>
                 ))}
-                <div className="pt-2 border-t border-white/5">
-                  <p className="text-[11px] text-slate-500">Renewable = Solar, Wind, Hydro, Bioenergy · Fossil = Oil &amp; Gas, Coal · Infrastructure = Grid Expansion, Battery &amp; Storage, Nuclear</p>
+                <div className="pt-2 border-t border-border/50">
+                  <p className="text-[11px] text-muted-foreground/70">Renewable = Solar, Wind, Hydro, Bioenergy · Fossil = Oil &amp; Gas, Coal · Infrastructure = Grid Expansion, Battery &amp; Storage, Nuclear</p>
                 </div>
               </div>
             </div>
@@ -769,7 +769,7 @@ export default function Dashboard() {
       case "capital-by-year": return (
         <ChartCard title="Capital Committed by Year" subtitle="Annual deal volume (bars) + cumulative total (line)" icon={TrendingUp} iconColor="#38bdf8">
           {isLoading ? <Skeleton className="h-64 w-full rounded-xl" /> : yearData.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No year data available</div>
+            <div className="h-40 flex items-center justify-center text-muted-foreground/50 text-sm">No year data available</div>
           ) : (
             <div className="h-64 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -780,18 +780,18 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis yAxisId="left"  tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
                   <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={48} />
-                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <RechartsTooltip content={<StdTooltip />} cursor={{ fill: "var(--chart-grid)" }} />
                   <Area yAxisId="left" type="monotone" dataKey="annual" name="Annual Volume" stroke="#38bdf8" strokeWidth={2} fill="url(#annualGrad)" />
                   <Line yAxisId="right" type="monotone" dataKey="cumulative" name="Cumulative" stroke="#00e676" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           )}
-          <div className="flex items-center gap-6 mt-3 text-xs text-slate-500">
+          <div className="flex items-center gap-6 mt-3 text-xs text-muted-foreground/70">
             <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#38bdf8]" /> Annual Volume</div>
             <div className="flex items-center gap-2"><div className="w-8 h-0.5 border-t-2 border-dashed border-[#00e676]" /> Cumulative Total</div>
           </div>
@@ -804,20 +804,20 @@ export default function Dashboard() {
             <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={techCountData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                   <XAxis type="number" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="technology" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={88} />
                   <RechartsTooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
+                      <div className="bg-popover border border-border p-3 rounded-xl text-xs shadow-xl">
                         <p className="font-semibold mb-1" style={{ color: d.color }}>{label}</p>
-                        <p className="text-white">{d.count} deals</p>
-                        <p className="text-slate-400 font-mono">{fmt(d.investment)}</p>
+                        <p className="text-foreground">{d.count} deals</p>
+                        <p className="text-muted-foreground font-mono">{fmt(d.investment)}</p>
                       </div>
                     );
-                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  }} cursor={{ fill: "var(--chart-grid)" }} />
                   <Bar dataKey="count" name="Deals" radius={[0, 4, 4, 0]}>
                     {techCountData.map(d => <Cell key={d.technology} fill={d.color} />)}
                   </Bar>
@@ -831,23 +831,23 @@ export default function Dashboard() {
       case "top-investors": return (
         <ChartCard title="Top 10 Investors by Volume" subtitle="Total deal size attributed per investor / developer" icon={Briefcase} iconColor="#fb923c">
           {isLoading ? <Skeleton className="h-48 w-full rounded-xl" /> : investorData.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">No investor data yet — developer field is being populated.</div>
+            <div className="h-40 flex items-center justify-center text-muted-foreground/50 text-sm">No investor data yet — developer field is being populated.</div>
           ) : (
             <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={investorData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                   <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} width={88} tickFormatter={v => v.length > 12 ? v.slice(0, 12) + "…" : v} />
                   <RechartsTooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     return (
-                      <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
-                        <p className="font-semibold text-white mb-1">{label}</p>
+                      <div className="bg-popover border border-border p-3 rounded-xl text-xs shadow-xl">
+                        <p className="font-semibold text-foreground mb-1">{label}</p>
                         <p className="text-[#a855f7] font-mono font-bold">{fmt(payload[0].value as number)}</p>
                       </div>
                     );
-                  }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  }} cursor={{ fill: "var(--chart-grid)" }} />
                   <Bar dataKey="investment" name="Volume" fill="#fb923c" radius={[0, 4, 4, 0]} fillOpacity={0.85} />
                 </BarChart>
               </ResponsiveContainer>
@@ -859,15 +859,15 @@ export default function Dashboard() {
       case "pipeline-funnel": return (
         <ChartCard title="Deal Pipeline Funnel" subtitle="Announced → Mandated → Financial Close → Construction → Commissioned" icon={Activity} iconColor="#38bdf8">
           {isLoading ? <Skeleton className="h-56 w-full rounded-xl" /> : funnelData.funnel.length === 0 ? (
-            <div className="h-32 flex items-center justify-center text-slate-600 text-sm">No stage data</div>
+            <div className="h-32 flex items-center justify-center text-muted-foreground/50 text-sm">No stage data</div>
           ) : (
             <div>
               <FunnelViz data={funnelData.funnel} />
               {funnelData.suspended.count > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Suspended</span>
+                <div className="mt-4 pt-4 border-t border-border/50 flex items-center gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Suspended</span>
                   <span className="text-xs text-red-400 font-medium">{funnelData.suspended.count} deals</span>
-                  <span className="text-xs text-slate-500 font-mono">{fmt(funnelData.suspended.investment)}</span>
+                  <span className="text-xs text-muted-foreground/70 font-mono">{fmt(funnelData.suspended.investment)}</span>
                 </div>
               )}
             </div>
@@ -882,16 +882,16 @@ export default function Dashboard() {
               <table className="w-full text-xs border-separate border-spacing-0.5" style={{ minWidth: 520 }}>
                 <thead>
                   <tr>
-                    <th className="text-left py-1.5 pr-3 text-slate-500 font-medium text-[11px] sticky left-0 bg-[#1e293b] z-10">Country</th>
+                    <th className="text-left py-1.5 pr-3 text-muted-foreground/70 font-medium text-[11px] sticky left-0 bg-card z-10">Country</th>
                     {heatmapData.sectors.map(s => (
-                      <th key={s} className="text-center pb-1.5 text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                      <th key={s} className="text-center pb-1.5 text-[10px] text-muted-foreground/70 font-medium whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[s] }} />
                           <span className="truncate max-w-[56px]" title={s}>{s.replace(" & ", "/").replace("Grid/Storage", "Grid")}</span>
                         </div>
                       </th>
                     ))}
-                    <th className="text-right py-1.5 pl-2 text-slate-500 font-medium text-[11px]">Total</th>
+                    <th className="text-right py-1.5 pl-2 text-muted-foreground/70 font-medium text-[11px]">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -899,7 +899,7 @@ export default function Dashboard() {
                     const rowTotal = heatmapData.sectors.reduce((s, sector) => s + (heatmapData.cells[country]?.[sector]?.inv ?? 0), 0);
                     return (
                       <tr key={country}>
-                        <td className="py-1 pr-3 text-slate-300 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-[#1e293b] z-10">{country}</td>
+                        <td className="py-1 pr-3 text-foreground/80 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-card z-10">{country}</td>
                         {heatmapData.sectors.map(sector => {
                           const cell = heatmapData.cells[country]?.[sector];
                           const inv = cell?.inv ?? 0;
@@ -912,8 +912,8 @@ export default function Dashboard() {
                                   style={{ backgroundColor: heatmapCellColor(inv, heatmapData.globalMax) }}
                                   title={`${country} · ${sector}: ${fmt(inv)} · ${cell?.count} deal${cell?.count !== 1 ? "s" : ""}`}
                                 >
-                                  <span className="text-[9px] font-mono font-bold text-white leading-none">{fmt(inv, 0)}</span>
-                                  <span className="text-[8px] text-white/50 leading-none">{cell?.count}×</span>
+                                  <span className="text-[9px] font-mono font-bold text-foreground leading-none">{fmt(inv, 0)}</span>
+                                  <span className="text-[8px] text-foreground/50 leading-none">{cell?.count}×</span>
                                 </button>
                               ) : (
                                 <div className="w-full h-10 rounded-lg" style={{ backgroundColor: "rgba(255,255,255,0.02)" }} />
@@ -921,13 +921,13 @@ export default function Dashboard() {
                             </td>
                           );
                         })}
-                        <td className="py-1 pl-2 text-right font-mono text-[11px] text-slate-400 whitespace-nowrap">{fmt(rowTotal)}</td>
+                        <td className="py-1 pl-2 text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">{fmt(rowTotal)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              <p className="text-[10px] text-slate-600 mt-3">Showing top 15 countries by total investment · Click any colored cell to filter the deal tracker</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-3">Showing top 15 countries by total investment · Click any colored cell to filter the deal tracker</p>
             </div>
           )}
         </ChartCard>
@@ -982,10 +982,10 @@ export default function Dashboard() {
                           if (!active || !payload?.length) return null;
                           const d = payload[0].payload;
                           return (
-                            <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl text-xs shadow-xl">
+                            <div className="bg-popover border border-border p-3 rounded-xl text-xs shadow-xl">
                               <p className="font-semibold mb-1.5" style={{ color: d.fill }}>{d.name}</p>
-                              <p className="text-white">{d.count} deals</p>
-                              <p className="text-slate-400 font-mono">{fmt(d.value)}</p>
+                              <p className="text-foreground">{d.count} deals</p>
+                              <p className="text-muted-foreground font-mono">{fmt(d.value)}</p>
                             </div>
                           );
                         }} />
@@ -1001,13 +1001,13 @@ export default function Dashboard() {
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-xs font-medium text-slate-300 truncate">{r.type}</span>
+                              <span className="text-xs font-medium text-foreground/80 truncate">{r.type}</span>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[10px] text-slate-500">{r.count} deals</span>
-                                <span className="font-mono text-xs font-bold text-white">{fmt(r.totalInvestmentUsdMn)}</span>
+                                <span className="text-[10px] text-muted-foreground/70">{r.count} deals</span>
+                                <span className="font-mono text-xs font-bold text-foreground">{fmt(r.totalInvestmentUsdMn)}</span>
                               </div>
                             </div>
-                            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c, opacity: 0.75 }} />
                             </div>
                           </div>
@@ -1018,39 +1018,39 @@ export default function Dashboard() {
                 </div>
 
                 {/* KPI row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-white/5">
-                  <div className="bg-white/[0.03] rounded-xl p-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">DFI-backed deals</p>
-                    <p className="text-xl font-bold text-white font-mono">{financingStats?.dfiStats.projectsWithDFI ?? "—"}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{fmt(financingStats?.dfiStats.totalInvestmentUsdMn ?? 0)} total</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border/50">
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-1">DFI-backed deals</p>
+                    <p className="text-xl font-bold text-foreground font-mono">{financingStats?.dfiStats.projectsWithDFI ?? "—"}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(financingStats?.dfiStats.totalInvestmentUsdMn ?? 0)} total</p>
                   </div>
-                  <div className="bg-white/[0.03] rounded-xl p-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Grant-component deals</p>
-                    <p className="text-xl font-bold text-white font-mono">{financingStats?.blendedFinanceStats.projectsWithGrant ?? "—"}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{fmt(financingStats?.blendedFinanceStats.totalGrantUsdMn ?? 0)} grants</p>
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-1">Grant-component deals</p>
+                    <p className="text-xl font-bold text-foreground font-mono">{financingStats?.blendedFinanceStats.projectsWithGrant ?? "—"}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(financingStats?.blendedFinanceStats.totalGrantUsdMn ?? 0)} grants</p>
                   </div>
-                  <div className="bg-white/[0.03] rounded-xl p-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Deals with PPA</p>
-                    <p className="text-xl font-bold text-white font-mono">{financingStats?.ppaStats.projectsWithPPA ?? "—"}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-1">Deals with PPA</p>
+                    <p className="text-xl font-bold text-foreground font-mono">{financingStats?.ppaStats.projectsWithPPA ?? "—"}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
                       {financingStats?.ppaStats.avgPPATermYears ? `Avg ${financingStats.ppaStats.avgPPATermYears} yr term` : "Term data pending"}
                     </p>
                   </div>
-                  <div className="bg-white/[0.03] rounded-xl p-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Avg PPA tariff</p>
-                    <p className="text-xl font-bold text-white font-mono">
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-1">Avg PPA tariff</p>
+                    <p className="text-xl font-bold text-foreground font-mono">
                       {financingStats?.ppaStats.avgPPATariffUsdKwh
                         ? `$${financingStats.ppaStats.avgPPATariffUsdKwh.toFixed(3)}`
                         : "—"}
                     </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">per kWh</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">per kWh</p>
                   </div>
                 </div>
 
                 {/* Climate Finance split + Top Offtakers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Climate Finance Classification</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Climate Finance Classification</p>
                     <div className="space-y-1.5">
                       {byClimate.map(r => {
                         const c = CTAG_COLORS[r.tag ?? ""] ?? "#64748b";
@@ -1059,11 +1059,11 @@ export default function Dashboard() {
                         return (
                           <div key={r.tag} className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c }} />
-                            <span className="text-xs text-slate-300 w-28 shrink-0">{r.tag}</span>
-                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <span className="text-xs text-foreground/80 w-28 shrink-0">{r.tag}</span>
+                            <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c, opacity: 0.7 }} />
                             </div>
-                            <span className="text-[10px] text-slate-500 w-8 text-right">{pct}%</span>
+                            <span className="text-[10px] text-muted-foreground/70 w-8 text-right">{pct}%</span>
                           </div>
                         );
                       })}
@@ -1071,12 +1071,12 @@ export default function Dashboard() {
                   </div>
                   {(financingStats?.topOfftakers.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Top Offtakers</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Top Offtakers</p>
                       <div className="space-y-1">
                         {financingStats!.topOfftakers.slice(0, 6).map(o => (
                           <div key={o.name} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-300 truncate max-w-[60%]">{o.name}</span>
-                            <div className="flex items-center gap-3 text-slate-500">
+                            <span className="text-foreground/80 truncate max-w-[60%]">{o.name}</span>
+                            <div className="flex items-center gap-3 text-muted-foreground/70">
                               <span>{o.count} deals</span>
                               {o.totalMw > 0 && <span className="font-mono">{o.totalMw.toFixed(0)} MW</span>}
                             </div>
@@ -1087,7 +1087,7 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <p className="text-[10px] text-slate-600">Financing type classification derived from DFI involvement, grant components, and deal stage data.</p>
+                <p className="text-[10px] text-muted-foreground/50">Financing type classification derived from DFI involvement, grant components, and deal stage data.</p>
               </div>
             )}
           </ChartCard>
@@ -1119,7 +1119,7 @@ export default function Dashboard() {
         <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold mb-1">Market Overview</h1>
-            <p className="text-slate-400 text-sm md:text-base">
+            <p className="text-muted-foreground text-sm md:text-base">
               Comprehensive deal flow analytics — Africa's energy transition.
               {hasFilters && (
                 <span className="ml-2 text-[#00e676] font-medium">
@@ -1132,7 +1132,7 @@ export default function Dashboard() {
             {!editMode ? (
               <button
                 onClick={enterEditMode}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-[#1e293b] hover:bg-white/10 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
               >
                 <LayoutGrid className="w-4 h-4" />
                 Customize
@@ -1148,7 +1148,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   onClick={cancelEdit}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
                 >
                   <X className="w-4 h-4" />
                   Cancel
@@ -1160,7 +1160,7 @@ export default function Dashboard() {
                 ? `🌍 Africa Energy Investment: ${fmt(summary.totalInvestmentUsdMn)} across ${summary.totalProjects} projects in ${summary.totalCountries} countries.`
                 : "🌍 Africa Energy Investment Tracker"}
               variant="icon-label"
-              className="border border-white/10 rounded-xl px-3 py-2 bg-[#1e293b] hover:bg-white/10"
+              className="border border-border rounded-xl px-3 py-2 bg-card hover:bg-muted"
             />
             <ExportDropdown
               label="Export"
@@ -1192,30 +1192,30 @@ export default function Dashboard() {
         </header>
 
         {/* ── Global Filters ── */}
-        <div className="bg-[#1e293b] border border-white/5 rounded-2xl px-5 py-4">
+        <div className="bg-card border border-border/50 rounded-2xl px-5 py-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
               <Filter className="w-3.5 h-3.5" />
               Filters
             </div>
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-              <span className="text-xs text-slate-400">Year:</span>
+            <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-xl px-3 py-2">
+              <span className="text-xs text-muted-foreground">Year:</span>
               <input
                 type="number"
                 min={yearMin}
                 max={yearRange[1]}
                 value={yearRange[0]}
                 onChange={e => setYearRange([Number(e.target.value), yearRange[1]])}
-                className="w-14 bg-transparent text-xs text-white outline-none text-center font-mono"
+                className="w-14 bg-transparent text-xs text-foreground outline-none text-center font-mono"
               />
-              <span className="text-slate-600">→</span>
+              <span className="text-muted-foreground/50">→</span>
               <input
                 type="number"
                 min={yearRange[0]}
                 max={yearMax}
                 value={yearRange[1]}
                 onChange={e => setYearRange([yearRange[0], Number(e.target.value)])}
-                className="w-14 bg-transparent text-xs text-white outline-none text-center font-mono"
+                className="w-14 bg-transparent text-xs text-foreground outline-none text-center font-mono"
               />
             </div>
             <MultiSelect
@@ -1241,7 +1241,7 @@ export default function Dashboard() {
             )}
           </div>
           {hasFilters && (selCountries.length > 0 || selTechs.length > 0) && (
-            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/5">
+            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border/50">
               {selCountries.map(c => (
                 <span key={c} className="flex items-center gap-1 text-[11px] bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/20 px-2 py-0.5 rounded-full">
                   {c}
@@ -1274,25 +1274,25 @@ export default function Dashboard() {
 
         {/* ── Edit Mode Toolbar ── */}
         {editMode && (
-          <div className="bg-[#1e293b] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="bg-card border border-border rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-white">Customize Dashboard Layout</p>
-              <p className="text-xs text-slate-500 mt-0.5">Drag widgets to reorder · click the eye to hide · choose a preset to start</p>
+              <p className="text-sm font-semibold text-foreground">Customize Dashboard Layout</p>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">Drag widgets to reorder · click the eye to hide · choose a preset to start</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 mr-1">Presets:</span>
+              <span className="text-xs text-muted-foreground/70 mr-1">Presets:</span>
               {Object.keys(PRESETS).map(name => (
                 <button
                   key={name}
                   onClick={() => applyPreset(name)}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all"
+                  className="text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted text-foreground/80 hover:text-foreground transition-all"
                 >
                   {name}
                 </button>
               ))}
               <button
                 onClick={resetLayout}
-                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all flex items-center gap-1.5"
+                className="text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3 h-3" /> Reset
               </button>
@@ -1322,9 +1322,9 @@ export default function Dashboard() {
           </SortableContext>
           <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
             {activeId ? (
-              <div className="bg-[#1e293b]/95 border-2 border-blue-500/40 rounded-2xl p-6 shadow-2xl backdrop-blur-sm opacity-90 cursor-grabbing">
+              <div className="bg-card/95 border-2 border-blue-500/40 rounded-2xl p-6 shadow-2xl backdrop-blur-sm opacity-90 cursor-grabbing">
                 <p className="text-sm font-semibold text-blue-400">{WIDGET_META[activeId].label}</p>
-                <p className="text-xs text-slate-500 mt-1">Drop to reorder</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Drop to reorder</p>
               </div>
             ) : null}
           </DragOverlay>
@@ -1332,13 +1332,13 @@ export default function Dashboard() {
 
         {/* ── Hidden Widgets Panel (edit mode only) ── */}
         {editMode && (editMode ? draftHidden.size : hiddenWidgets.size) > 0 && (
-          <div className="bg-white/[0.02] border border-white/8 rounded-2xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Hidden Widgets — click Show to restore</p>
+          <div className="bg-muted/20 border border-border/80 rounded-2xl p-5">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">Hidden Widgets — click Show to restore</p>
             <div className="flex flex-wrap gap-3">
               {[...(editMode ? draftHidden : hiddenWidgets)].map(id => (
-                <div key={id} className="flex items-center gap-3 bg-white/5 border border-white/8 rounded-xl px-4 py-2.5">
-                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-sm text-slate-400">{WIDGET_META[id].label}</span>
+                <div key={id} className="flex items-center gap-3 bg-muted/30 border border-border/80 rounded-xl px-4 py-2.5">
+                  <EyeOff className="w-3.5 h-3.5 text-muted-foreground/70" />
+                  <span className="text-sm text-muted-foreground">{WIDGET_META[id].label}</span>
                   <button
                     onClick={() => toggleHideWidget(id)}
                     className="text-xs text-[#00e676] hover:text-[#00e676]/70 font-medium transition-colors ml-1"
@@ -1363,7 +1363,7 @@ function StatCard({ title, value, icon: Icon, loading }: {
   title: string; value: string; icon: React.ComponentType<any>; loading: boolean;
 }) {
   return (
-    <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-4 md:p-5 hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden">
+    <div className="bg-card border border-border/50 rounded-2xl p-4 md:p-5 hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden">
       <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-8 transition-opacity">
         <Icon className="w-16 h-16 text-[#00e676]" />
       </div>
@@ -1371,12 +1371,12 @@ function StatCard({ title, value, icon: Icon, loading }: {
         <div className="w-8 h-8 rounded-lg bg-[#00e676]/10 flex items-center justify-center text-[#00e676]">
           <Icon className="w-4 h-4" />
         </div>
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
       </div>
       <div className="relative z-10">
         {loading
           ? <Skeleton className="h-8 w-20" />
-          : <div className="text-2xl md:text-3xl font-bold tracking-tight text-white font-mono">{value}</div>}
+          : <div className="text-2xl md:text-3xl font-bold tracking-tight text-foreground font-mono">{value}</div>}
       </div>
     </div>
   );
