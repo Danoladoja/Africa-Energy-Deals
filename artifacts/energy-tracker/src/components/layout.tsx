@@ -16,11 +16,14 @@ import {
   Code2,
   Database,
   ClipboardList,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
 import { useAuth, authedFetch } from "@/contexts/auth";
+import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "./email-gate-modal";
 import { AiAssistant } from "./ai-assistant";
 
@@ -91,6 +94,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
 
   // Global keyboard shortcut: Cmd+K / Ctrl+K to open AI assistant
@@ -192,14 +196,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
+          {/* Theme toggle */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-sidebar-foreground/50 font-medium">
+              {theme === "dark" ? "Dark mode" : "Light mode"}
+            </span>
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sidebar-border bg-sidebar-accent/60 hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-all text-xs font-medium"
+            >
+              {theme === "dark"
+                ? <Sun className="w-3.5 h-3.5" />
+                : <Moon className="w-3.5 h-3.5" />
+              }
+              {theme === "dark" ? "Light" : "Dark"}
+            </button>
+          </div>
+
           {isAuthenticated ? (
             <div className="flex items-center gap-3">
-              <UserCircle2 className="w-4 h-4 text-slate-500 shrink-0" />
-              <span className="text-xs text-slate-500 truncate flex-1">{email}</span>
+              <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+              <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
               <button
                 onClick={handleUserLogout}
                 title="Sign out"
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0"
+                className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -240,7 +262,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-1">
           {isAuthenticated ? (
             <Link href="/watches">
-              <button className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/8 transition-colors">
+              <button className="relative p-2 rounded-xl text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
                 <Bell className="w-5 h-5" />
                 {bellCount > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-[#00e676] text-[#0b0f1a] text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -258,9 +280,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Bell className="w-5 h-5" />
             </button>
           )}
+          {/* Theme toggle — mobile header */}
+          <button
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            className="p-2 rounded-xl text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          >
+            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-foreground/70 hover:text-foreground hover:bg-white/8 transition-colors"
+            className="p-2 rounded-xl text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -318,6 +348,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {navItems.map((item) => (
                   <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                 ))}
+                {/* Theme toggle — mobile drawer */}
+                <div className="flex items-center justify-between px-4 py-3 mt-2 rounded-xl bg-sidebar-accent/50">
+                  <span className="text-sm text-sidebar-foreground/60 font-medium">
+                    {theme === "dark" ? "Dark mode" : "Light mode"}
+                  </span>
+                  <button
+                    onClick={toggleTheme}
+                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all text-xs font-semibold"
+                  >
+                    {theme === "dark"
+                      ? <><Sun className="w-3.5 h-3.5" /> Light</>
+                      : <><Moon className="w-3.5 h-3.5" /> Dark</>
+                    }
+                  </button>
+                </div>
+
                 {isAuthenticated && (
                   <>
                     <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">

@@ -23,6 +23,7 @@ The project is structured as a pnpm monorepo, with distinct packages for deploya
 - **Data-Driven UI:** Extensive use of charting libraries (recharts) and mapping (Leaflet) for rich data visualization.
 - **AI Integration:** An AI agent leverages OpenAI's GPT for daily news scraping and structured data extraction, with a human-in-the-loop review process.
 - **Authentication:** Magic-link email authentication system for user management and personalized features like watchlists.
+- **Light/Dark Mode:** `ThemeContext` (`src/contexts/theme.tsx`) persists preference to localStorage and toggles a `.light` class on `<html>`. CSS variables in `index.css` under `.light` override the default dark palette. Toggle button lives in the desktop sidebar footer and mobile header/drawer. Landing page is excluded (hardcoded dark colors).
 - **SEO & Performance:** Dynamic meta tags, bot prerendering middleware, dynamic sitemap generation, code splitting, and skeleton loaders ensure optimal SEO and user experience.
 
 **Key Features:**

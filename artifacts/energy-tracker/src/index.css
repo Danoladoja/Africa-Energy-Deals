@@ -115,6 +115,54 @@
   --radius: 0.75rem;
 }
 
+/* ── Light mode overrides ── */
+.light {
+  --background: 220 20% 97%;
+  --foreground: 224 50% 8%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 224 50% 8%;
+  --card-border: 220 14% 87%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 50% 8%;
+  --popover-border: 220 14% 87%;
+
+  --primary: 160 84% 28%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 90%;
+  --secondary-foreground: 224 50% 8%;
+
+  --muted: 220 14% 92%;
+  --muted-foreground: 220 8% 42%;
+
+  --accent: 189 75% 34%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 14% 87%;
+  --input: 220 14% 87%;
+  --ring: 160 84% 28%;
+
+  --chart-1: 160 84% 28%;
+  --chart-2: 189 75% 34%;
+  --chart-3: 217 80% 46%;
+  --chart-4: 280 55% 46%;
+  --chart-5: 35 80% 42%;
+
+  --sidebar: 220 20% 99%;
+  --sidebar-foreground: 224 50% 8%;
+  --sidebar-border: 220 14% 88%;
+  --sidebar-primary: 160 84% 28%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 14% 93%;
+  --sidebar-accent-foreground: 224 50% 8%;
+  --sidebar-ring: 160 84% 28%;
+}
+
 @layer base {
   * {
     @apply border-border;
