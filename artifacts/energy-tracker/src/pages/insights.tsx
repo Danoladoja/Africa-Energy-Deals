@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChat, type InsightContext } from "@/contexts/chat-context";
 import { TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
-import { SeoMeta } from "@/components/seo-meta";
+import { SEOMeta } from "@/components/seo-meta";
 
 const BASE = "/api";
 
@@ -571,7 +571,7 @@ export default function InsightsPage() {
 
   return (
     <>
-      <SeoMeta
+      <SEOMeta
         title="AI Insights | AfriEnergy Tracker"
         description="AI-powered chatbot for African energy investment intelligence, market analysis, and deal search"
       />
