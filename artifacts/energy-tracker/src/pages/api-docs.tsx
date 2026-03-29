@@ -349,7 +349,7 @@ export default function ApiDocsPage() {
             </div>
           </div>
           <p className="text-muted-foreground max-w-2xl">
-            Programmatic access to 123+ African energy investment deals across 26 countries and 8 sectors.
+            Programmatic access to 156+ African energy investment deals across 40 countries and 8 sectors.
             Build dashboards, research tools, and integrations with our REST API.
           </p>
           <div className="flex items-center gap-3 mt-4">
@@ -379,8 +379,8 @@ export default function ApiDocsPage() {
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Projects", value: "123+", icon: <Database className="w-4 h-4" /> },
-            { label: "Countries", value: "26",  icon: <Globe className="w-4 h-4" /> },
+            { label: "Projects", value: "156+", icon: <Database className="w-4 h-4" /> },
+            { label: "Countries", value: "40",  icon: <Globe className="w-4 h-4" /> },
             { label: "Sectors",   value: "8",   icon: <Activity className="w-4 h-4" /> },
             { label: "Investors", value: "84+", icon: <Users className="w-4 h-4" /> },
           ].map((s) => (

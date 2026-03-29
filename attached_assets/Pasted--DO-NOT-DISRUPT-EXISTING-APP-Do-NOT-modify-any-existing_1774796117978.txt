@@ -1,0 +1,126 @@
+## ⚠️ DO NOT DISRUPT EXISTING APP
+
+Do NOT modify any existing functionality, page design, layout, styling, or features. This fix touches only the static `index.html` meta tags and adds one image file.
+
+---
+
+## What's Wrong
+
+Two issues prevent a proper link preview:
+
+### 1. The OG preview image is broken
+
+The HTML references `og-image.png` but that file **does not exist** as a static asset. When LinkedIn/WhatsApp/Twitter try to fetch it, the Express catch-all serves the SPA HTML shell instead of an image. Result: **no image in the preview card.**
+
+### 2. The description has wrong numbers
+
+The meta description says *"Track 360+ energy investment deals across 52 African countries"* but the actual database has **156 projects across 40 countries**. This is what users see in the text preview when the link is shared.
+
+---
+
+## Fix Instructions
+
+### Step 1: Create the OG preview image
+
+Create a proper Open Graph image file and place it in the Vite `public/` directory so it gets served as a static file.
+
+**File location:** `artifacts/energy-tracker/public/og-image.png`
+
+**Requirements:**
+- Dimensions: **1200 × 630 pixels** (the standard OG image size for all platforms)
+- Format: PNG
+- Content: A branded card with the AfriEnergy Tracker logo, the site name, and a short tagline like "Africa's Energy Investment Database" against a dark background (matching the app's `#0f172a` theme color)
+- Keep it clean and professional — this is what people see when the link is shared
+
+**If you cannot generate an image**, use this fallback approach — copy and rename the existing logo:
+
+```bash
+# The only working image on the site is /images/logo-icon.png (1024x1024)
+# As a temporary fix, copy it to the public directory as og-image.png
+cp artifacts/energy-tracker/public/images/logo-icon.png artifacts/energy-tracker/public/og-image.png
+```
+
+> **Note:** A square 1024×1024 logo will work as a preview image on most platforms but won't look as polished as a proper 1200×630 card. Replace it with a designed image when available.
+
+### Step 2: Update the meta tags in index.html
+
+**File:** `artifacts/energy-tracker/index.html`
+
+Find the existing meta tags in the `<head>` and update them. The meta tags are already present (they are NOT injected by react-helmet — they are hardcoded in the static HTML). You just need to fix the content values.
+
+**Find and replace these tags:**
+
+```html
+<!-- FIND this description (the numbers are wrong): -->
+<meta name="description" content="Track 360+ energy investment deals across 52 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse." />
+
+<!-- REPLACE with accurate numbers: -->
+<meta name="description" content="Track 156+ energy investment deals across 40 African countries. Real-time data on solar, wind, hydro, gas & storage projects worth $115B+." />
+```
+
+```html
+<!-- FIND this OG description: -->
+<meta property="og:description" content="Track 360+ energy investment deals across 52 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse." />
+
+<!-- REPLACE with: -->
+<meta property="og:description" content="Track 156+ energy investment deals across 40 African countries. Real-time data on solar, wind, hydro, gas & storage projects worth $115B+." />
+```
+
+```html
+<!-- FIND this Twitter description: -->
+<meta name="twitter:description" content="Track 360+ energy investment deals across 52 African countries. Solar, wind, hydro, gas & storage projects with live data from Africa Energy Pulse." />
+
+<!-- REPLACE with: -->
+<meta name="twitter:description" content="Track 156+ energy investment deals across 40 African countries. Real-time data on solar, wind, hydro, gas & storage projects worth $115B+." />
+```
+
+**Also verify these OG image tags exist and point to the correct path:**
+
+```html
+<meta property="og:image" content="https://afrienergytracker.io/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="AfriEnergy Tracker — Africa's Energy Investment Database" />
+```
+
+If `og:image:width`, `og:image:height`, or `og:image:alt` are missing, add them right after the `og:image` tag.
+
+### Step 3: Also fix stale numbers anywhere else in the codebase
+
+Search for any other occurrence of "360+" or "52 African countries" or "52 countries" in the codebase and update to "156+" and "40 countries":
+
+```bash
+grep -r "360+" artifacts/energy-tracker/src/
+grep -r "52 African" artifacts/energy-tracker/src/
+grep -r "52 countries" artifacts/energy-tracker/src/
+grep -r "123+" artifacts/energy-tracker/src/
+grep -r "26 countries" artifacts/energy-tracker/src/
+```
+
+Replace all matches with accurate numbers (156+ projects, 40 countries).
+
+### Step 4: Rebuild and deploy
+
+```bash
+cd artifacts/energy-tracker && pnpm run build
+```
+
+Commit and push all changes including the new `og-image.png` and updated `index.html`.
+
+---
+
+## Verification
+
+After deploying, test the link preview using these free tools:
+
+1. **LinkedIn Post Inspector:** https://www.linkedin.com/post-inspector/ — paste `https://afrienergytracker.io/`
+2. **Twitter Card Validator:** https://cards-dev.twitter.com/validator — paste the URL
+3. **Facebook Sharing Debugger:** https://developers.facebook.com/tools/debug/ — paste the URL
+4. **Open Graph Preview:** https://www.opengraph.xyz/ — paste the URL
+
+All four should show:
+- **Title:** Africa Energy Investment Database | AfriEnergy Tracker
+- **Description:** Track 156+ energy investment deals across 40 African countries...
+- **Image:** The OG image card (not blank, not broken)
+
+> **Important:** LinkedIn and Facebook cache OG data aggressively. After deploying, use their respective tools above to "scrape again" / "fetch new data" to clear the cache.

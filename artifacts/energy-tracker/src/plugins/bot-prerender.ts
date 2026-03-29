@@ -34,7 +34,7 @@ function isBot(ua: string): boolean {
 
 const SITE_NAME = "AfriEnergy Tracker";
 const DEFAULT_DESC =
-  "Track African energy investment deals. 123+ projects across 26 countries — solar, wind, hydro, gas, grid & storage.";
+  "Track African energy investment deals. 156+ projects across 40 countries — solar, wind, hydro, gas, grid & storage.";
 const SITE_URL = "https://afrienergytracker.io";
 
 function buildHtml(opts: {
@@ -178,11 +178,11 @@ export function botPrerender(): Plugin {
           },
           "/deals": {
             title: "Deal Tracker",
-            description: "Search and filter 123+ African energy investment deals by country, technology, and status.",
+            description: "Search and filter 156+ African energy investment deals by country, technology, and status.",
           },
           "/map": {
             title: "Investment Map",
-            description: "Explore African energy investment deals on an interactive map across 26 countries.",
+            description: "Explore African energy investment deals on an interactive map across 40 countries.",
           },
           "/studio": {
             title: "Viz Studio",

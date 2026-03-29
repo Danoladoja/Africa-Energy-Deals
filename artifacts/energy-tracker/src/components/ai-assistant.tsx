@@ -238,7 +238,7 @@ function EmptyState({ onSelect }: { onSelect: (q: string) => void }) {
           </div>
           <p className="text-base font-bold text-white mb-1.5">Ask anything about Africa's energy deals</p>
           <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-            Search across 360+ projects, investors, countries, and financing structures using plain English.
+            Search across 156+ projects, investors, countries, and financing structures using plain English.
           </p>
         </div>
 
