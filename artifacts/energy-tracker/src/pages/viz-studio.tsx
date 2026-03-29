@@ -995,7 +995,7 @@ export default function VizStudio() {
                     <button data-no-export=""
                       onClick={() => exportChart(spotlightChartRef, `${selectedSpotlight}-${spotlightGrouping}-${spotlightMetric}`, setIsExportingSpotlightChart)}
                       disabled={isExportingSpotlightChart || !spotlightActiveData.length}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                      className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground border border-primary rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm">
                       {isExportingSpotlightChart ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                       Download Chart
                     </button>
