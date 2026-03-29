@@ -13,6 +13,8 @@ import apiKeysRouter from "./api-keys.js";
 import institutionalRouter from "./institutional.js";
 import seoRouter from "./seo.js";
 import reviewRouter from "./review.js";
+import chatRouter from "./chat.js";
+import newsletterRouter from "./newsletter.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use(apiKeysRouter);
 router.use(institutionalRouter);
 router.use(seoRouter);
 router.use(reviewRouter);
+router.use(chatRouter);
+router.use(newsletterRouter);
 
 export default router;

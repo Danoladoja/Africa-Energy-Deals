@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import { ThemeProvider } from "@/contexts/theme";
+import { ChatProvider } from "@/contexts/chat-context";
 import { AdminLockScreen } from "@/components/admin-lock-screen";
 import { Layout } from "@/components/layout";
 
@@ -32,6 +33,7 @@ const ComparePage      = lazy(() => import("@/pages/compare"));
 const ReviewDashboard  = lazy(() => import("@/pages/review"));
 const ReviewQueue      = lazy(() => import("@/pages/review-queue"));
 const ReviewItem       = lazy(() => import("@/pages/review-item"));
+const InsightsPage     = lazy(() => import("@/pages/insights"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -190,6 +192,9 @@ function Router() {
         <Route path="/studio">
           {() => <AuthRoute component={VizStudio} />}
         </Route>
+        <Route path="/insights">
+          {() => <AuthRoute component={InsightsPage} />}
+        </Route>
         <Route path="/discovery">
           {() => <AdminRoute component={DiscoveryPage} />}
         </Route>
@@ -238,10 +243,12 @@ function App() {
           <TooltipProvider>
             <AuthProvider>
               <AdminAuthProvider>
-                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                  <GA4 />
-                  <Router />
-                </WouterRouter>
+                <ChatProvider>
+                  <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                    <GA4 />
+                    <Router />
+                  </WouterRouter>
+                </ChatProvider>
               </AdminAuthProvider>
             </AuthProvider>
             <Toaster />

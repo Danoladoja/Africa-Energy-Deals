@@ -17,6 +17,7 @@ export function EmailGateModal({ isOpen, onClose, onSuccess, pendingRedirect }: 
   const [error, setError] = useState("");
   const [devLink, setDevLink] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [newsletterOptIn, setNewsletterOptIn] = useState(true);
 
   if (!isOpen) return null;
 
@@ -47,7 +48,7 @@ export function EmailGateModal({ isOpen, onClose, onSuccess, pendingRedirect }: 
       const res = await fetch(`${API}/auth/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, newsletterOptIn }),
       });
 
       const data = await res.json() as { success?: boolean; error?: string; devLink?: string };
@@ -125,6 +126,17 @@ export function EmailGateModal({ isOpen, onClose, onSuccess, pendingRedirect }: 
                 />
                 {error && <p className="mt-2 text-red-400 text-xs">{error}</p>}
               </div>
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div
+                  onClick={() => setNewsletterOptIn(v => !v)}
+                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${newsletterOptIn ? "bg-[#00e676] border-[#00e676]" : "border-white/25 bg-white/5"}`}
+                >
+                  {newsletterOptIn && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="#0b0f1a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <span className="text-xs text-white/50 leading-relaxed group-hover:text-white/70 transition-colors">
+                  Subscribe to the <span className="text-white/70 font-medium">AfriEnergy Insights</span> weekly newsletter — AI-powered briefings on African energy investment, delivered every Monday.
+                </span>
+              </label>
               <button
                 type="submit"
                 disabled={isLoading || !email.trim()}

@@ -1,6 +1,7 @@
 import app from "./app";
 import cron from "node-cron";
 import { runSourceGroup, getSourceGroups } from "./services/scraper.js";
+import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
 
 const rawPort = process.env["PORT"];
 
@@ -40,4 +41,7 @@ app.listen(port, () => {
 
     console.log(`[Scraper] "${groupName}" scheduled daily at ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} UTC`);
   });
+
+  // Start the newsletter scheduler
+  startNewsletterScheduler();
 });

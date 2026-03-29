@@ -35,6 +35,8 @@ The project is structured as a pnpm monorepo, with distinct packages for deploya
     - **Country & Investor Profiles:** Detailed pages with aggregate stats and project listings.
     - **AI Discovery:** Automated scraping of RSS feeds, AI extraction, and human review queue for new deals.
     - **Alert & Watch System:** User authentication, watchlists for countries/sectors/investors, and email notifications for new matching deals.
+    - **AI Insights (Chat):** `/insights` page with Claude-powered chatbot for market analysis, deal search, and investment intelligence. Grounded in live PostgreSQL data. SSE streaming via `POST /api/chat`. Shared conversation state in `ChatProvider` with localStorage persistence. ⌘K slide-out panel (`chat-slide-out.tsx`) accessible from any page.
+    - **Newsletter System:** Weekly AI-generated briefings (every Monday 7 AM UTC). Backend services: `web-intelligence.ts`, `newsletter-generator.ts`, `email-dispatch.ts`, `newsletter-scheduler.ts`. Frontend: Newsletter tab in Insights page with subscriber sign-up form. Email via Resend (`RESEND_API_KEY`). `newsletters` + `user_emails` tables in PostgreSQL.
 - **API Key System:** Tiered API access with rate limiting for institutional users.
 - **Embeddable Widgets:** Public routes for embedding deal cards and charts.
 - **Export System:** Comprehensive data export functionalities (PDF, PNG, PPTX) for dashboards and visualizations, supporting both data-driven and image-based exports.

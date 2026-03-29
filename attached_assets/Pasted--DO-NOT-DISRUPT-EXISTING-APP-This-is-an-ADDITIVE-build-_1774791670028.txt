@@ -1,0 +1,1208 @@
+## ⚠️ DO NOT DISRUPT EXISTING APP
+
+**This is an ADDITIVE build only.** Do NOT modify, restyle, refactor, or break any existing functionality, page design, layout, styling, API endpoint, or component beyond what is explicitly specified in this prompt. Every page (Home, Dashboard, Deal Tracker, Interactive Map, Countries, Investors, Vis Studio, Review Portal, API Docs, My Watches) must continue to look and work EXACTLY as it does today. The only existing files that should be touched are the ones explicitly listed in the File Summary section below — and only in the ways described. If in doubt, leave it alone.
+
+---
+
+## Overview: Unified AI Chatbot Replacing Ask AI
+
+### What Changes
+The current "Ask AI" feature (⌘K shortcut, component: `src/components/ai-assistant.tsx`, search bar: `src/components/nlq-search-bar.tsx`) is a **natural language search/filter tool**. It opens as a slide-out right panel and lets users type queries like "Solar deals in West Africa above $100M" to search/filter the project database. It only returns matching deal records — it cannot generate analysis, commentary, or insights.
+
+**We are replacing this with a unified AI chatbot** that can do BOTH:
+
+1. **Search & lookup** (what Ask AI does today) — "Show me solar deals in Egypt above $200M"
+2. **Intelligence & analysis** (new capability) — "What are the key investment trends in West African renewables?" / "Compare DFI involvement across regions" / "Give me a risk assessment for the Nigerian energy pipeline"
+
+The chatbot will live at `/insights` as a dedicated page in the side navigation AND remain accessible via ⌘K as a slide-out panel (same chatbot, two entry points).
+
+### What Gets Removed
+- The old `ai-assistant.tsx` component (slide-out search panel) — replaced by the new chatbot
+- The old `nlq-search-bar.tsx` component — replaced by the chatbot's input field
+- The old Ask AI button in the top bar — replaced by a ⌘K shortcut that opens the chatbot slide-out
+
+### What Gets Created
+- A new `/insights` page with the full chatbot experience + guided insight templates
+- A new chatbot slide-out component (accessible via ⌘K from any page)
+- A new `POST /api/chat` backend endpoint that handles both search queries and analysis requests
+- A new sidebar nav item: "Insights" with Lightbulb icon and "AI" badge
+
+---
+
+## ⛔ CRITICAL: Anti-Hallucination & Data Integrity Framework
+
+**This is the single most important requirement of the entire build.** The AI Insights agent must NEVER fabricate, invent, or extrapolate data that does not exist in the database or in verifiable external sources. Every number, project name, country, investor, dollar amount, and statistic cited in any AI response MUST trace back to an actual record in the PostgreSQL database or a verifiable scraped external source.
+
+### The Three-Layer Anti-Hallucination System
+
+This must be implemented across ALL three layers — the system prompt, the backend, and the frontend. All three are mandatory.
+
+#### Layer 1: System Prompt Constraints (instructions to Claude)
+
+The system prompt for BOTH the chatbot and the newsletter generator MUST include these non-negotiable rules (see full prompts below — these rules are already embedded there, but they are repeated here for emphasis):
+
+```
+ABSOLUTE DATA INTEGRITY RULES — THESE OVERRIDE ALL OTHER INSTRUCTIONS:
+
+1. NEVER invent project names, deal sizes, investor names, country data, or any statistics.
+   Every data point you cite MUST come from the DATA PROVIDED below.
+
+2. NEVER extrapolate or project numbers beyond what the data shows.
+   If 69 solar projects exist in the data, say "69 solar projects" — not "approximately 70"
+   or "nearly 100" or "a growing number."
+
+3. NEVER state trends unless the data contains time-series evidence.
+   Do NOT say "investment is increasing" unless you can cite specific year-over-year numbers
+   from the announcedYear/closedYear fields. If the data doesn't show a clear trend, say
+   "the data does not show a clear directional trend" or "insufficient time-series data to
+   determine trend direction."
+
+4. NEVER fill gaps with assumptions.
+   If a field is null/empty for a project (e.g., no financingType, no capacityMw), do NOT
+   guess. Say "financing type not disclosed" or "capacity data not available for X projects."
+
+5. ALWAYS prefix external intelligence with its source.
+   Say "According to IRENA's 2025 report..." or "BloombergNEF data indicates..."
+   NEVER present external claims as your own analysis.
+
+6. ALWAYS disclose data limitations.
+   Every response must include at least one data caveat, such as:
+   - "Based on [N] tracked projects; actual market activity may be broader"
+   - "Deal sizes are self-reported and may not reflect final committed capital"
+   - "[N] projects have incomplete financing data"
+
+7. When asked about something NOT in the data, say so explicitly.
+   "The tracker does not currently contain data on [topic]. I can only analyze
+   what's in the database."
+
+8. NEVER use phrases that imply certainty beyond what data supports:
+   ❌ "This clearly shows..." / "It is evident that..." / "Undoubtedly..."
+   ✅ "The data suggests..." / "Based on the [N] projects tracked..." / "The available data indicates..."
+```
+
+#### Layer 2: Backend Data Injection & Validation
+
+The backend (`POST /api/chat` and the newsletter generator) MUST implement these safeguards:
+
+**A. Inject ONLY real data — never let Claude generate from memory:**
+
+```javascript
+// CORRECT: Query the database, inject the results into the prompt
+const projects = await db.query('SELECT * FROM projects WHERE technology = $1', [sector]);
+const systemMessage = `
+  DATA PROVIDED (${projects.length} projects):
+  ${JSON.stringify(projects)}
+
+  IMPORTANT: You may ONLY reference projects and data points from the DATA PROVIDED above.
+  Do NOT use your training data to supplement with projects, statistics, or deals not listed above.
+`;
+
+// WRONG: Asking Claude to "analyze African energy markets" without injecting data
+```
+
+**B. Attach a data fingerprint to every response:**
+
+After the Claude response is generated, the backend MUST compute and attach a `dataSummary` object that is generated from the ACTUAL DATABASE QUERY (not from parsing Claude's response):
+
+```javascript
+// Compute from the actual query results, NOT from Claude's text
+const dataSummary = {
+  projectsInQuery: projects.length,
+  totalInvestmentInQuery: projects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0),
+  countriesInQuery: [...new Set(projects.map(p => p.country))].length,
+  sectorsInQuery: [...new Set(projects.map(p => p.technology))].length,
+  queryTimestamp: new Date().toISOString(),
+  dataSource: 'afrienergytracker_postgresql'
+};
+
+// Attach to the response so the frontend can display it
+response.dataSummary = dataSummary;
+```
+
+**C. Post-generation spot-check (optional but recommended):**
+
+After Claude generates a response, run a lightweight validation pass:
+
+```javascript
+async function validateResponse(responseText, queryResults) {
+  // Extract numbers mentioned in the response
+  const mentionedAmounts = responseText.match(/\$[\d,.]+[BMK]/g) || [];
+  const mentionedCounts = responseText.match(/(\d+)\s+projects?/g) || [];
+
+  // Check if mentioned project count matches query
+  const actualCount = queryResults.length;
+  const mentionedCount = mentionedCounts[0] ? parseInt(mentionedCounts[0]) : null;
+
+  if (mentionedCount && Math.abs(mentionedCount - actualCount) > 2) {
+    // Flag potential hallucination — the AI mentioned a project count
+    // that doesn't match the actual data
+    console.warn(`[DATA INTEGRITY WARNING] AI mentioned ${mentionedCount} projects, actual query returned ${actualCount}`);
+    // Optionally: append a disclaimer to the response
+  }
+
+  return { valid: true, warnings: [] };
+}
+```
+
+#### Layer 3: Frontend Data Provenance Display
+
+Every AI response in the chatbot and every newsletter MUST display a **data provenance badge** that is generated from the backend's `dataSummary` (NOT from the AI's text):
+
+```
+┌─────────────────────────────────────────────────┐
+│ 📊 Data Source: AfriEnergy Tracker PostgreSQL    │
+│ 📋 Projects analyzed: 156 │ 💰 $115.4B tracked  │
+│ 🌍 40 countries │ ⚡ 9 sectors                   │
+│ 🕐 Query: 2026-03-29T14:23:00Z                  │
+│ ⚠️ AI-generated analysis — verify critical data  │
+└─────────────────────────────────────────────────┘
+```
+
+This badge:
+- Is computed from the ACTUAL database query, not from parsing the AI's text
+- Shows the real timestamp of when the data was queried
+- Includes a permanent disclaimer: "AI-generated analysis — verify critical data"
+- Cannot be hidden or dismissed
+
+Additionally, the frontend should render a small ⚠️ icon next to any response, with a tooltip: "This analysis is AI-generated from database records. While grounded in real data, AI interpretation may contain errors. Always verify critical figures against the source data."
+
+---
+
+## Build Instructions
+
+### 1. Create the Backend Chat Endpoint
+
+**File:** Add to the existing route registration in `railway-server.mjs` (or create a dedicated route file and import it)
+
+Create a new POST endpoint: `POST /api/chat`
+
+```
+Request body:
+{
+  "messages": [
+    { "role": "user", "content": "string" },
+    { "role": "assistant", "content": "string" }
+  ],
+  "context": {
+    "insightType": "market_overview" | "sector_deep_dive" | "country_analysis" | "investment_trends" | "deal_pipeline" | "risk_assessment" | null,
+    "sector": string | null,
+    "country": string | null,
+    "region": string | null,
+    "timeframe": string | null
+  }
+}
+
+Response: Server-Sent Events (SSE) stream
+  - Each chunk: { "type": "text", "content": "..." }
+  - Final chunk: { "type": "done", "dataSummary": { "projectsAnalyzed": number, "totalInvestment": string, "countriesCovered": number, "sectorsCovered": number } }
+```
+
+**Implementation logic:**
+
+1. Receive the conversation messages array (supports multi-turn conversation)
+2. Query the database to pull ALL project data (or a filtered subset if context params are provided)
+3. Also fetch aggregate stats using existing internal functions: summary stats, by-technology breakdown
+4. Build a structured data context from the query results
+5. Construct the Claude API call with:
+   - The system prompt (below)
+   - The data context injected as a system message
+   - The full conversation history from `messages`
+6. Stream the Claude response back to the frontend via SSE
+7. Use the EXISTING Anthropic integration at `lib/integrations-anthropic-ai` — do NOT create a new API client
+8. Use the EXISTING database layer at `lib/db` — do NOT create new database connections
+
+**The system prompt for the AI chatbot:**
+
+```
+You are the AfriEnergy AI — an expert AI assistant embedded in the Africa Energy Investment Tracker platform. You serve two roles:
+
+ROLE 1 — DATA LOOKUP & SEARCH:
+When users ask to find, list, filter, or look up specific deals, projects, investors, or countries, respond with structured results from the data. Format results clearly with project names, countries, sectors, and deal sizes. Use tables or bullet lists for multiple results.
+
+ROLE 2 — INTELLIGENCE & ANALYSIS:
+When users ask for analysis, trends, commentary, comparisons, risk assessments, or strategic insights, produce professional-grade intelligence briefings. Write like a Bloomberg or IJ Global market analyst. Structure analysis with clear sections and data citations.
+
+HOW TO DECIDE WHICH ROLE:
+- "Show me / Find / List / Which deals..." → ROLE 1 (data lookup)
+- "What are the trends / Analyze / Compare / Why / What does the data tell us..." → ROLE 2 (analysis)
+- "Tell me about [country/sector]" → Use BOTH: provide key data points AND analytical commentary
+- When in doubt, provide BOTH a data summary and analytical commentary
+
+⛔ ABSOLUTE DATA INTEGRITY RULES — THESE OVERRIDE ALL OTHER INSTRUCTIONS:
+1. NEVER invent project names, deal sizes, investor names, country data, or any statistics. Every data point you cite MUST come from the DATA PROVIDED below.
+2. NEVER extrapolate or project numbers beyond what the data shows. If 69 solar projects exist, say "69" — not "approximately 70" or "nearly 100."
+3. NEVER state trends unless the data contains time-series evidence. Do NOT say "investment is increasing" unless you can cite specific year-over-year numbers from announcedYear/closedYear fields.
+4. NEVER fill gaps with assumptions. If a field is null/empty, say "not disclosed" or "data not available."
+5. ALWAYS prefix external intelligence with its source. Say "According to IRENA's 2025 report..." — NEVER present external claims as your own analysis.
+6. ALWAYS disclose data limitations in every response. Include at least one caveat such as "Based on [N] tracked projects; actual market activity may be broader."
+7. When asked about something NOT in the data, say so explicitly: "The tracker does not currently contain data on [topic]."
+8. NEVER use certainty language beyond what data supports. Use "The data suggests..." / "Based on [N] projects tracked..." — NOT "This clearly shows..." / "Undoubtedly..."
+9. If you are uncertain about a data point, say "I cannot confirm this from the available data" rather than guessing.
+10. NEVER supplement with knowledge from your training data. Only use the DATA PROVIDED and any EXTERNAL INTELLIGENCE PROVIDED.
+
+GUIDELINES FOR ALL RESPONSES:
+- Always ground responses in the ACTUAL DATA provided — cite specific deal counts, dollar amounts, countries, and percentages
+- Format monetary values consistently (e.g., "$1.2B", "$450M")
+- Use proper financial terminology (financial close, commissioning, PPA, offtaker, etc.)
+- When discussing deal stages, note the distinction between Announced, Financial Close, Construction, and Commissioned
+- Keep responses conversational but professional
+- For analysis responses: identify patterns, anomalies, concentrations, and gaps
+- For analysis responses: provide forward-looking commentary ONLY where the data supports it with concrete numbers
+- Flag data quality caveats when relevant (e.g., "based on 156 tracked projects; actual market activity may be broader")
+- Highlight the role of DFIs, concessional finance, and blended finance where present
+- Support follow-up questions — remember conversation context and build on previous responses
+- If the user asks something the data cannot answer, say so clearly and suggest what you CAN analyze
+
+DATA SCHEMA — Each project record contains:
+- projectName, country, region, technology (sector)
+- dealSizeUsdMn (investment value in USD millions)
+- investors, developer, financiers, offtaker, guarantor
+- status (Active/Completed), dealStage (Announced/Financial Close/Construction/Commissioned)
+- capacityMw (generation capacity)
+- announcedYear, closedYear, financialCloseDate, commissioningDate
+- financingType, financingSubTypes, debtEquitySplit, grantComponent, concessionalTerms
+- ppaTermYears, ppaTariffUsdKwh
+- dfiInvolvement, climateFinanceTag
+- confidenceScore, extractionSource
+- description, latitude, longitude
+
+AGGREGATE CONTEXT (current totals):
+- Total projects: 156+
+- Total tracked investment: ~$115.4B
+- Countries covered: 40
+- Technologies: Solar, Wind, Hydro, Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Bioenergy, Coal, Nuclear, Clean Cooking, Geothermal
+- Key investors/DFIs: IFC, EBRD, AfDB, EIB, OPIC/DFC, and many private developers
+```
+
+### 2. Create the Insights Page (Full Chatbot Experience)
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+This is the primary home for the AI chatbot — a full-page conversational interface with guided templates.
+
+#### A. Page Layout (two columns on desktop, single column on mobile)
+
+**Left column (main area, ~70% width):**
+
+**Top:** Page header with title "Insights" and subtitle "AI-powered intelligence for African energy markets". Include a small "AI" badge.
+
+**When no conversation is active (empty state),** show:
+
+1. A greeting message in the chat area: "I'm your AfriEnergy AI analyst. I can search for specific deals, analyze market trends, compare sectors and regions, assess risks, and generate intelligence briefings. Ask me anything about African energy investment."
+
+2. Below the greeting, show **6 Quick Insight cards** in a 2x3 or 3x2 grid:
+
+| Card | Icon | Label | Pre-filled prompt |
+|------|------|-------|-------------------|
+| 1 | TrendingUp | Market Overview | "Give me a comprehensive overview of the African energy investment market" |
+| 2 | Zap | Sector Deep Dive | (opens sector dropdown first, then sends: "Analyze the {sector} sector in detail") |
+| 3 | Globe | Country Analysis | (opens country dropdown first, then sends: "Analyze the energy investment landscape in {country}") |
+| 4 | BarChart3 | Investment Trends | "What are the key investment trends and capital flow patterns across African energy?" |
+| 5 | GitBranch | Deal Pipeline | "Assess the health of the current deal pipeline — what's progressing, what's stalled?" |
+| 6 | Shield | Risk Assessment | "What are the biggest market risks and concentration risks in African energy investment?" |
+
+When a card is clicked, it sends the pre-filled prompt as the first message in a new conversation. For cards that need a parameter (Sector Deep Dive, Country Analysis), show a small dropdown inline on the card before sending.
+
+3. Below the cards, show **3-4 Suggested Prompts** as clickable text pills:
+   - "Q1 2026 Market Pulse"
+   - "Where is the money going?"
+   - "Solar vs Wind: The African Opportunity"
+   - "Compare East Africa vs West Africa investment"
+
+**When a conversation is active,** show:
+- A scrollable chat thread with alternating user/assistant message bubbles
+- User messages: right-aligned, accent-colored background
+- Assistant messages: left-aligned, darker background, rendered as Markdown (with headers, bold, lists, tables)
+- Each assistant message shows a small "data context" badge: "Analyzed 156 projects · $115.4B tracked"
+- At the bottom of each assistant message: **Copy**, **Export PDF** action buttons (small, subtle)
+- Streaming: assistant messages appear progressively with a typing indicator
+
+**Bottom (always visible):** Chat input bar
+- Text input: "Ask about African energy deals, trends, or analysis..."
+- Send button (arrow icon)
+- ⌘K shortcut hint displayed subtly in the input placeholder on desktop
+- On mobile: full-width input bar fixed to bottom
+
+**Right column (sidebar, ~30% width, collapsible on mobile):**
+
+**Conversation History panel:**
+- List of past conversations with title (auto-generated from first user message), date, and a type badge
+- Click to reload a past conversation
+- Delete button for each
+- "New Conversation" button at the top
+- Stored in localStorage (keyed by user, if auth is available)
+
+#### B. Slide-out Mode (⌘K shortcut)
+
+**File:** Create `artifacts/energy-tracker/src/components/chat-slide-out.tsx`
+
+This replaces the old `ai-assistant.tsx` slide-out. When the user presses ⌘K from any page:
+
+- A slide-out panel opens from the right (same position as old Ask AI)
+- Contains a compact version of the chatbot: just the chat thread + input bar (no insight cards, no history sidebar)
+- Shows the same conversation state as the main /insights page (shared state)
+- Has a "Open in full page" link/button that navigates to `/insights`
+- Close with Escape or clicking outside
+- On mobile: this becomes a bottom sheet instead of a slide-out
+
+The slide-out and the full page share the same conversation state (React context or zustand store). If a user starts a conversation via ⌘K and then navigates to /insights, the conversation continues seamlessly.
+
+### 3. Remove Old Ask AI Components
+
+**IMPORTANT:** Do not delete the files — instead, refactor them:
+
+- **`src/components/ai-assistant.tsx`** — Replace the contents with the new `chat-slide-out.tsx` component (or redirect imports to the new component). This preserves any existing imports throughout the codebase.
+- **`src/components/nlq-search-bar.tsx`** — If this is used as a search bar in the top nav, replace it with a button/trigger that opens the chatbot slide-out via ⌘K. Keep the ⌘K keyboard shortcut working exactly as before.
+- Make sure any existing references to the old AI assistant component still work after the refactor.
+
+### 4. Add to Side Navigation
+
+**File:** `artifacts/energy-tracker/src/components/layout.tsx`
+
+Add a new navigation item to the sidebar. Insert it after "Dashboard" and before "Deal Tracker" in the nav items array:
+
+```
+{
+  path: "/insights",
+  label: "Insights",
+  icon: Lightbulb  // from lucide-react
+}
+```
+
+Also add a small "AI" badge next to the label:
+```jsx
+<span className="ml-1 text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">AI</span>
+```
+
+### 5. Add Route
+
+**File:** `artifacts/energy-tracker/src/App.tsx`
+
+Add the route for the new Insights page:
+```tsx
+import InsightsPage from './pages/insights';
+
+// In the routes:
+<Route path="/insights" element={<InsightsPage />} />
+```
+
+Make sure it's wrapped in the same layout component as the other pages.
+
+### 6. Create Shared Chat State
+
+**File:** `artifacts/energy-tracker/src/hooks/use-chat.ts`
+
+Create a custom React hook (or zustand store) that manages the shared chat state between the full /insights page and the ⌘K slide-out:
+
+```typescript
+export function useChat() {
+  // State:
+  //   messages: Array<{ role: 'user' | 'assistant', content: string, timestamp: Date }>
+  //   isStreaming: boolean
+  //   error: string | null
+  //   conversationId: string
+  //   conversations: Array<{ id, title, date, messages }>  (history)
+  //   dataSummary: { projectsAnalyzed, totalInvestment, countriesCovered, sectorsCovered } | null
+
+  // Methods:
+  //   sendMessage(content: string, context?: InsightContext) — sends to POST /api/chat, handles SSE streaming
+  //   newConversation() — clears current messages, generates new conversationId
+  //   loadConversation(id: string) — loads a past conversation from localStorage
+  //   deleteConversation(id: string) — removes from localStorage
+  //   exportToPdf() — uses existing export-utils to generate PDF of current conversation
+  //   copyLastResponse() — copies the last assistant message (markdown) to clipboard
+}
+```
+
+Wrap this in a React Context provider so both the Insights page and the slide-out component can share the same state:
+
+```tsx
+// In App.tsx or a dedicated provider:
+<ChatProvider>
+  {/* routes and layout */}
+</ChatProvider>
+```
+
+### 7. Styling & UX Requirements
+
+- **Dark theme:** Match the existing app's dark theme throughout (dark backgrounds, muted text, accent colors)
+- **Chat bubbles:** User messages right-aligned with a subtle accent background. Assistant messages left-aligned with a slightly lighter dark background.
+- **Markdown rendering:** Assistant messages should render Markdown to HTML with proper heading styles, bold, lists, tables, and code blocks. Use a library like `react-markdown` or `marked`.
+- **Streaming animation:** While the assistant is generating, show a typing indicator (three pulsing dots). Stream text progressively as it arrives.
+- **Insight cards:** Use the same card styling as the dashboard summary cards. Highlight on hover, show selected state.
+- **Suggested prompts:** Render as pill-shaped buttons with a subtle border. Disappear once a conversation starts.
+- **"AI" badge:** Use a consistent amber/gold accent color for all AI-related badges and indicators.
+- **Mobile responsive:**
+  - Stack insight cards vertically on mobile
+  - Full-width chat interface
+  - Bottom sheet for ⌘K instead of right slide-out
+  - Hide conversation history sidebar (accessible via hamburger menu or toggle)
+  - Chat input fixed to bottom of viewport
+- **Empty state:** The greeting + insight cards + suggested prompts should feel inviting and guide new users on what they can ask.
+
+### 8. Error Handling
+
+- If the Anthropic API key is missing or invalid: show a message in the chat: "AI Insights requires configuration. Please contact the administrator."
+- If the database query returns 0 projects for a filtered context: show "I couldn't find any projects matching those filters. Try broadening your search or ask me about a different sector/country."
+- If the AI stream fails mid-response: show the partial response with a "Response interrupted. Click to retry." button.
+- If the network is unavailable: show "Unable to connect. Please check your connection and try again."
+- Rate limit: disable the send button for 3 seconds after each message to prevent spam.
+- Max conversation length: after 50 messages in one conversation, suggest starting a new one ("This is a long conversation — for best results, consider starting a new one.")
+
+### 9. SEO & Meta
+
+Add SEO metadata using the existing `seo-meta.tsx` component:
+```
+title: "AI Insights | AfriEnergy Tracker"
+description: "AI-powered chatbot for African energy investment intelligence, market analysis, and deal search"
+```
+
+### 10. Keyboard Shortcuts
+
+- **⌘K (Mac) / Ctrl+K (Windows):** Toggle the chatbot slide-out from any page — this MUST continue working exactly as the old Ask AI shortcut did
+- **Escape:** Close the slide-out
+- **Enter:** Send message in the chat input
+- **Shift+Enter:** New line in the chat input (don't send)
+
+---
+
+## File Summary
+
+| Action | File | What |
+|--------|------|------|
+| CREATE | `artifacts/energy-tracker/src/pages/insights.tsx` | Full Insights chatbot page |
+| CREATE | `artifacts/energy-tracker/src/components/chat-slide-out.tsx` | ⌘K slide-out chatbot panel |
+| CREATE | `artifacts/energy-tracker/src/hooks/use-chat.ts` | Shared chat state hook/context |
+| CREATE | `artifacts/energy-tracker/src/contexts/chat-context.tsx` | React context provider for shared chat state |
+| MODIFY | `artifacts/energy-tracker/src/components/ai-assistant.tsx` | Refactor to use new chat-slide-out component |
+| MODIFY | `artifacts/energy-tracker/src/components/nlq-search-bar.tsx` | Refactor to trigger new chatbot slide-out |
+| MODIFY | `artifacts/energy-tracker/src/components/layout.tsx` | Add "Insights" to sidebar nav with AI badge |
+| MODIFY | `artifacts/energy-tracker/src/App.tsx` | Add `/insights` route + ChatProvider wrapper |
+| CREATE | Server-side: `POST /api/chat` endpoint | Backend chat endpoint with SSE streaming |
+
+---
+
+## Architecture Diagram
+
+```
+                    ┌─────────────────────────────────┐
+                    │         Two Entry Points         │
+                    ├─────────────────┬───────────────┤
+                    │                 │               │
+              ⌘K Shortcut       /insights page
+              (any page)        (side nav)
+                    │                 │
+                    ▼                 ▼
+            ┌──────────────┐  ┌──────────────────┐
+            │ Chat Slide-  │  │  Full Insights    │
+            │ Out Panel    │  │  Page + Cards +   │
+            │ (compact)    │  │  History Sidebar  │
+            └──────┬───────┘  └────────┬──────────┘
+                   │                   │
+                   └───────┬───────────┘
+                           │
+                   Shared Chat State
+                   (ChatContext / useChat)
+                           │
+                           ▼
+                 ┌──────────────────┐
+                 │  POST /api/chat  │
+                 │  (SSE streaming) │
+                 └────────┬─────────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+              ▼           ▼           ▼
+        ┌──────────┐ ┌─────────┐ ┌──────────────┐
+        │ Query DB │ │ Fetch   │ │ Build data   │
+        │ (lib/db) │ │ stats   │ │ context JSON │
+        └──────────┘ └─────────┘ └──────┬───────┘
+                                        │
+                                        ▼
+                              ┌──────────────────┐
+                              │ Claude API call  │
+                              │ via lib/         │
+                              │ integrations-    │
+                              │ anthropic-ai     │
+                              │ (streamed)       │
+                              └────────┬─────────┘
+                                       │
+                                       ▼
+                              SSE stream back
+                              to frontend
+                                       │
+                              ┌────────┼─────────┐
+                              │        │         │
+                              ▼        ▼         ▼
+                          Render    Save to    Copy /
+                          Markdown  history    Export
+                          in chat   (local)    PDF
+```
+
+---
+
+## Testing Checklist
+
+After building, verify:
+
+**Navigation & Routing:**
+- [ ] "Insights" appears in sidebar nav between Dashboard and Deal Tracker
+- [ ] "Insights" nav item has a Lightbulb icon and amber "AI" badge
+- [ ] Clicking "Insights" navigates to `/insights` and renders the chatbot page
+- [ ] ⌘K (Mac) / Ctrl+K (Windows) opens the chatbot slide-out from any page
+- [ ] Escape closes the slide-out
+- [ ] "Open in full page" link in slide-out navigates to `/insights`
+
+**Chatbot Empty State:**
+- [ ] Greeting message appears when no conversation is active
+- [ ] All 6 Quick Insight cards render with correct icons and labels
+- [ ] Suggested prompt pills render below the cards
+- [ ] Clicking a Quick Insight card sends the pre-filled prompt
+- [ ] Sector Deep Dive card shows sector dropdown before sending
+- [ ] Country Analysis card shows country dropdown before sending
+
+**Chatbot Conversation:**
+- [ ] Typing a message and pressing Enter sends it
+- [ ] Shift+Enter creates a new line without sending
+- [ ] User messages appear right-aligned with accent background
+- [ ] Assistant messages appear left-aligned and render Markdown properly
+- [ ] Streaming works — text appears progressively with typing indicator
+- [ ] Follow-up questions work — the chatbot remembers conversation context
+- [ ] Data summary badge shows on assistant messages
+
+**Search queries (Role 1):**
+- [ ] "Show me solar deals in Egypt" returns relevant deal listings
+- [ ] "Find projects above $500M" returns filtered results
+- [ ] "Who are the biggest investors?" returns investor data
+
+**Analysis queries (Role 2):**
+- [ ] "Give me a market overview" generates a full intelligence briefing
+- [ ] "Compare East Africa vs West Africa solar investment" generates comparative analysis
+- [ ] "What are the risks in the Nigerian pipeline?" generates risk assessment
+- [ ] Analysis responses cite specific numbers from the database
+
+**Shared State:**
+- [ ] Starting a conversation via ⌘K and then navigating to /insights shows the same conversation
+- [ ] Conversation persists across slide-out open/close
+
+**History & Actions:**
+- [ ] Conversation history saves and appears in the sidebar
+- [ ] Clicking a past conversation reloads it
+- [ ] "New Conversation" button clears the chat
+- [ ] Delete button removes a conversation from history
+- [ ] Copy button copies the last assistant message
+- [ ] Export PDF generates a downloadable PDF of the conversation
+
+**Mobile:**
+- [ ] Insight cards stack vertically
+- [ ] Chat input is fixed to bottom
+- [ ] ⌘K triggers a bottom sheet instead of a slide-out
+- [ ] History sidebar is accessible via toggle
+
+**Error States:**
+- [ ] No API key → "AI Insights requires configuration" message
+- [ ] API failure → "Response interrupted. Click to retry."
+- [ ] Empty filter results → helpful suggestion to broaden search
+
+**Backward Compatibility:**
+- [ ] ⌘K shortcut still works from all pages (same as old Ask AI)
+- [ ] No broken imports from the refactored ai-assistant.tsx and nlq-search-bar.tsx
+- [ ] All other pages and features are unaffected
+
+---
+
+## Environment Variables
+
+The Anthropic API key should already be configured (used by the existing AI integration at `lib/integrations-anthropic-ai`). No new env vars should be needed.
+
+Use model: `claude-sonnet-4-20250514` for the best balance of quality, speed, and cost for conversational analysis.
+
+---
+
+---
+
+# PART 2: Periodic AI Insights Newsletter
+
+## Overview
+
+In addition to the interactive chatbot, the AI agent should generate a **periodic Insights Newsletter** — a comprehensive, publication-quality report that blends all six insight types (Market Overview, Sector Deep Dive, Country Analysis, Investment Trends, Deal Pipeline, Risk Assessment) into one rich briefing. This newsletter is:
+
+1. **Auto-generated** on a configurable schedule (weekly, biweekly, or monthly)
+2. **Enriched with external intelligence** — the AI scrapes the web for the latest reports, analysis, and data from global think tanks, energy institutions, and news sources before generating
+3. **Emailed automatically** to all subscribed users via Resend
+4. **Downloadable as PDF** from the Insights page
+
+---
+
+## 11. Web Intelligence Scraping Layer
+
+### Purpose
+Before generating each newsletter, the AI agent should gather fresh external intelligence to supplement the internal database. This ensures the newsletter reflects the latest global context — policy changes, commodity prices, new fund announcements, regulatory shifts — not just the static deal data.
+
+### Sources to Scrape
+
+Create a configurable list of external intelligence sources. The scraper should fetch the latest content (titles, summaries, key data points) from these categories:
+
+**Multilateral & DFI Reports:**
+- IFC (International Finance Corporation) — project updates, investment climate reports
+- AfDB (African Development Bank) — energy sector reports, country strategies
+- IRENA (International Renewable Energy Agency) — renewable energy statistics, outlook reports
+- World Bank — energy access data, country assessments
+- IEA (International Energy Agency) — Africa Energy Outlook, World Energy Outlook updates
+
+**Industry & Market Intelligence:**
+- BloombergNEF — energy transition investment data, clean energy trends
+- IJ Global — African project finance deal tracker
+- African Energy Chamber — policy and market commentary
+- Global Energy Monitor — power plant tracker, project status updates
+- RMI (Rocky Mountain Institute) — African energy transition analysis
+
+**News & Policy:**
+- Reuters (Africa energy section)
+- Energy Capital & Power (Africa-focused energy news)
+- ESI Africa — power and energy news
+- PV Magazine (Africa solar news)
+- Climatescope by BloombergNEF — emerging market energy investment rankings
+
+### Implementation
+
+**File:** Create a server-side module: `server/services/web-intelligence.ts` (or add to existing server structure)
+
+```
+// Pseudocode for the web intelligence scraper
+
+interface IntelligenceSource {
+  name: string;
+  url: string;
+  category: 'dfi' | 'industry' | 'news' | 'thinktank';
+  scrapeMethod: 'rss' | 'api' | 'html';
+}
+
+interface ScrapedIntelligence {
+  source: string;
+  title: string;
+  summary: string;       // 2-3 sentence summary
+  publishDate: string;
+  url: string;
+  relevanceScore: number; // 0-1, how relevant to African energy
+  category: string;
+}
+
+async function gatherExternalIntelligence(): Promise<ScrapedIntelligence[]> {
+  // 1. Iterate through configured sources
+  // 2. For each source, fetch via RSS feed, API, or HTML scraping
+  // 3. Extract article titles, summaries, and dates from the last 7-30 days
+  // 4. Use Claude to score relevance (0-1) and extract key data points
+  // 5. Return the top 15-20 most relevant items
+  // 6. Cache results for 24 hours to avoid redundant scraping
+}
+```
+
+**Scraping Strategy (in priority order):**
+1. **RSS feeds** — Preferred. Most sources have RSS feeds. Use a library like `rss-parser`.
+2. **Public APIs** — Some sources (World Bank, IRENA) have open data APIs.
+3. **HTML scraping** — Last resort. Use `cheerio` for basic HTML parsing of article listings. Only scrape publicly accessible content (article titles and summaries from listing pages — never full article text behind paywalls).
+
+**Important:** Respect robots.txt. Only extract publicly available titles and brief summaries — never reproduce full copyrighted articles. The scraped intelligence is used to INFORM the AI's analysis, not to be reproduced verbatim.
+
+**Caching:** Store scraped intelligence in a new database table (`external_intelligence`) with a TTL of 24 hours. This prevents redundant scraping and provides a fallback if scraping fails during newsletter generation.
+
+### Database Table: `external_intelligence`
+
+Add to Drizzle schema at `lib/db/src/schema/`:
+
+```
+external_intelligence:
+  id: serial primary key
+  source: text not null
+  title: text not null
+  summary: text
+  url: text
+  publishDate: timestamp
+  category: text  // 'dfi', 'industry', 'news', 'thinktank'
+  relevanceScore: real
+  scrapedAt: timestamp default now()
+  expiresAt: timestamp  // scrapedAt + 24 hours
+```
+
+---
+
+## 12. Newsletter Generation Engine
+
+### The Newsletter Structure
+
+Each newsletter edition should be a single, comprehensive briefing structured as follows:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFRIENERGY INSIGHTS
+Weekly Intelligence Briefing — [Date]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. EXECUTIVE SUMMARY (3-4 paragraphs)
+   High-level market pulse. What happened this period.
+   Key numbers: new deals tracked, total investment movement,
+   notable announcements.
+
+2. MARKET OVERVIEW
+   Overall state of African energy investment.
+   Macro trends, capital flow direction, market sentiment.
+
+3. SECTOR SPOTLIGHT (rotating — one sector per edition)
+   Deep dive into one sector (Solar, Wind, Hydro, Oil & Gas, etc.)
+   Rotates each edition to cover all sectors over time.
+
+4. COUNTRY IN FOCUS (rotating — one country per edition)
+   Investment landscape analysis for one country.
+   Rotates each edition.
+
+5. DEAL PIPELINE UPDATE
+   New deals added to the tracker this period.
+   Stage progressions (Announced → Financial Close → Construction → Commissioned).
+   Stalled or delayed projects.
+
+6. INVESTMENT & FINANCING TRENDS
+   Capital flow patterns, DFI activity, blended finance trends.
+   Notable financing structures.
+
+7. GLOBAL CONTEXT & EXTERNAL INTELLIGENCE
+   Key findings from external sources (think tanks, DFI reports, news).
+   How global trends (energy transition, climate policy, commodity prices)
+   are affecting African energy markets.
+   *** This section is powered by the web intelligence scraper ***
+
+8. RISK RADAR
+   Emerging risks: regulatory changes, currency risks,
+   concentration risks, project delays.
+
+9. KEY TAKEAWAYS & OUTLOOK
+   3-5 bullet point summary of the most important developments.
+   Forward-looking commentary.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Generation Flow
+
+**File:** Create `server/services/newsletter-generator.ts`
+
+```
+async function generateNewsletter(): Promise<Newsletter> {
+  // STEP 1: Gather data
+  const allProjects = await db.query('SELECT * FROM projects');
+  const stats = await getAggregateStats();
+  const recentChanges = await getRecentChanges(periodDays); // new deals, stage changes
+  const externalIntel = await gatherExternalIntelligence();
+
+  // STEP 2: Determine rotating spotlights
+  const lastEdition = await getLastNewsletter();
+  const nextSector = getNextRotatingSector(lastEdition);
+  const nextCountry = getNextRotatingCountry(lastEdition);
+
+  // STEP 3: Build the master prompt
+  const masterPrompt = buildNewsletterPrompt({
+    allProjects,
+    stats,
+    recentChanges,
+    externalIntel,
+    spotlightSector: nextSector,
+    spotlightCountry: nextCountry,
+    editionNumber: (lastEdition?.editionNumber || 0) + 1,
+    editionDate: new Date()
+  });
+
+  // STEP 4: Generate via Claude (use claude-sonnet-4-20250514)
+  // This is a LONG generation — expect 2000-4000 words
+  // Use non-streaming (batch) mode since this is a background job
+  const response = await anthropicClient.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    system: NEWSLETTER_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: masterPrompt }]
+  });
+
+  // STEP 5: Parse the response into structured sections
+  const newsletter = parseNewsletterSections(response.content);
+
+  // STEP 6: Save to database
+  await saveNewsletter(newsletter);
+
+  // STEP 7: Generate PDF version
+  const pdfBuffer = await generateNewsletterPdf(newsletter);
+  // Store PDF in a /public/newsletters/ directory or as a blob
+
+  return newsletter;
+}
+```
+
+### Newsletter System Prompt
+
+```
+You are the AfriEnergy Intelligence Analyst producing the official AfriEnergy Insights newsletter — a periodic intelligence briefing for energy sector professionals, investors, policy advisors, and development finance practitioners working in African markets.
+
+NEWSLETTER FORMAT:
+You are producing a COMPLETE newsletter edition. Write as if you are the lead analyst at a Bloomberg-style intelligence service focused exclusively on African energy. The tone should be:
+- Authoritative and data-driven
+- Professional but readable (not academic)
+- Forward-looking with actionable implications
+- Balanced — acknowledge uncertainties and data limitations
+
+⛔ ABSOLUTE DATA INTEGRITY RULES — THESE OVERRIDE ALL OTHER INSTRUCTIONS:
+1. NEVER invent project names, deal sizes, investor names, country data, or any statistics. Every data point MUST come from the INTERNAL DATA PROVIDED or the EXTERNAL INTELLIGENCE PROVIDED below.
+2. NEVER extrapolate or project numbers beyond what the data shows. Use exact figures from the data.
+3. NEVER state trends unless the data contains time-series evidence with specific year-over-year numbers.
+4. NEVER fill gaps with assumptions. If data is missing, say "not disclosed" or "data not available for [N] projects."
+5. ALWAYS prefix external intelligence with its source name. Say "According to IRENA's 2025 report..." — NEVER present external claims without attribution.
+6. ALWAYS disclose data limitations. Every section must acknowledge the scope of the underlying data.
+7. NEVER supplement with knowledge from your training data. Only use the data provided in this prompt.
+8. NEVER use certainty language beyond what data supports. Use "The data suggests..." — NOT "This clearly shows..."
+9. If you cannot substantiate a claim from the provided data, do NOT include it.
+10. The "Global Context" section may ONLY reference items from the EXTERNAL INTELLIGENCE PROVIDED section — never fabricate external sources, report titles, or statistics.
+
+ADDITIONAL RULES:
+1. Every claim MUST be grounded in the actual data provided (internal database + external intelligence). Cite specific numbers.
+2. The "Global Context & External Intelligence" section MUST reference the external intelligence provided — name the sources (e.g., "According to IRENA's latest report..." or "BloombergNEF data shows...").
+3. The Sector Spotlight and Country in Focus should be DEEP — at least 300 words each with specific deal examples from the data.
+4. Format all monetary values consistently: "$1.2B", "$450M".
+5. Use the full 9-section structure provided. Do not skip sections.
+6. Write 2,500-3,500 words total.
+7. If a section cannot be populated with real data (e.g., no projects exist for the spotlight sector), state this explicitly rather than fabricating content.
+
+INTERNAL DATA PROVIDED:
+[Injected: full project dataset, aggregate stats, recent changes]
+
+EXTERNAL INTELLIGENCE PROVIDED:
+[Injected: scraped articles/reports with source, title, summary, date]
+
+EDITION DETAILS:
+- Edition number: [N]
+- Date: [Date]
+- Sector Spotlight: [Sector]
+- Country in Focus: [Country]
+- Reporting period: Last [7/14/30] days
+```
+
+---
+
+## 13. Newsletter Subscription System
+
+### Modify the Existing `user_emails` Table
+
+The existing `user_emails` table (schema: `lib/db/src/schema/user-emails.ts`) currently has: `id`, `email`, `role`, `createdAt`.
+
+**Add these columns:**
+
+```
+newsletter_opt_in: boolean default true    // All existing users opted in by default
+unsubscribe_token: text unique             // UUID for one-click unsubscribe
+newsletter_frequency: text default 'weekly' // 'weekly', 'biweekly', 'monthly'
+last_newsletter_sent_at: timestamp         // Track when they last received one
+```
+
+Run a migration to add these columns. Set `newsletter_opt_in = true` for all existing rows (existing users are auto-enrolled since they signed up through the email gate).
+
+### Modify the Email Gate Modal
+
+**File:** `artifacts/energy-tracker/src/components/email-gate-modal.tsx`
+
+Add a newsletter opt-in checkbox to the existing email gate modal:
+
+```
+☑ Subscribe to AfriEnergy Insights — our AI-powered weekly intelligence briefing on African energy investment
+```
+
+This checkbox should be **checked by default** but the user can uncheck it. The subscription preference should be saved to the `user_emails` table when they submit.
+
+### Unsubscribe Endpoint
+
+**Create:** `GET /api/newsletter/unsubscribe?token={unsubscribe_token}`
+
+- Looks up the user by unsubscribe_token
+- Sets `newsletter_opt_in = false`
+- Returns a simple HTML page: "You've been unsubscribed from AfriEnergy Insights. You can re-subscribe anytime from the Insights page."
+
+---
+
+## 14. Email Dispatch via Resend
+
+### Setup
+
+The Resend integration is partially configured (DNS records for `send.afrienergytracker.io` are set up but not yet verified).
+
+**Prerequisites (manual steps for Daniel):**
+1. Complete Resend DNS verification by adding the DKIM and SPF records to the `afrienergytracker.io` domain DNS
+2. Add `RESEND_API_KEY` to Railway environment variables
+
+### Implementation
+
+**File:** Create `server/services/email-dispatch.ts`
+
+```
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function dispatchNewsletter(newsletter: Newsletter): Promise<void> {
+  // 1. Get all subscribed users
+  const subscribers = await db.query(
+    'SELECT email, unsubscribe_token FROM user_emails WHERE newsletter_opt_in = true'
+  );
+
+  // 2. Build the HTML email from the newsletter markdown
+  const htmlContent = renderNewsletterEmail(newsletter);
+
+  // 3. Send to each subscriber via Resend batch API
+  // Resend supports batch sending up to 100 emails per API call
+  const batches = chunkArray(subscribers, 100);
+
+  for (const batch of batches) {
+    await resend.batch.send(
+      batch.map(subscriber => ({
+        from: 'AfriEnergy Insights <insights@send.afrienergytracker.io>',
+        to: subscriber.email,
+        subject: `AfriEnergy Insights — ${newsletter.title}`,
+        html: htmlContent.replace('{{UNSUBSCRIBE_URL}}',
+          `https://afrienergytracker.io/api/newsletter/unsubscribe?token=${subscriber.unsubscribe_token}`
+        ),
+      }))
+    );
+  }
+
+  // 4. Update last_newsletter_sent_at for all recipients
+  await db.query(
+    'UPDATE user_emails SET last_newsletter_sent_at = NOW() WHERE newsletter_opt_in = true'
+  );
+}
+```
+
+### Email Template
+
+The newsletter email should be a clean, professional HTML email:
+- Dark header with AfriEnergy logo and "INSIGHTS" branding
+- Clean white/light body for readability
+- Each section has a clear header
+- Key numbers highlighted in colored boxes
+- Footer with: unsubscribe link, "View on web" link (to /insights/newsletter/{id}), AfriEnergy branding
+- Mobile responsive (single column layout)
+
+---
+
+## 15. Scheduled Generation (Cron Job)
+
+### Implementation
+
+**File:** Add to `railway-server.mjs` or create `server/services/newsletter-scheduler.ts`
+
+Use `node-cron` (or Railway's built-in cron) to schedule newsletter generation:
+
+```javascript
+import cron from 'node-cron';
+
+// Weekly: Every Monday at 7:00 AM UTC
+cron.schedule('0 7 * * 1', async () => {
+  console.log('[Newsletter] Starting weekly generation...');
+  try {
+    // 1. Scrape external intelligence
+    const intel = await gatherExternalIntelligence();
+
+    // 2. Generate the newsletter
+    const newsletter = await generateNewsletter();
+
+    // 3. Dispatch via email
+    await dispatchNewsletter(newsletter);
+
+    console.log(`[Newsletter] Edition #${newsletter.editionNumber} sent to ${newsletter.recipientCount} subscribers`);
+  } catch (error) {
+    console.error('[Newsletter] Generation failed:', error);
+    // TODO: Alert admin (send error notification email to admin)
+  }
+});
+```
+
+Also expose a manual trigger endpoint for the admin:
+
+```
+POST /api/admin/newsletter/generate   (requires admin auth)
+POST /api/admin/newsletter/preview    (generates but doesn't send — returns the content for review)
+```
+
+---
+
+## 16. Newsletter Archive on Insights Page
+
+### Add a "Newsletter" Tab to the Insights Page
+
+**Modify:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+Add a tab bar at the top of the Insights page:
+
+```
+[💬 Chat]  [📰 Newsletter]
+```
+
+**Chat tab** = the existing chatbot interface (default)
+**Newsletter tab** = newsletter archive and download
+
+### Newsletter Tab Content
+
+When the "Newsletter" tab is active, show:
+
+**Latest Edition (hero card):**
+- Large card showing the most recent newsletter
+- Title, date, edition number
+- "Read" button → expands the full newsletter as styled Markdown
+- "Download PDF" button → downloads the PDF version
+- "Share" button
+
+**Past Editions (list below):**
+- Scrollable list of all past newsletters
+- Each row: Edition title, date, section badges (Market Overview, Sector Spotlight: Solar, Country: Nigeria, etc.)
+- Click to expand/read
+- Download PDF button for each
+
+**Subscribe CTA (if user is not subscribed):**
+- If the user hasn't provided their email yet (no email gate cookie): show "Subscribe to receive this newsletter in your inbox every week"
+- Email input + subscribe button
+- Links to the same `user_emails` table with `newsletter_opt_in = true`
+
+### API Endpoints for Newsletter Archive
+
+```
+GET /api/newsletters                    → List all past newsletters (paginated)
+GET /api/newsletters/:id                → Get a specific newsletter
+GET /api/newsletters/:id/pdf            → Download PDF version
+GET /api/newsletters/latest             → Get the most recent newsletter
+POST /api/newsletters/subscribe         → Subscribe an email to the newsletter
+```
+
+---
+
+## 17. Newsletter Database Tables
+
+### `newsletters` Table
+
+Add to Drizzle schema:
+
+```
+newsletters:
+  id: serial primary key
+  editionNumber: integer not null
+  title: text not null                    // e.g., "Weekly Intelligence Briefing — March 24, 2026"
+  content: text not null                  // Full markdown content
+  contentHtml: text                       // Pre-rendered HTML
+  executiveSummary: text                  // First section extracted for previews
+  spotlightSector: text                   // Which sector was featured
+  spotlightCountry: text                  // Which country was featured
+  projectsAnalyzed: integer
+  totalInvestmentCovered: text            // e.g., "$115.4B"
+  externalSourcesUsed: integer            // How many external sources were referenced
+  pdfUrl: text                            // Path to the stored PDF
+  recipientCount: integer                 // How many emails were sent
+  generatedAt: timestamp default now()
+  sentAt: timestamp                       // When emails were dispatched
+  status: text default 'draft'            // 'draft', 'sent', 'failed'
+```
+
+---
+
+## Updated File Summary (including Newsletter additions)
+
+| Action | File | What |
+|--------|------|------|
+| CREATE | `artifacts/energy-tracker/src/pages/insights.tsx` | Full Insights page (chatbot + newsletter tabs) |
+| CREATE | `artifacts/energy-tracker/src/components/chat-slide-out.tsx` | ⌘K slide-out chatbot panel |
+| CREATE | `artifacts/energy-tracker/src/hooks/use-chat.ts` | Shared chat state hook/context |
+| CREATE | `artifacts/energy-tracker/src/contexts/chat-context.tsx` | React context provider |
+| CREATE | `server/services/web-intelligence.ts` | External intelligence scraper |
+| CREATE | `server/services/newsletter-generator.ts` | Newsletter generation engine |
+| CREATE | `server/services/email-dispatch.ts` | Resend email dispatch |
+| CREATE | `server/services/newsletter-scheduler.ts` | Cron job for periodic generation |
+| CREATE | `lib/db/src/schema/newsletters.ts` | Newsletter Drizzle schema |
+| CREATE | `lib/db/src/schema/external-intelligence.ts` | External intel Drizzle schema |
+| MODIFY | `lib/db/src/schema/user-emails.ts` | Add newsletter_opt_in, unsubscribe_token, frequency columns |
+| MODIFY | `artifacts/energy-tracker/src/components/email-gate-modal.tsx` | Add newsletter checkbox |
+| MODIFY | `artifacts/energy-tracker/src/components/ai-assistant.tsx` | Refactor to new chatbot |
+| MODIFY | `artifacts/energy-tracker/src/components/nlq-search-bar.tsx` | Refactor to trigger chatbot |
+| MODIFY | `artifacts/energy-tracker/src/components/layout.tsx` | Add "Insights" to sidebar nav |
+| MODIFY | `artifacts/energy-tracker/src/App.tsx` | Add `/insights` route + ChatProvider |
+| MODIFY | `railway-server.mjs` | Register new API routes + cron scheduler |
+
+---
+
+## Updated Environment Variables
+
+```
+# Existing (should already be set):
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=postgresql://...
+
+# NEW — Required for newsletter:
+RESEND_API_KEY=re_...                    # From resend.com dashboard
+
+# OPTIONAL:
+NEWSLETTER_FREQUENCY=weekly              # 'weekly', 'biweekly', 'monthly' (default: weekly)
+NEWSLETTER_SEND_DAY=1                    # Day of week: 0=Sun, 1=Mon, ..., 6=Sat (default: 1)
+NEWSLETTER_SEND_HOUR=7                   # Hour UTC (default: 7)
+```
+
+---
+
+## Updated Testing Checklist (Newsletter additions)
+
+**Web Intelligence Scraper:**
+- [ ] `gatherExternalIntelligence()` returns 10-20 relevant items from configured sources
+- [ ] Scraped items have source, title, summary, date, and relevance score
+- [ ] Results are cached in `external_intelligence` table with 24-hour TTL
+- [ ] Scraper handles failures gracefully (if one source is down, others still work)
+- [ ] Scraper respects robots.txt and only extracts publicly available content
+
+**Newsletter Generation:**
+- [ ] `POST /api/admin/newsletter/preview` generates a full newsletter without sending
+- [ ] Newsletter contains all 9 sections with real data citations
+- [ ] Sector Spotlight and Country in Focus rotate correctly between editions
+- [ ] External intelligence section references actual scraped sources
+- [ ] Newsletter is 2,500-3,500 words
+- [ ] PDF version generates correctly
+
+**Email Dispatch:**
+- [ ] Resend API key is configured and DNS is verified
+- [ ] `POST /api/admin/newsletter/generate` generates AND sends the newsletter
+- [ ] Emails arrive with correct formatting, subject line, and unsubscribe link
+- [ ] Unsubscribe link works — sets `newsletter_opt_in = false`
+- [ ] Batch sending handles 100+ subscribers correctly
+
+**Newsletter Archive (Frontend):**
+- [ ] "Newsletter" tab appears on the Insights page
+- [ ] Latest edition displays as a hero card
+- [ ] Past editions list correctly with titles and dates
+- [ ] Clicking an edition opens the full content
+- [ ] "Download PDF" button triggers PDF download
+- [ ] Subscribe CTA appears for non-subscribed users
+
+**Email Gate Modal:**
+- [ ] Newsletter checkbox appears in the email gate modal
+- [ ] Checkbox is checked by default
+- [ ] Unchecking sets `newsletter_opt_in = false`
+- [ ] Subscription preference saves correctly to the database
+
+**Cron Schedule:**
+- [ ] Newsletter generates automatically on the configured schedule
+- [ ] Failed generations log errors and don't crash the server
+- [ ] Admin can trigger manual generation via API
+
+---
+
+## Priority Notes
+
+1. **Preserve ⌘K shortcut behavior** — users expect this to work; it just opens the new chatbot now
+2. **Refactor, don't delete** — update `ai-assistant.tsx` and `nlq-search-bar.tsx` to point to the new system so existing imports don't break
+3. **Use the existing Anthropic integration** at `lib/integrations-anthropic-ai` — do not install a new AI SDK
+4. **Use the existing database layer** at `lib/db` — do not create new database connections
+5. **Shared state is critical** — the ⌘K slide-out and /insights page MUST share conversation state
+6. **Stream the response** — analysis responses can be 500-1500 words; SSE streaming is essential for UX
+7. **Match existing UI patterns** — use the same Tailwind classes, card styles, and dark theme as Dashboard
+8. **Resend DNS must be verified BEFORE email dispatch will work** — Daniel needs to add the DKIM and SPF records to the afrienergytracker.io DNS. The records are already configured in Resend but showing "not_started" status.
+9. **Web scraping must be respectful** — only scrape RSS feeds and publicly accessible article listings. Never reproduce full copyrighted content. Use scraped intelligence to INFORM the AI's analysis.
+10. **Newsletter generation is a background job** — use non-streaming (batch) Claude API calls, not SSE. Expect 30-60 seconds for full generation.
+11. **After making ALL changes, rebuild**: `cd artifacts/energy-tracker && pnpm run build`
+12. **Commit and push ALL changes** including updated build output

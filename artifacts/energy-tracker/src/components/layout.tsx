@@ -8,6 +8,7 @@ import {
   X,
   House,
   Sparkles,
+  Lightbulb,
   LogOut,
   Globe,
   Users,
@@ -25,12 +26,13 @@ import { useAdminAuth } from "@/contexts/admin-auth";
 import { useAuth, authedFetch } from "@/contexts/auth";
 import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "./email-gate-modal";
-import { AiAssistant } from "./ai-assistant";
+import { ChatSlideOut } from "./chat-slide-out";
 
 const homeItem = { name: "Home", href: "/", icon: House };
 
 const publicNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Insights", href: "/insights", icon: Lightbulb, badge: "AI" as const },
   { name: "Deal Tracker", href: "/deals", icon: TableProperties },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
   { name: "Countries", href: "/countries", icon: Globe },
@@ -43,7 +45,9 @@ const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles 
 const adminScraperNavItem = { name: "Data Pipeline", href: "/admin/scraper", icon: Database };
 const reviewPortalNavItem = { name: "Review Portal", href: "/review", icon: ClipboardList };
 
-function NavItem({ item }: { item: typeof publicNavItems[number] }) {
+type NavItemType = { name: string; href: string; icon: React.ElementType; badge?: string };
+
+function NavItem({ item }: { item: NavItemType }) {
   const [isActive] = useRoute(item.href);
   return (
     <Link key={item.href} href={item.href} className="block">
@@ -65,13 +69,16 @@ function NavItem({ item }: { item: typeof publicNavItems[number] }) {
           />
         )}
         <item.icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
-        {item.name}
+        <span className="flex-1">{item.name}</span>
+        {item.badge && (
+          <span className="text-[9px] font-bold bg-amber-500/20 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded-full">{item.badge}</span>
+        )}
       </div>
     </Link>
   );
 }
 
-function MobileNavItem({ item, onClose }: { item: typeof publicNavItems[number]; onClose: () => void }) {
+function MobileNavItem({ item, onClose }: { item: NavItemType; onClose: () => void }) {
   const [isActive] = useRoute(item.href);
   return (
     <Link href={item.href} onClick={onClose}>
@@ -81,7 +88,10 @@ function MobileNavItem({ item, onClose }: { item: typeof publicNavItems[number];
         transition-colors
       `}>
         <item.icon className="w-5 h-5 shrink-0" />
-        <span className="text-base font-medium">{item.name}</span>
+        <span className="text-base font-medium flex-1">{item.name}</span>
+        {item.badge && (
+          <span className="text-[9px] font-bold bg-amber-500/20 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded-full">{item.badge}</span>
+        )}
       </div>
     </Link>
   );
@@ -420,8 +430,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Auth Modal */}
       <EmailGateModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
-      {/* AI Assistant Panel (global) */}
-      <AiAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
+      {/* Chat Slide-out Panel (global, ⌘K) */}
+      <ChatSlideOut open={aiOpen} onClose={() => setAiOpen(false)} />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative pt-14 md:pt-0">
