@@ -851,14 +851,14 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => exportMatrixCsv(filtered)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border transition-all"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-background text-foreground font-medium hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
           >
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
           <button
             onClick={handleExportPng}
             disabled={exporting}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-background text-foreground font-medium hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" /> {exporting ? "Exporting…" : "Export PNG"}
           </button>

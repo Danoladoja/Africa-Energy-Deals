@@ -676,21 +676,21 @@ function ComparisonPanel({
           <div className="flex items-center gap-2">
             <button
               onClick={shareComparison}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-foreground font-medium hover:text-primary hover:bg-primary/5 border border-border hover:border-primary/40 transition-all"
             >
               {copied ? <CheckCheck className="w-3.5 h-3.5 text-[#00e676]" /> : <Share2 className="w-3.5 h-3.5" />}
               {copied ? "Link copied!" : "Share comparison"}
             </button>
             <button
               onClick={() => exportComparisonCSV(deals)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-foreground font-medium hover:text-primary hover:bg-primary/5 border border-border hover:border-primary/40 transition-all"
             >
               <Download className="w-3.5 h-3.5" />
               Export CSV
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               <XIcon className="w-5 h-5" />
             </button>

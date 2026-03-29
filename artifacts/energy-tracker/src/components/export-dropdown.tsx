@@ -60,8 +60,8 @@ export function ExportDropdown({
 
   const btnCls =
     size === "sm"
-      ? "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 text-xs font-medium text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] hover:bg-[#00e676]/5 transition-all"
-      : "flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-sm font-medium text-slate-300 hover:border-[#00e676]/40 hover:text-[#00e676] hover:bg-[#00e676]/5 transition-all";
+      ? "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
+      : "flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-semibold text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all";
 
   const currentOpt = loading ? options.find((o) => o.id === loading) : null;
 
@@ -83,9 +83,9 @@ export function ExportDropdown({
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 z-50 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden min-w-56">
-            <div className="px-4 py-2.5 border-b border-white/5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="absolute right-0 top-full mt-2 z-50 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden min-w-56">
+            <div className="px-4 py-2.5 border-b border-border/50">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Download as
               </p>
             </div>
@@ -93,21 +93,21 @@ export function ExportDropdown({
               <button
                 key={opt.id}
                 onClick={() => handleExport(opt)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 text-left group"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 text-left group"
               >
                 {TYPE_ICON[opt.type]}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 group-hover:text-white">
+                  <p className="text-sm font-medium text-foreground">
                     {opt.label}
                   </p>
                   {opt.description && (
-                    <p className="text-xs text-slate-600 mt-0.5">{opt.description}</p>
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">{opt.description}</p>
                   )}
                 </div>
               </button>
             ))}
-            <div className="px-4 py-2 bg-white/[0.01] border-t border-white/5">
-              <p className="text-[9px] text-slate-700 leading-relaxed">
+            <div className="px-4 py-2 bg-muted/20 border-t border-border/50">
+              <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
                 Exports include AfriEnergy branding and data sourcing footer.
               </p>
             </div>
@@ -117,7 +117,7 @@ export function ExportDropdown({
 
       {/* Toast notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-[#0b0f1a] border border-[#00e676]/30 rounded-xl shadow-2xl text-sm text-[#00e676] animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-card border border-primary/30 rounded-xl shadow-2xl text-sm text-primary animate-in fade-in slide-in-from-bottom-2">
           <Download className="w-4 h-4" />
           {toast}
         </div>

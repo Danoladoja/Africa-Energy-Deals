@@ -660,7 +660,7 @@ export default function MapPage() {
             <div className="relative shrink-0" ref={exportMenuRef}>
               <button
                 onClick={() => setExportMenuOpen(v => !v)}
-                className="flex items-center gap-1.5 bg-muted/30 border border-border hover:border-primary/40 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground/80 transition-colors"
+                className="flex items-center gap-1.5 bg-background border border-border hover:border-primary/40 hover:text-primary hover:bg-primary/5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors"
               >
                 {exporting
                   ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -681,7 +681,7 @@ export default function MapPage() {
                     <button
                       onClick={() => { handleDownload(); setExportMenuOpen(false); }}
                       disabled={exporting}
-                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-white/6 transition-colors text-left disabled:opacity-60"
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-muted/50 transition-colors text-left disabled:opacity-60"
                     >
                       <Download className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span>
@@ -692,7 +692,7 @@ export default function MapPage() {
                     <div className="h-px bg-muted/30 mx-3" />
                     <button
                       onClick={() => { handleShare(); setExportMenuOpen(false); }}
-                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-white/6 transition-colors text-left"
+                      className="flex items-center gap-2.5 w-full px-4 py-3 text-[12px] text-foreground hover:bg-muted/50 transition-colors text-left"
                     >
                       {copied
                         ? <Check className="w-3.5 h-3.5 text-[#00e676] shrink-0" />
