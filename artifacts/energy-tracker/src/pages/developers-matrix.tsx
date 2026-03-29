@@ -237,7 +237,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
           const cx = LEFT_PAD + si * CELL_W + CELL_W / 2;
           return (
             <g key={sec}>
-              <text x={cx} y={TOP_PAD - 36} textAnchor="middle" fill="#94a3b8" fontSize={11} fontWeight={600}>
+              <text x={cx} y={TOP_PAD - 36} textAnchor="middle" fill="var(--axis-label-muted)" fontSize={11} fontWeight={600}>
                 {sec.replace(" & ", "/").replace("Grid/Storage", "Grid")}
               </text>
               <circle cx={cx} cy={TOP_PAD - 20} r={5} fill={SECTOR_COLORS[sec] ?? "#94a3b8"} opacity={0.8} />
@@ -250,7 +250,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
           return (
             <g key={entity.name}>
               {/* Row label */}
-              <text x={LEFT_PAD - 10} y={cy + 4} textAnchor="end" fill="#cbd5e1" fontSize={11}>
+              <text x={LEFT_PAD - 10} y={cy + 4} textAnchor="end" fill="var(--axis-label)" fontSize={11} fontWeight={500}>
                 {entity.name.length > 18 ? entity.name.slice(0, 17) + "…" : entity.name}
               </text>
 

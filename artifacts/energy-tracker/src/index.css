@@ -103,6 +103,8 @@
   --chart-4: 280 65% 60%; /* Purple */
   --chart-5: 35 91% 55%;  /* Orange */
   --chart-grid: rgba(255,255,255,0.07);
+  --axis-label: #e2e8f0;
+  --axis-label-muted: #94a3b8;
 
   --sidebar: 226 47% 5%;
   --sidebar-foreground: 210 40% 98%;
@@ -154,6 +156,8 @@
   --chart-4: 280 55% 46%;
   --chart-5: 35 80% 42%;
   --chart-grid: rgba(0,0,0,0.07);
+  --axis-label: #0f172a;
+  --axis-label-muted: #475569;
 
   --sidebar: 220 20% 99%;
   --sidebar-foreground: 224 50% 8%;
