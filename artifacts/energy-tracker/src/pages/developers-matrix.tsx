@@ -258,7 +258,7 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
               <line
                 x1={LEFT_PAD} y1={TOP_PAD + ei * CELL_H}
                 x2={LEFT_PAD + ALL_SECTORS.length * CELL_W} y2={TOP_PAD + ei * CELL_H}
-                stroke="rgba(255,255,255,0.04)" strokeWidth={1}
+                stroke="var(--chart-grid)" strokeWidth={1}
               />
 
               {/* Bubbles */}
@@ -303,27 +303,27 @@ function SectorBubbleMatrix({ entities }: { entities: MatrixEntityRow[] }) {
             key={si}
             x1={LEFT_PAD + si * CELL_W} y1={TOP_PAD - 8}
             x2={LEFT_PAD + si * CELL_W} y2={TOP_PAD + top15.length * CELL_H}
-            stroke="rgba(255,255,255,0.04)" strokeWidth={1}
+            stroke="var(--chart-grid)" strokeWidth={1}
           />
         ))}
       </svg>
 
       {/* Tooltip */}
       {tooltip && (
-        <div className="absolute pointer-events-none z-30 bg-[#0f172a] border border-white/10 rounded-xl p-3 shadow-2xl text-xs min-w-[180px]"
+        <div className="absolute pointer-events-none z-30 bg-popover border border-border rounded-xl p-3 shadow-2xl text-xs min-w-[180px]"
           style={{ left: tooltip.x + 12, top: Math.max(0, tooltip.y - 60) }}>
-          <p className="font-semibold text-white mb-1">{tooltip.investor}</p>
+          <p className="font-semibold text-foreground mb-1">{tooltip.investor}</p>
           <p style={{ color: SECTOR_COLORS[tooltip.sector] ?? "#94a3b8" }} className="font-medium mb-1.5">{tooltip.sector}</p>
-          <div className="space-y-0.5 text-slate-400">
-            <p>Investment: <span className="text-white font-mono font-bold">{fmt(tooltip.inv)}</span></p>
-            <p>Deals: <span className="text-white font-bold">{tooltip.count}</span></p>
+          <div className="space-y-0.5 text-muted-foreground">
+            <p>Investment: <span className="text-foreground font-mono font-bold">{fmt(tooltip.inv)}</span></p>
+            <p>Deals: <span className="text-foreground font-bold">{tooltip.count}</span></p>
           </div>
         </div>
       )}
 
       {/* Legend */}
       <div className="flex items-center gap-6 mt-3 px-2 flex-wrap">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
           <svg width="40" height="16">
             <circle cx={8} cy={8} r={4} fill="#94a3b8" opacity={0.35} />
             <circle cx={22} cy={8} r={7} fill="#94a3b8" opacity={0.55} />
@@ -352,19 +352,19 @@ function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
       <table className="w-full text-xs border-separate border-spacing-0.5" style={{ minWidth: 520 }}>
         <thead>
           <tr>
-            <th className="text-left py-1.5 pr-3 text-slate-500 font-medium text-[11px] sticky left-0 bg-[#1e293b] z-10 min-w-[140px]">Investor</th>
+            <th className="text-left py-1.5 pr-3 text-muted-foreground/70 font-medium text-[11px] sticky left-0 bg-card z-10 min-w-[140px]">Investor</th>
             {ALL_REGIONS.map(r => (
-              <th key={r} className="text-center pb-1.5 text-[10px] text-slate-500 font-medium whitespace-nowrap">
+              <th key={r} className="text-center pb-1.5 text-[10px] text-muted-foreground/70 font-medium whitespace-nowrap">
                 {r.replace(" Africa", "")}
               </th>
             ))}
-            <th className="text-right py-1.5 pl-2 text-slate-500 font-medium text-[11px]">Total</th>
+            <th className="text-right py-1.5 pl-2 text-muted-foreground/70 font-medium text-[11px]">Total</th>
           </tr>
         </thead>
         <tbody>
           {top15.map(entity => (
             <tr key={entity.name}>
-              <td className="py-1 pr-3 text-slate-300 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-[#1e293b] z-10">
+              <td className="py-1 pr-3 text-foreground/80 font-medium whitespace-nowrap text-[11px] sticky left-0 bg-card z-10">
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: TYPE_META[entity.investorType].color }} />
@@ -377,14 +377,14 @@ function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
                   <td key={reg} className="p-0.5">
                     {inv > 0 ? (
                       <div
-                        className="h-10 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold text-white transition-all"
+                        className="h-10 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold text-foreground transition-all"
                         style={{ backgroundColor: heatColor(inv, globalMax) }}
                         title={`${entity.name} · ${reg}: ${fmt(inv)}`}
                       >
                         {fmt(inv, 0)}
                       </div>
                     ) : (
-                      <div className="h-10 rounded-lg flex items-center justify-center text-[10px] text-slate-700"
+                      <div className="h-10 rounded-lg flex items-center justify-center text-[10px] text-muted-foreground/60"
                         style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
                         —
                       </div>
@@ -392,14 +392,14 @@ function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
                   </td>
                 );
               })}
-              <td className="py-1 pl-2 text-right font-mono text-[11px] text-slate-400 whitespace-nowrap">
+              <td className="py-1 pl-2 text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                 {fmt(entity.totalInvestment)}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-[10px] text-slate-600 mt-3">
+      <p className="text-[10px] text-muted-foreground/50 mt-3">
         Showing top 15 investors by total investment · Color intensity = investment volume in that region
       </p>
     </div>
@@ -410,7 +410,7 @@ function GeographyHeatmap({ entities }: { entities: MatrixEntityRow[] }) {
 
 function MiniSectorBar({ sectors }: { sectors: Record<string, { count: number; investment: number }> }) {
   const total = Object.values(sectors).reduce((s, v) => s + v.investment, 0);
-  if (!total) return <div className="h-2 bg-white/5 rounded-full" />;
+  if (!total) return <div className="h-2 bg-muted/30 rounded-full" />;
   const sorted = Object.entries(sectors).sort((a, b) => b[1].investment - a[1].investment);
   return (
     <div className="h-2 rounded-full overflow-hidden flex" title="Sector breakdown by investment">
@@ -426,7 +426,7 @@ function MiniSectorBar({ sectors }: { sectors: Record<string, { count: number; i
 
 function MiniDonut({ stages }: { stages: Record<string, number> }) {
   const data = Object.entries(stages).map(([name, value]) => ({ name, value }));
-  if (!data.length) return <div className="h-16 w-16 rounded-full bg-white/5" />;
+  if (!data.length) return <div className="h-16 w-16 rounded-full bg-muted/30" />;
   return (
     <PieChart width={64} height={64}>
       <Pie data={data} dataKey="value" cx={32} cy={32} innerRadius={18} outerRadius={30} paddingAngle={2} strokeWidth={0}>
@@ -437,7 +437,7 @@ function MiniDonut({ stages }: { stages: Record<string, number> }) {
 }
 
 function MiniSparkline({ timeline }: { timeline: { year: number; inv: number }[] }) {
-  if (!timeline.length) return <div className="h-12 bg-white/[0.02] rounded-lg" />;
+  if (!timeline.length) return <div className="h-12 bg-muted/20 rounded-lg" />;
   return (
     <ResponsiveContainer width="100%" height={48}>
       <AreaChart data={timeline} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
@@ -460,18 +460,18 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
   const stageEntries = Object.entries(entity.stages).sort((a, b) => b[1] - a[1]);
   const topSectors = Object.entries(entity.sectors).sort((a, b) => b[1].investment - a[1].investment).slice(0, 3);
   return (
-    <div className="bg-[#1e293b] border border-white/8 rounded-2xl p-5 flex flex-col gap-4 min-w-[240px]">
+    <div className="bg-card border border-border/80 rounded-2xl p-5 flex flex-col gap-4 min-w-[240px]">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-white text-sm leading-tight">{entity.name}</h3>
+          <h3 className="font-bold text-foreground text-sm leading-tight">{entity.name}</h3>
           <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] px-2 py-0.5 rounded-full font-medium"
             style={{ backgroundColor: `${tm.color}18`, color: tm.color }}>
             <tm.Icon className="w-2.5 h-2.5" />
             {tm.label}
           </span>
         </div>
-        <button onClick={onRemove} className="text-slate-600 hover:text-slate-400 transition-colors shrink-0">
+        <button onClick={onRemove} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -479,29 +479,29 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
       {/* Key metrics */}
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total</p>
+          <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Total</p>
           <p className="text-base font-bold font-mono text-[#00e676]">{fmt(entity.totalInvestment)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Deals</p>
-          <p className="text-base font-bold text-white">{entity.projectCount}</p>
+          <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Deals</p>
+          <p className="text-base font-bold text-foreground">{entity.projectCount}</p>
         </div>
         <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Countries</p>
-          <p className="text-base font-bold text-white">{entity.countries.length}</p>
+          <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-0.5">Countries</p>
+          <p className="text-base font-bold text-foreground">{entity.countries.length}</p>
         </div>
       </div>
 
       {/* Avg deal size + biggest deal */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-500">Avg deal size</span>
-          <span className="font-mono text-slate-300">{fmt(entity.avgDealSize)}</span>
+          <span className="text-muted-foreground/70">Avg deal size</span>
+          <span className="font-mono text-foreground/80">{fmt(entity.avgDealSize)}</span>
         </div>
         {entity.biggestDeal && (
           <div className="flex items-start justify-between text-xs gap-2">
-            <span className="text-slate-500 shrink-0">Largest deal</span>
-            <span className="font-mono text-slate-300 text-right">{entity.biggestDeal.name.length > 22
+            <span className="text-muted-foreground/70 shrink-0">Largest deal</span>
+            <span className="font-mono text-foreground/80 text-right">{entity.biggestDeal.name.length > 22
               ? entity.biggestDeal.name.slice(0, 21) + "…" : entity.biggestDeal.name}
               &nbsp;<span className="text-[#00e676] font-bold">{fmt(entity.biggestDeal.size)}</span>
             </span>
@@ -511,20 +511,20 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
 
       {/* Countries */}
       <div>
-        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Countries Active</p>
+        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-1.5">Countries Active</p>
         <div className="flex flex-wrap gap-1">
           {entity.countries.slice(0, 5).map(c => (
-            <span key={c} className="text-[10px] bg-white/5 text-slate-400 px-1.5 py-0.5 rounded-full">{c}</span>
+            <span key={c} className="text-[10px] bg-muted/30 text-muted-foreground px-1.5 py-0.5 rounded-full">{c}</span>
           ))}
           {entity.countries.length > 5 && (
-            <span className="text-[10px] bg-white/5 text-slate-600 px-1.5 py-0.5 rounded-full">+{entity.countries.length - 5}</span>
+            <span className="text-[10px] bg-muted/30 text-muted-foreground/50 px-1.5 py-0.5 rounded-full">+{entity.countries.length - 5}</span>
           )}
         </div>
       </div>
 
       {/* Sector breakdown mini bar */}
       <div>
-        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Sector Mix</p>
+        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-1.5">Sector Mix</p>
         <MiniSectorBar sectors={entity.sectors} />
         <div className="flex flex-wrap gap-1 mt-1.5">
           {topSectors.map(([sec]) => (
@@ -539,7 +539,7 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
       {/* Stage donut + deal stage breakdown */}
       <div className="flex items-start gap-3">
         <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Deal Stages</p>
+          <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-1">Deal Stages</p>
           <MiniDonut stages={entity.stages} />
         </div>
         <div className="flex-1 pt-5 space-y-0.5">
@@ -547,9 +547,9 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
             <div key={stage} className="flex items-center justify-between text-[10px]">
               <div className="flex items-center gap-1">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STAGE_COLORS[stage] ?? "#64748b" }} />
-                <span className="text-slate-500">{stage}</span>
+                <span className="text-muted-foreground/70">{stage}</span>
               </div>
-              <span className="text-slate-400 font-medium">{count}</span>
+              <span className="text-muted-foreground font-medium">{count}</span>
             </div>
           ))}
         </div>
@@ -557,9 +557,9 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
 
       {/* Timeline sparkline */}
       <div>
-        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">
+        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mb-1.5">
           Deal Timeline&nbsp;{entity.timeline.length > 0 &&
-            <span className="text-slate-600 normal-case">({entity.timeline[0]?.year}–{entity.timeline[entity.timeline.length - 1]?.year})</span>
+            <span className="text-muted-foreground/50 normal-case">({entity.timeline[0]?.year}–{entity.timeline[entity.timeline.length - 1]?.year})</span>
           }
         </p>
         <MiniSparkline timeline={entity.timeline} />
@@ -568,7 +568,7 @@ function ComparisonCard({ entity, onRemove }: { entity: MatrixEntityRow; onRemov
       {/* Link to profile */}
       <button
         onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
-        className="flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-[#00e676] transition-colors mt-auto pt-2 border-t border-white/5"
+        className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70 hover:text-[#00e676] transition-colors mt-auto pt-2 border-t border-border/50"
       >
         View full profile <ArrowRight className="w-3 h-3" />
       </button>
@@ -608,10 +608,10 @@ function ComparisonTable({ entities }: { entities: MatrixEntityRow[] }) {
   return (
     <table className="w-full text-xs mt-4">
       <thead>
-        <tr className="border-b border-white/5">
-          <th className="text-left py-2.5 pr-4 text-slate-500 font-medium w-40">Metric</th>
+        <tr className="border-b border-border/50">
+          <th className="text-left py-2.5 pr-4 text-muted-foreground/70 font-medium w-40">Metric</th>
           {entities.map(e => (
-            <th key={e.name} className="text-left py-2.5 px-3 text-slate-300 font-semibold">
+            <th key={e.name} className="text-left py-2.5 px-3 text-foreground/80 font-semibold">
               {e.name.length > 18 ? e.name.slice(0, 17) + "…" : e.name}
             </th>
           ))}
@@ -619,10 +619,10 @@ function ComparisonTable({ entities }: { entities: MatrixEntityRow[] }) {
       </thead>
       <tbody>
         {rows.map(row => (
-          <tr key={row.label} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-            <td className="py-2.5 pr-4 text-slate-500 font-medium">{row.label}</td>
+          <tr key={row.label} className="border-b border-border/40 hover:bg-muted/20">
+            <td className="py-2.5 pr-4 text-muted-foreground/70 font-medium">{row.label}</td>
             {row.values.map((val, i) => (
-              <td key={i} className="py-2.5 px-3 text-slate-300 font-mono">{val}</td>
+              <td key={i} className="py-2.5 px-3 text-foreground/80 font-mono">{val}</td>
             ))}
           </tr>
         ))}
@@ -651,12 +651,12 @@ function InvestorComparison({ entities }: { entities: MatrixEntityRow[] }) {
       <div className="relative mb-5" ref={dropRef}>
         <button
           onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-slate-300 hover:text-white hover:border-white/20 transition-all min-w-[260px]"
+          className="flex items-center gap-2 text-sm bg-muted/30 border border-border rounded-xl px-4 py-2.5 text-foreground/80 hover:text-foreground hover:border-border transition-all min-w-[260px]"
         >
           <span className="flex-1 text-left">
             {selected.length === 0 ? "Select up to 3 investors to compare…" : selected.join(", ")}
           </span>
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
 
         {open && (
@@ -664,11 +664,11 @@ function InvestorComparison({ entities }: { entities: MatrixEntityRow[] }) {
             role="listbox"
             aria-multiselectable="true"
             aria-label="Select investors to compare"
-            className="absolute top-full left-0 mt-1.5 z-40 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            className="absolute top-full left-0 mt-1.5 z-40 bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
             style={{ width: 320, maxHeight: 320 }}
           >
-            <div className="p-2 border-b border-white/5">
-              <p className="text-[10px] text-slate-500 px-2">
+            <div className="p-2 border-b border-border/50">
+              <p className="text-[10px] text-muted-foreground/70 px-2">
                 {selected.length}/3 selected · click to toggle
               </p>
             </div>
@@ -685,26 +685,26 @@ function InvestorComparison({ entities }: { entities: MatrixEntityRow[] }) {
                     onClick={() => toggle(e.name)}
                     disabled={!isSel && selected.length >= 3}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors
-                      ${isSel ? "bg-[#00e676]/10" : "hover:bg-white/5"}
+                      ${isSel ? "bg-[#00e676]/10" : "hover:bg-muted/50"}
                       ${!isSel && selected.length >= 3 ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                      ${isSel ? "border-[#00e676] bg-[#00e676]" : "border-white/20"}`}>
+                      ${isSel ? "border-[#00e676] bg-[#00e676]" : "border-border"}`}>
                       {isSel && <div className="w-2 h-0.5 bg-black rounded-full" />}
                     </div>
-                    <span className="text-sm text-slate-300 flex-1 truncate">{e.name}</span>
+                    <span className="text-sm text-foreground/80 flex-1 truncate">{e.name}</span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-mono text-slate-500">{fmt(e.totalInvestment)}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/70">{fmt(e.totalInvestment)}</span>
                       <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tm.color }} />
                     </div>
                   </button>
                 );
               })}
             </div>
-            <div className="p-2 border-t border-white/5">
+            <div className="p-2 border-t border-border/50">
               <button
                 onClick={() => { setSelected([]); setOpen(false); }}
-                className="text-xs text-slate-500 hover:text-slate-300 px-2 transition-colors"
+                className="text-xs text-muted-foreground/70 hover:text-foreground/80 px-2 transition-colors"
               >
                 Clear selection
               </button>
@@ -714,14 +714,14 @@ function InvestorComparison({ entities }: { entities: MatrixEntityRow[] }) {
       </div>
 
       {selected.length === 0 && (
-        <div className="border border-dashed border-white/10 rounded-2xl p-8 text-center">
-          <p className="text-slate-500 text-sm">Select 2 or 3 investors above to compare them side-by-side.</p>
+        <div className="border border-dashed border-border rounded-2xl p-8 text-center">
+          <p className="text-muted-foreground/70 text-sm">Select 2 or 3 investors above to compare them side-by-side.</p>
         </div>
       )}
 
       {selected.length === 1 && (
-        <div className="border border-dashed border-white/10 rounded-2xl p-8 text-center">
-          <p className="text-slate-500 text-sm">Select 1 more investor to compare (up to 3 total).</p>
+        <div className="border border-dashed border-border rounded-2xl p-8 text-center">
+          <p className="text-muted-foreground/70 text-sm">Select 1 more investor to compare (up to 3 total).</p>
         </div>
       )}
 
@@ -736,8 +736,8 @@ function InvestorComparison({ entities }: { entities: MatrixEntityRow[] }) {
               />
             ))}
           </div>
-          <div className="mt-6 bg-[#1e293b]/60 border border-white/5 rounded-2xl p-4 overflow-x-auto">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">Quick Comparison</p>
+          <div className="mt-6 bg-card/60 border border-border/50 rounded-2xl p-4 overflow-x-auto">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Quick Comparison</p>
             <ComparisonTable entities={selectedEntities} />
           </div>
         </>
@@ -779,10 +779,10 @@ function exportMatrixCsv(entities: MatrixEntityRow[]) {
 
 function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#1e293b] border border-white/5 rounded-2xl p-5 md:p-6">
+    <div className="bg-card border border-border/50 rounded-2xl p-5 md:p-6">
       <div className="mb-4">
-        <h3 className="font-bold text-base text-white">{title}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+        <h3 className="font-bold text-base text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground/70 mt-0.5">{subtitle}</p>
       </div>
       {children}
     </div>
@@ -834,12 +834,12 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
                 className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all flex items-center gap-1.5
                   ${active
                     ? "text-black font-bold"
-                    : "border-white/10 bg-white/5 text-slate-400 hover:text-white hover:border-white/20"
+                    : "border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border"
                   }`}
                 style={active ? { backgroundColor: color, borderColor: color } : {}}
               >
                 {t === "All" ? "All Types" : TYPE_META[t as InvestorType].label}
-                <span className={`text-[10px] ${active ? "text-black/60" : "text-slate-600"}`}>
+                <span className={`text-[10px] ${active ? "text-black/60" : "text-muted-foreground/50"}`}>
                   {count}
                 </span>
               </button>
@@ -851,14 +851,14 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => exportMatrixCsv(filtered)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-all"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border transition-all"
           >
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
           <button
             onClick={handleExportPng}
             disabled={exporting}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border transition-all disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" /> {exporting ? "Exporting…" : "Export PNG"}
           </button>
@@ -872,7 +872,7 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
           subtitle="Bubble size = investment volume · opacity = deal count · hover for details"
         >
           {filtered.length === 0
-            ? <p className="text-slate-600 text-sm py-8 text-center">No investors match this filter.</p>
+            ? <p className="text-muted-foreground/50 text-sm py-8 text-center">No investors match this filter.</p>
             : <SectorBubbleMatrix entities={filtered} />
           }
         </Section>
@@ -883,7 +883,7 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
           subtitle="Investment distribution across African sub-regions — reveals concentration vs. diversification"
         >
           {filtered.length === 0
-            ? <p className="text-slate-600 text-sm py-8 text-center">No investors match this filter.</p>
+            ? <p className="text-muted-foreground/50 text-sm py-8 text-center">No investors match this filter.</p>
             : <GeographyHeatmap entities={filtered} />
           }
         </Section>
@@ -898,7 +898,7 @@ export function MatrixView({ entities }: { entities: MatrixEntityRow[] }) {
       </div>
 
       {/* Type legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground/70">
         {(Object.entries(TYPE_META) as [InvestorType, typeof TYPE_META[InvestorType]][]).map(([type, meta]) => (
           <div key={type} className="flex items-center gap-1.5">
             <meta.Icon className="w-3 h-3" style={{ color: meta.color }} />
