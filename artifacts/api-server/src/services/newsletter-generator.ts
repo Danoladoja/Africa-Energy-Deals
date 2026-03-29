@@ -189,7 +189,7 @@ export async function generateNewsletter(periodDays = 7): Promise<GeneratedNewsl
   console.log(`[Newsletter] Generating edition #${editionNumber}...`);
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: 8000,
     system: NEWSLETTER_SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],

@@ -192,7 +192,7 @@ IMPORTANT: You may ONLY reference projects and data points from the DATA PROVIDE
 
     // Stream the Claude response
     const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       system: CHAT_SYSTEM_PROMPT,
       messages: claudeMessages,
