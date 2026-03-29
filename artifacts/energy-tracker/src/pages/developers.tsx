@@ -313,7 +313,7 @@ export default function DevelopersIndex() {
                       <th className="py-3 px-4" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-border/50">
                     {isLoading
                       ? Array.from({ length: 8 }).map((_, i) => (
                           <tr key={i}>
@@ -341,7 +341,7 @@ export default function DevelopersIndex() {
                             onClick={() => navigate(`/developers/${encodeURIComponent(entity.name)}`)}
                           >
                             <td className="py-4 px-4">
-                              <span className="font-semibold text-slate-100 group-hover:text-foreground transition-colors">
+                              <span className="font-bold text-foreground">
                                 {entity.name}
                               </span>
                             </td>
@@ -415,7 +415,7 @@ export default function DevelopersIndex() {
                     className="bg-card border border-border/50 rounded-2xl p-4 cursor-pointer hover:border-[#00e676]/30 hover:bg-muted/30 transition-all active:scale-[0.99] group"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="font-semibold text-slate-100 text-sm leading-tight flex-1 group-hover:text-foreground transition-colors">{entity.name}</h3>
+                      <h3 className="font-bold text-foreground text-sm leading-tight flex-1">{entity.name}</h3>
                       <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-[#00e676] group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                     </div>
                     <div className="grid grid-cols-3 gap-2 mb-3">
