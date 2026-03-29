@@ -84,7 +84,7 @@ router.get("/projects", async (req, res) => {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [projects, countResult] = await Promise.all([
-      db.select().from(projectsTable).where(whereClause).limit(Number(limit)).offset(offset).orderBy(projectsTable.id),
+      db.select().from(projectsTable).where(whereClause).limit(Number(limit)).offset(Math.max(0, Number(offset) || 0)).orderBy(projectsTable.id),
       db.select({ count: sql`count(*)` }).from(projectsTable).where(whereClause),
     ]);
 
