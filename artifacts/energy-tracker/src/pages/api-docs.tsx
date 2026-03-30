@@ -26,19 +26,21 @@ const ENDPOINTS: Endpoint[] = [
     method: "GET", path: "/deals",
     desc: "List energy investment deals with full filtering support.",
     params: [
-      { name: "country",     type: "string",  desc: "Filter by country (partial match)",             example: "Nigeria" },
-      { name: "region",      type: "string",  desc: "East Africa | West Africa | North Africa | Southern Africa | Central Africa" },
-      { name: "technology",  type: "string",  desc: "Solar | Wind | Hydro | Geothermal | Oil & Gas | Grid Expansion | Battery & Storage | Hydrogen | Nuclear | Bioenergy | Clean Cooking | Coal", example: "Solar" },
-      { name: "dealStage",   type: "string",  desc: "Announced | Mandated | Financial Close | Construction | Commissioned | Suspended" },
-      { name: "minDealSize", type: "number",  desc: "Minimum deal size in USD millions",            example: "100" },
-      { name: "maxDealSize", type: "number",  desc: "Maximum deal size in USD millions",            example: "5000" },
-      { name: "search",      type: "string",  desc: "Full-text search on project name" },
-      { name: "page",        type: "integer", desc: "Page number",                                  example: "1" },
-      { name: "limit",       type: "integer", desc: "Results per page (max 100)",                   example: "50" },
+      { name: "country",       type: "string",  desc: "Filter by country (partial match)",                                                       example: "Nigeria" },
+      { name: "region",        type: "string",  desc: "East Africa | West Africa | North Africa | Southern Africa | Central Africa" },
+      { name: "technology",    type: "string",  desc: "Solar | Wind | Hydro | Geothermal | Oil & Gas | Grid Expansion | Battery & Storage | Hydrogen | Nuclear | Bioenergy | Clean Cooking | Coal", example: "Solar" },
+      { name: "status",        type: "string",  desc: "Active | Operational | Under Construction | Announced | Suspended | Cancelled" },
+      { name: "financingType", type: "string",  desc: "Project Finance | Blended Finance | Concessional Loan | Grant / Donor Funding | Corporate Finance | Sovereign Lending | IPP / Concession | PPP / Public-Private | Green / Climate Bond", example: "Blended Finance" },
+      { name: "dealStage",     type: "string",  desc: "Announced | Mandated | Financial Close | Construction | Commissioned | Suspended" },
+      { name: "minDealSize",   type: "number",  desc: "Minimum deal size in USD millions",                                                       example: "100" },
+      { name: "maxDealSize",   type: "number",  desc: "Maximum deal size in USD millions",                                                       example: "5000" },
+      { name: "search",        type: "string",  desc: "Full-text search on project name" },
+      { name: "page",          type: "integer", desc: "Page number",                                                                             example: "1" },
+      { name: "limit",         type: "integer", desc: "Results per page (max 100)",                                                             example: "50" },
     ],
     responseExample: {
       data: [{ id: 42, projectName: "Benban Solar Park", country: "Egypt", technology: "Solar", dealSizeUsdMn: 2000, dealStage: "Commissioned" }],
-      meta: { total: 123, page: 1, limit: 50, pages: 3 },
+      meta: { total: 156, page: 1, limit: 50, pages: 4 },
     },
   },
   {
@@ -49,10 +51,10 @@ const ENDPOINTS: Endpoint[] = [
   },
   {
     method: "GET", path: "/countries",
-    desc: "All 26+ countries in the dataset with aggregated investment statistics.",
+    desc: "All 40+ countries in the dataset with aggregated investment statistics.",
     responseExample: {
       data: [{ country: "Nigeria", region: "West Africa", projectCount: 18, totalInvestmentUsdMn: 28400, technologies: "Hydro, Oil & Gas, Solar" }],
-      meta: { total: 26 },
+      meta: { total: 40 },
     },
   },
   {
@@ -72,7 +74,7 @@ const ENDPOINTS: Endpoint[] = [
     method: "GET", path: "/stats/summary",
     desc: "Platform-wide aggregate: total projects, investment volume, country count, deal stage breakdown.",
     responseExample: {
-      totalProjects: 123, totalInvestmentUsdMn: 145600, totalCountries: 26,
+      totalProjects: 156, totalInvestmentUsdMn: 145600, totalCountries: 40,
       totalSectors: 8, totalDevelopers: 84, dealsByStage: { "Financial Close": 28, Commissioned: 55 },
     },
   },

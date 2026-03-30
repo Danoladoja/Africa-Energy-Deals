@@ -37,19 +37,20 @@ router.get("/export", async (req, res) => {
       format = "csv",
       country, region, technology, status,
       search, minDealSize, maxDealSize,
-      dealStage, developer,
+      dealStage, developer, financingType,
     } = req.query;
 
     const conditions = [];
-    if (country)      conditions.push(ilike(projectsTable.country,     String(country)));
-    if (region)       conditions.push(ilike(projectsTable.region,      String(region)));
-    if (technology)   conditions.push(ilike(projectsTable.technology,  String(technology)));
-    if (status)       conditions.push(ilike(projectsTable.status,      String(status)));
-    if (dealStage)    conditions.push(ilike(projectsTable.dealStage,   String(dealStage)));
-    if (developer)    conditions.push(ilike(projectsTable.developer,   `%${String(developer)}%`));
-    if (minDealSize)  conditions.push(gte(projectsTable.dealSizeUsdMn, Number(minDealSize)));
-    if (maxDealSize)  conditions.push(lte(projectsTable.dealSizeUsdMn, Number(maxDealSize)));
-    if (search)       conditions.push(ilike(projectsTable.projectName, `%${String(search)}%`));
+    if (country)       conditions.push(ilike(projectsTable.country,       String(country)));
+    if (region)        conditions.push(ilike(projectsTable.region,        String(region)));
+    if (technology)    conditions.push(ilike(projectsTable.technology,    String(technology)));
+    if (status)        conditions.push(ilike(projectsTable.status,        String(status)));
+    if (dealStage)     conditions.push(ilike(projectsTable.dealStage,     String(dealStage)));
+    if (developer)     conditions.push(ilike(projectsTable.developer,     `%${String(developer)}%`));
+    if (financingType) conditions.push(ilike(projectsTable.financingType, String(financingType)));
+    if (minDealSize)   conditions.push(gte(projectsTable.dealSizeUsdMn,   Number(minDealSize)));
+    if (maxDealSize)   conditions.push(lte(projectsTable.dealSizeUsdMn,   Number(maxDealSize)));
+    if (search)        conditions.push(ilike(projectsTable.projectName,   `%${String(search)}%`));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

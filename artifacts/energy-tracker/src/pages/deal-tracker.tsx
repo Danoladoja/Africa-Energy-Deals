@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
@@ -33,20 +33,24 @@ function todayStr() {
 }
 
 // Build query string for export endpoint from active filters
-function buildExportParams(opts: {
-  search: string; technology: string; status: string; country: string;
-}) {
+function buildExportParams(opts: ActiveFilters) {
   const p = new URLSearchParams();
-  if (opts.search)     p.set("search",     opts.search);
-  if (opts.technology) p.set("technology", opts.technology);
-  if (opts.status)     p.set("status",     opts.status);
-  if (opts.country)    p.set("country",    opts.country);
+  if (opts.search)       p.set("search",       opts.search);
+  if (opts.technology)   p.set("technology",   opts.technology);
+  if (opts.status)       p.set("status",       opts.status);
+  if (opts.country)      p.set("country",      opts.country);
+  if (opts.financingType) p.set("financingType", opts.financingType);
+  if (opts.dealSizePreset) {
+    const preset = DEAL_SIZE_PRESETS.find((pr) => pr.id === opts.dealSizePreset);
+    if (preset?.min !== undefined) p.set("minDealSize", String(preset.min));
+    if (preset?.max !== undefined) p.set("maxDealSize", String(preset.max));
+  }
   return p.toString();
 }
 
 // ── Export Dropdown ──────────────────────────────────────────────────────────
 function ExportDropdown({ filters }: {
-  filters: { search: string; technology: string; status: string; country: string };
+  filters: ActiveFilters;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<"csv" | "excel" | "pdf" | null>(null);
@@ -164,10 +168,15 @@ function ExportDropdown({ filters }: {
 
       // Filter summary
       const activeFilters: string[] = [];
-      if (filters.search)     activeFilters.push(`Search: "${filters.search}"`);
-      if (filters.technology) activeFilters.push(`Sector: ${filters.technology}`);
-      if (filters.status)     activeFilters.push(`Status: ${filters.status}`);
-      if (filters.country)    activeFilters.push(`Country: ${filters.country}`);
+      if (filters.search)         activeFilters.push(`Search: "${filters.search}"`);
+      if (filters.technology)     activeFilters.push(`Sector: ${filters.technology}`);
+      if (filters.status)         activeFilters.push(`Status: ${filters.status}`);
+      if (filters.country)        activeFilters.push(`Country: ${filters.country}`);
+      if (filters.financingType)  activeFilters.push(`Financing: ${filters.financingType}`);
+      if (filters.dealSizePreset) {
+        const preset = DEAL_SIZE_PRESETS.find((p) => p.id === filters.dealSizePreset);
+        if (preset?.label) activeFilters.push(`Size: ${preset.label}`);
+      }
       const filterText = activeFilters.length
         ? `Filters: ${activeFilters.join(" · ")}`
         : "All projects";
@@ -778,18 +787,43 @@ function ComparisonPanel({
 export default function DealTracker() {
   const rawSearch = useSearch();
   const [, navigate] = useLocation();
-  const params = new URLSearchParams(rawSearch);
-  const initialSearch     = params.get("search")     ?? "";
-  const initialCountry    = params.get("country")    ?? "";
-  const initialTechnology = params.get("technology") ?? "";
-  const [page, setPage]               = useState(1);
-  const [search, setSearch]           = useState(initialSearch);
-  const [country, setCountry]         = useState(initialCountry);
-  const [status, setStatus]           = useState("");
-  const [technology, setTechnology]   = useState(initialTechnology);
-  const [dealSizePreset, setDealSizePreset] = useState<DealSizePresetId>("");
-  const [financingType, setFinancingType] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+
+  // ── All filter state lives in the URL ──────────────────────────────────────
+  const params        = useMemo(() => new URLSearchParams(rawSearch), [rawSearch]);
+  const technology    = params.get("technology") ?? "";
+  const status        = params.get("status")     ?? "";
+  const country       = params.get("country")    ?? "";
+  const dealSizePreset = (params.get("size") ?? "") as DealSizePresetId;
+  const financingType = params.get("financing")  ?? "";
+  const page          = Math.max(1, Number(params.get("page")) || 1);
+  const searchInUrl   = params.get("search")     ?? "";
+
+  // Local search input — debounced before writing to URL
+  const [localSearch, setLocalSearch] = useState(searchInUrl);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Keep local input in sync when URL changes externally (saved search, clear filters)
+  useEffect(() => { setLocalSearch(searchInUrl); }, [searchInUrl]);
+
+  /** Update a single URL param, resetting page unless we're setting page itself */
+  function setParam(key: string, value: string) {
+    const next = new URLSearchParams(rawSearch);
+    if (value) next.set(key, value); else next.delete(key);
+    if (key !== "page") next.delete("page");
+    navigate(`/deals?${next.toString()}`, { replace: true });
+  }
+
+  function setPage(newPage: number) {
+    const next = new URLSearchParams(rawSearch);
+    if (newPage > 1) next.set("page", String(newPage)); else next.delete("page");
+    navigate(`/deals?${next.toString()}`, { replace: true });
+  }
+
+  function clearAllFilters() {
+    setLocalSearch("");
+    clearTimeout(searchTimerRef.current);
+    navigate("/deals", { replace: true });
+  }
 
   // Saved searches state
   const { isAuthenticated } = useAuth();
@@ -806,13 +840,13 @@ export default function DealTracker() {
   }, [isAuthenticated]);
 
   function applySearch(s: SavedSearch) {
-    setSearch(s.filters.search ?? "");
-    setDebouncedSearch(s.filters.search ?? "");
-    setTechnology(s.filters.technology ?? "");
-    setStatus(s.filters.status ?? "");
-    setCountry(s.filters.country ?? "");
-    setDealSizePreset((s.filters.dealSizePreset ?? "") as DealSizePresetId);
-    setPage(1);
+    const next = new URLSearchParams();
+    if (s.filters.search)         next.set("search",      s.filters.search);
+    if (s.filters.technology)     next.set("technology",  s.filters.technology);
+    if (s.filters.status)         next.set("status",      s.filters.status);
+    if (s.filters.country)        next.set("country",     s.filters.country);
+    if (s.filters.dealSizePreset) next.set("size",        s.filters.dealSizePreset);
+    navigate(`/deals?${next.toString()}`, { replace: true });
     authedFetch(`/api/saved-searches/${s.id}/touch`, { method: "PATCH" }).catch(() => {});
     setSavedSearches((prev) =>
       prev.map((x) => x.id === s.id ? { ...x, lastUsedAt: new Date().toISOString() } : x)
@@ -898,8 +932,10 @@ export default function DealTracker() {
   }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
-    setTimeout(() => setDebouncedSearch(e.target.value), 500);
+    const val = e.target.value;
+    setLocalSearch(val);
+    clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setParam("search", val), 500);
   };
 
   const activeSizePreset = DEAL_SIZE_PRESETS.find((p) => p.id === dealSizePreset) ?? DEAL_SIZE_PRESETS[0];
@@ -907,7 +943,7 @@ export default function DealTracker() {
   const { data, isLoading } = useListProjects({
     page,
     limit: 15,
-    search: debouncedSearch || undefined,
+    search: searchInUrl || undefined,
     status: status || undefined,
     technology: technology || undefined,
     country: country || undefined,
@@ -916,8 +952,8 @@ export default function DealTracker() {
     financingType: financingType || undefined,
   });
 
-  const activeFilters: ActiveFilters = { search: debouncedSearch, technology, status, country, dealSizePreset, financingType };
-  const hasActiveFilters = !!(debouncedSearch || technology || status || country || dealSizePreset || financingType);
+  const activeFilters: ActiveFilters = { search: searchInUrl, technology, status, country, dealSizePreset, financingType };
+  const hasActiveFilters = !!(searchInUrl || technology || status || country || dealSizePreset || financingType);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -962,7 +998,7 @@ export default function DealTracker() {
             <input
               type="text"
               placeholder="Search projects, investors..."
-              value={search}
+              value={localSearch}
               onChange={handleSearchChange}
               className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
@@ -971,7 +1007,7 @@ export default function DealTracker() {
           <div className="flex gap-3 flex-wrap">
             <select
               value={technology}
-              onChange={(e) => { setTechnology(e.target.value); setPage(1); }}
+              onChange={(e) => setParam("technology", e.target.value)}
               className="flex-1 min-w-32 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Sectors</option>
@@ -991,7 +1027,7 @@ export default function DealTracker() {
 
             <select
               value={status}
-              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              onChange={(e) => setParam("status", e.target.value)}
               className="flex-1 min-w-32 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Statuses</option>
@@ -1006,7 +1042,7 @@ export default function DealTracker() {
 
             <select
               value={dealSizePreset}
-              onChange={(e) => { setDealSizePreset(e.target.value as DealSizePresetId); setPage(1); }}
+              onChange={(e) => setParam("size", e.target.value)}
               className="flex-1 min-w-32 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               {DEAL_SIZE_PRESETS.map((preset) => (
@@ -1016,7 +1052,7 @@ export default function DealTracker() {
 
             <select
               value={financingType}
-              onChange={(e) => { setFinancingType(e.target.value); setPage(1); }}
+              onChange={(e) => setParam("financing", e.target.value)}
               className="flex-1 min-w-32 bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none"
             >
               <option value="">All Financing</option>
@@ -1036,14 +1072,13 @@ export default function DealTracker() {
             </div>
           </div>
 
-          {/* Active filter chips (from URL params / heatmap navigation) */}
-          {(country || (initialTechnology && technology === initialTechnology)) && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
+          {/* Active filter chips — shown for any active filter with "Clear all" */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
               {country && (
                 <span className="flex items-center gap-1.5 text-xs bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full">
-                  <MapPin className="w-3 h-3" />
-                  {country}
-                  <button onClick={() => setCountry("")} className="hover:text-red-400 ml-0.5">×</button>
+                  <MapPin className="w-3 h-3" />{country}
+                  <button onClick={() => setParam("country", "")} className="hover:text-red-400 ml-0.5">×</button>
                 </span>
               )}
               {technology && (
@@ -1057,9 +1092,39 @@ export default function DealTracker() {
                 >
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SECTOR_COLORS[technology] ?? FALLBACK_SECTOR_COLOR }} />
                   {technology}
-                  <button onClick={() => setTechnology("")} className="hover:text-red-400 ml-0.5">×</button>
+                  <button onClick={() => setParam("technology", "")} className="hover:text-red-400 ml-0.5">×</button>
                 </span>
               )}
+              {status && (
+                <span className="flex items-center gap-1.5 text-xs bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-full">
+                  {status}
+                  <button onClick={() => setParam("status", "")} className="hover:text-red-400 ml-0.5">×</button>
+                </span>
+              )}
+              {dealSizePreset && (
+                <span className="flex items-center gap-1.5 text-xs bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-full">
+                  {DEAL_SIZE_PRESETS.find((p) => p.id === dealSizePreset)?.label}
+                  <button onClick={() => setParam("size", "")} className="hover:text-red-400 ml-0.5">×</button>
+                </span>
+              )}
+              {financingType && (
+                <span className="flex items-center gap-1.5 text-xs bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-full">
+                  {financingType}
+                  <button onClick={() => setParam("financing", "")} className="hover:text-red-400 ml-0.5">×</button>
+                </span>
+              )}
+              {searchInUrl && (
+                <span className="flex items-center gap-1.5 text-xs bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-full">
+                  &ldquo;{searchInUrl}&rdquo;
+                  <button onClick={() => { setLocalSearch(""); setParam("search", ""); }} className="hover:text-red-400 ml-0.5">×</button>
+                </span>
+              )}
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 border border-border/50 px-2.5 py-1 rounded-full transition-colors ml-auto"
+              >
+                <XIcon className="w-3 h-3" /> Clear all
+              </button>
             </div>
           )}
 
@@ -1156,11 +1221,11 @@ export default function DealTracker() {
               <span className="font-medium text-foreground">{data?.projects.length || 0}</span> of <span className="font-medium text-foreground">{data?.total || 0}</span>
             </p>
             <div className="flex items-center gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isLoading} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1 || isLoading} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-xs font-medium px-2">Page {page} of {data?.totalPages || 1}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={page >= (data?.totalPages || 1) || isLoading} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={() => setPage(page + 1)} disabled={page >= (data?.totalPages || 1) || isLoading} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -1302,11 +1367,11 @@ export default function DealTracker() {
               <span className="text-xs text-muted-foreground/50 hidden lg:inline">· Click any row to view full deal details</span>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isLoading} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1 || isLoading} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm font-medium px-4">Page {page} of {data?.totalPages || 1}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={page >= (data?.totalPages || 1) || isLoading} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <button onClick={() => setPage(page + 1)} disabled={page >= (data?.totalPages || 1) || isLoading} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

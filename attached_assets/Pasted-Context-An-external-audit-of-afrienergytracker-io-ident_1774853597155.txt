@@ -1,0 +1,41 @@
+Context
+An external audit of afrienergytracker.io identified 12 issues. 8 have already been resolved via direct GitHub commits to master (auto-deployed via Railway). Pull the latest master before starting — it has 6 new commits.
+Already fixed (do not redo): Security headers in app.ts, source maps disabled in vite.config.ts, cache-control on static assets, X-RateLimit headers on the rate limiter, offset validation and region filter in projects.ts. Pagination, technology filter on /api/projects, and 404 JSON on /api/projects/:id were verified as already working.
+Fix 1 — Filter State Persistence via URL (High Priority)
+Problem: After selecting filters on /deals (e.g. "Solar" technology), navigating away and back retains stale filter state in React useState. Users can't share filtered views or tell filters are active.
+File: artifacts/energy-tracker/src/pages/deal-tracker.tsx
+What to do:
+
+Replace the useState hooks managing filter state with useSearchParams from react-router-dom
+When a filter changes, update the URL: /deals?technology=Solar&status=Active&page=2
+On page load, initialize state from URL params
+Add a visible "Clear all filters" button when any filter is active
+Key filter variables to migrate: country, region, technology, status, dealSizePreset, financingType, debouncedSearch, page
+
+Fix 2 — Verify and Fix Export Functionality (High Priority)
+Problem: The Deal Tracker has an Export dropdown with CSV, Excel, and PDF options. No server-side export endpoints exist, so exports must be client-side. Need to confirm they actually trigger downloads.
+File: artifacts/energy-tracker/src/pages/deal-tracker.tsx
+What to do:
+
+Test each export option (CSV, Excel, PDF)
+If exports only cover the current page (50 deals), fix to export ALL deals matching current filters
+Ensure exports respect active filters
+
+Fix 3 — Update API Documentation (Medium Priority)
+Problem: The API docs page may reference wrong endpoint paths. Individual deals use GET /api/projects/:id, not GET /api/deals/:id.
+File: artifacts/energy-tracker/src/pages/api-docs.tsx
+What to do:
+
+Audit every endpoint reference against actual routes in artifacts/api-server/src/routes/
+Update code examples to use correct paths
+Document accepted query params: country, region, technology, status, minDealSize, maxDealSize, search, developer, dealStage, dfiInvolvement, financingType, page, limit, offset, sortBy, sortOrder
+
+Fix 4 — Strip Internal Fields from Public API (Medium Priority)
+File: artifacts/api-server/src/routes/projects.ts and shared/schema.ts
+What to do:
+
+Check the schema for internal/admin fields (reviewStatus, confidenceScore, isAutoDiscovered, extractionSource)
+If they exist, add a .select() clause to explicitly pick only public columns
+If they don't exist, no action needed
+
+Important: Run npm run build to verify no TypeScript errors before pushing.
