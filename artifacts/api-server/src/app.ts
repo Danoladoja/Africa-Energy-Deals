@@ -62,7 +62,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 // Rate limiter (in-memory, no external deps)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute window
+const RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW;
 const RATE_LIMIT_MAX = 100; // 100 requests per minute per IP
 
 const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
