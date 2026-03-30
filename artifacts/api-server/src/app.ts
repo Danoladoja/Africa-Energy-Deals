@@ -30,7 +30,7 @@ function isAllowedOrigin(origin: string): boolean {
   if (origin.endsWith(".up.railway.app")) return true;
   // Allow all Replit dev/preview domains
   if (origin.endsWith(".replit.dev") || origin.endsWith(".repl.co") || origin.endsWith(".picard.replit.dev")) return true;
-  // Allow any localhost origin (dev environment â port may vary)
+  // Allow any localhost origin (dev environment Ã¢ÂÂ port may vary)
   if (origin.startsWith("http://localhost:") || origin === "http://localhost") return true;
   return false;
 }
@@ -72,16 +72,23 @@ const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
 
   if (!entry || now > entry.resetTime) {
     rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    res.setHeader("X-RateLimit-Limit", RATE_LIMIT_MAX);
+    res.setHeader("X-RateLimit-Remaining", RATE_LIMIT_MAX - 1);
+    res.setHeader("X-RateLimit-Reset", Math.ceil((now + RATE_LIMIT_WINDOW) / 1000));
     next();
     return;
   }
 
   if (entry.count >= RATE_LIMIT_MAX) {
+    res.setHeader("Retry-After", Math.ceil(RATE_LIMIT_WINDOW / 1000));
     res.status(429).json({ error: "Too many requests. Please try again later." });
     return;
   }
 
   entry.count++;
+  res.setHeader("X-RateLimit-Limit", RATE_LIMIT_MAX);
+  res.setHeader("X-RateLimit-Remaining", Math.max(0, RATE_LIMIT_MAX - entry.count));
+  res.setHeader("X-RateLimit-Reset", Math.ceil((entry.timestamp + RATE_LIMIT_WINDOW) / 1000));
   next();
 };
 
@@ -127,7 +134,7 @@ try {
   console.warn("[Swagger] Failed to load spec:", err);
 }
 
-// Dynamic sitemap.xml â must come BEFORE static files and SPA fallback
+// Dynamic sitemap.xml Ã¢ÂÂ must come BEFORE static files and SPA fallback
 app.get("/sitemap.xml", async (_req: Request, res: Response) => {
   const BASE = "https://afrienergytracker.io";
   const now = new Date().toISOString().split("T")[0];
