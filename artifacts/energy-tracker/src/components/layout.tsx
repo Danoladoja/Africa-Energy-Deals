@@ -19,6 +19,8 @@ import {
   ClipboardList,
   Sun,
   Moon,
+  Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,9 +43,17 @@ const publicNavItems = [
 ];
 
 const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
-const adminNavItem = { name: "AI Discovery", href: "/discovery", icon: Sparkles };
-const adminScraperNavItem = { name: "Data Pipeline", href: "/admin/scraper", icon: Database };
-const reviewPortalNavItem = { name: "Review Portal", href: "/review", icon: ClipboardList };
+
+// Admin-only nav items
+const adminNavItems = [
+  { name: "Admin Dashboard", href: "/admin",     icon: Settings },
+  { name: "AI Discovery",    href: "/discovery", icon: Sparkles },
+];
+
+// Reviewer nav items (visible to reviewers + admins)
+const reviewerNavItems = [
+  { name: "Review Portal",   href: "/review",    icon: ClipboardList },
+];
 
 type NavItemType = { name: string; href: string; icon: React.ElementType; badge?: string };
 
@@ -120,11 +130,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const navItems = isAdmin
-    ? [...publicNavItems, adminNavItem, adminScraperNavItem, reviewPortalNavItem]
-    : isReviewer
-      ? [...publicNavItems, reviewPortalNavItem]
-      : publicNavItems;
+  // "Analytics & Tools" is always just publicNavItems — admin/review items live in their own section
+  const navItems = publicNavItems;
+  // Administration section: shown only to admins and reviewers
+  const showAdminSection = isAdmin || isReviewer;
+  const administrationItems = isAdmin
+    ? [...adminNavItems, ...reviewerNavItems]
+    : reviewerNavItems;
 
   useEffect(() => {
     if (!isAuthenticated) { setBellCount(0); return; }
@@ -166,6 +178,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => (
             <NavItem key={item.href} item={item} />
           ))}
+
+          {showAdminSection && (
+            <>
+              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3" />
+                Administration
+              </div>
+              {administrationItems.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+            </>
+          )}
+
           <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
             Developer
           </div>
@@ -358,6 +383,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {navItems.map((item) => (
                   <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                 ))}
+
+                {showAdminSection && (
+                  <>
+                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest flex items-center gap-1.5">
+                      <ShieldCheck className="w-3 h-3" />
+                      Administration
+                    </div>
+                    {administrationItems.map((item) => (
+                      <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
+                    ))}
+                  </>
+                )}
                 {/* Theme toggle — mobile drawer */}
                 <div className="flex items-center justify-between px-4 py-3 mt-2 rounded-xl bg-sidebar-accent/50">
                   <span className="text-sm text-sidebar-foreground/60 font-medium">
