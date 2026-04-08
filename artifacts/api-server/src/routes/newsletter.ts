@@ -163,31 +163,88 @@ h1{color:#00e676;margin:0 0 16px;}p{color:#94a3b8;line-height:1.6;}a{color:#00e6
   }
 });
 
-// POST /api/admin/newsletter/preview — generate without sending (admin only)
-router.post("/admin/newsletter/preview", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
-  try {
-    const newsletter = await generateNewsletter(7);
-    const id = await saveNewsletter(newsletter);
-    res.json({ ...newsletter, id, status: "preview" });
-  } catch (err: any) {
-    console.error("[Newsletter] Preview error:", err);
-    res.status(500).json({ error: err.message ?? "Generation failed" });
+// ─── Async job store ────────────────────────────────────────────────────────
+type JobStatus = "running" | "done" | "error";
+interface Job {
+  status: JobStatus;
+  result?: Record<string, unknown>;
+  error?: string;
+  startedAt: number;
+}
+const jobs = new Map<string, Job>();
+
+// Prune jobs older than 1 hour to avoid memory leaks
+function pruneOldJobs() {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, job] of jobs) {
+    if (job.startedAt < cutoff) jobs.delete(id);
   }
+}
+
+function makeJobId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+// GET /api/admin/newsletter/job/:jobId — poll generation status (admin only)
+router.get("/admin/newsletter/job/:jobId", (req: Request, res: Response): void => {
+  if (!requireAdmin(req, res)) return;
+  const job = jobs.get(req.params.jobId);
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  if (job.status === "running") { res.json({ status: "running" }); return; }
+  if (job.status === "error") { res.status(500).json({ status: "error", error: job.error }); return; }
+  res.json({ status: "done", ...job.result });
 });
 
-// POST /api/admin/newsletter/generate — generate and send (admin only)
-router.post("/admin/newsletter/generate", async (req: Request, res: Response): Promise<void> => {
+// POST /api/admin/newsletter/preview — generate without sending (admin only, async)
+router.post("/admin/newsletter/preview", (req: Request, res: Response): void => {
   if (!requireAdmin(req, res)) return;
-  try {
-    const newsletter = await generateNewsletter(7);
-    const id = await saveNewsletter(newsletter);
-    const recipientCount = await dispatchNewsletter(id);
-    res.json({ ...newsletter, id, recipientCount, status: "sent" });
-  } catch (err: any) {
-    console.error("[Newsletter] Generate error:", err);
-    res.status(500).json({ error: err.message ?? "Generation failed" });
-  }
+  pruneOldJobs();
+  const jobId = makeJobId();
+  jobs.set(jobId, { status: "running", startedAt: Date.now() });
+  res.json({ jobId, status: "running" });
+
+  // Run generation in the background (not awaited)
+  (async () => {
+    try {
+      const newsletter = await generateNewsletter(7);
+      const id = await saveNewsletter(newsletter);
+      jobs.set(jobId, {
+        status: "done",
+        startedAt: jobs.get(jobId)!.startedAt,
+        result: { ...newsletter, id, status: "preview" },
+      });
+      console.log(`[Newsletter] Preview job ${jobId} completed — edition #${newsletter.editionNumber}`);
+    } catch (err: any) {
+      console.error(`[Newsletter] Preview job ${jobId} failed:`, err);
+      jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
+    }
+  })();
+});
+
+// POST /api/admin/newsletter/generate — generate and send (admin only, async)
+router.post("/admin/newsletter/generate", (req: Request, res: Response): void => {
+  if (!requireAdmin(req, res)) return;
+  pruneOldJobs();
+  const jobId = makeJobId();
+  jobs.set(jobId, { status: "running", startedAt: Date.now() });
+  res.json({ jobId, status: "running" });
+
+  (async () => {
+    try {
+      const newsletter = await generateNewsletter(7);
+      const id = await saveNewsletter(newsletter);
+      const recipientCount = await dispatchNewsletter(id);
+      jobs.set(jobId, {
+        status: "done",
+        startedAt: jobs.get(jobId)!.startedAt,
+        result: { ...newsletter, id, recipientCount, status: "sent" },
+      });
+      console.log(`[Newsletter] Send job ${jobId} completed — sent to ${recipientCount} subscribers`);
+    } catch (err: any) {
+      console.error(`[Newsletter] Send job ${jobId} failed:`, err);
+      jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
+    }
+  })();
 });
 
 // GET /api/admin/subscribers — subscriber stats (admin only)

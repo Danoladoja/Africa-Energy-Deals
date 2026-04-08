@@ -576,14 +576,33 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
     setGenerating(mode); setGenResult(null); setGenError(null);
     try {
       const endpoint = mode === "preview" ? "/admin/newsletter/preview" : "/admin/newsletter/generate";
-      const res = await fetch(`${API}${endpoint}`, { method: "POST", headers: authHeaders() });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error ?? "Generation failed");
+      // Start the async job — server responds immediately with a jobId
+      const startRes = await fetch(`${API}${endpoint}`, { method: "POST", headers: authHeaders() });
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error ?? "Failed to start generation");
       }
-      const data = await res.json();
-      setGenResult({ title: data.title, status: data.status, recipientCount: data.recipientCount });
-      await loadNewsletters();
+      const { jobId } = await startRes.json();
+      if (!jobId) throw new Error("No job ID returned from server");
+
+      // Poll for completion (every 4 seconds, up to 10 minutes)
+      const maxAttempts = 150;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(r => setTimeout(r, 4000));
+        const pollRes = await fetch(`${API}/admin/newsletter/job/${jobId}`, { headers: authHeaders() });
+        if (!pollRes.ok) {
+          const err = await pollRes.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error ?? "Generation failed");
+        }
+        const poll = await pollRes.json();
+        if (poll.status === "running") continue;
+        if (poll.status === "error") throw new Error(poll.error ?? "Generation failed");
+        // Done
+        setGenResult({ title: poll.title, status: poll.status, recipientCount: poll.recipientCount });
+        await loadNewsletters();
+        return;
+      }
+      throw new Error("Generation timed out after 10 minutes — please try again");
     } catch (err: any) {
       setGenError(err.message ?? "Failed to generate newsletter");
     } finally {
@@ -649,7 +668,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {generating === "preview" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-              {generating === "preview" ? "Generating preview…" : "Preview Edition"}
+              {generating === "preview" ? "Generating… (may take 2–3 min)" : "Preview Edition"}
             </button>
             <button
               onClick={() => triggerGenerate("send")}
