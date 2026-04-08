@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { getAdminToken } from "@/contexts/admin-auth";
+import { registerAdminSectionSetter } from "@/contexts/admin-section";
 import {
   Database, Play, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
@@ -784,12 +785,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const s = (e as CustomEvent<string>).detail as AdminSection;
-      setSectionRaw(s);
-    };
-    window.addEventListener("adminSectionChange", handler);
-    return () => window.removeEventListener("adminSectionChange", handler);
+    return registerAdminSectionSetter(setSectionRaw);
   }, []);
 
   const loadData = useCallback(async () => {

@@ -30,6 +30,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
 import { useAuth, authedFetch } from "@/contexts/auth";
+import { changeAdminSection } from "@/contexts/admin-section";
 import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "./email-gate-modal";
 import { ChatSlideOut } from "./chat-slide-out";
@@ -130,9 +131,6 @@ function useAdminSection() {
 }
 
 function dispatchAdminSection(sectionId: string) {
-  const url = new URL(window.location.href);
-  url.searchParams.set("section", sectionId);
-  window.history.pushState({}, "", url.toString());
   window.dispatchEvent(new CustomEvent("adminSectionChange", { detail: sectionId }));
 }
 
@@ -148,6 +146,7 @@ function AdminNavDropdown() {
 
   const handleSectionClick = (sectionId: string) => {
     if (isOnAdmin) {
+      changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
     } else {
       navigate(`/admin?section=${sectionId}`);
@@ -202,6 +201,7 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
   const handleSectionClick = (sectionId: string) => {
     onClose();
     if (isOnAdmin) {
+      changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
     } else {
       navigate(`/admin?section=${sectionId}`);
