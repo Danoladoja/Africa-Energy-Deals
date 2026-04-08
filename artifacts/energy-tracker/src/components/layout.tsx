@@ -164,31 +164,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {/* ── Role-specific sidebar: Admin or Reviewer ── */}
+        {/* ── Unified privileged sidebar (Admin + Reviewer) ── */}
         {(isAdmin || isReviewer) ? (
           <>
             <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-              {/* Role badge */}
-              <div className="flex items-center gap-2 px-4 mb-4">
-                <ShieldCheck className={`w-4 h-4 ${isAdmin ? "text-primary" : "text-blue-400"}`} />
-                <span className={`text-xs font-bold uppercase tracking-widest ${isAdmin ? "text-primary" : "text-blue-400"}`}>
+              {/* Role badge — same style, label differs */}
+              <div className="flex items-center gap-2 px-4 mb-4 py-2 rounded-xl bg-primary/8 border border-primary/15">
+                <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-widest text-primary">
                   {isAdmin ? "Administrator" : "Reviewer"}
                 </span>
               </div>
 
-              {/* Admin items */}
+              {/* Admin-only items */}
               {isAdmin && adminNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
 
-              {/* Review Portal — shown to both admins and reviewers */}
+              {/* Review Portal — always visible to both admins and reviewers */}
               {reviewerNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
             </nav>
 
-            {/* Go To App button + footer */}
-            <div className="px-4 pb-3 space-y-2">
+            {/* Go To App button */}
+            <div className="px-4 pb-3">
               <Link href="/dashboard" className="block">
                 <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
                   <span className="text-sm font-semibold">Go To App</span>
@@ -197,6 +197,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
 
+            {/* Footer — identical for both roles */}
             <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs text-sidebar-foreground/50 font-medium">
@@ -399,24 +400,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
                 {(isAdmin || isReviewer) ? (
-                  /* ── Role-specific mobile nav ── */
+                  /* ── Unified privileged mobile nav ── */
                   <>
-                    {/* Role badge */}
-                    <div className="flex items-center gap-2 px-4 py-2 mb-2">
-                      <ShieldCheck className={`w-4 h-4 ${isAdmin ? "text-primary" : "text-blue-400"}`} />
-                      <span className={`text-xs font-bold uppercase tracking-widest ${isAdmin ? "text-primary" : "text-blue-400"}`}>
+                    {/* Role badge — same style for both */}
+                    <div className="flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl bg-primary/8 border border-primary/15">
+                      <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-primary">
                         {isAdmin ? "Administrator" : "Reviewer"}
                       </span>
                     </div>
 
+                    {/* Admin-only items */}
                     {isAdmin && adminNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
+                    {/* Review Portal — always visible to both */}
                     {reviewerNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
 
-                    {/* Go To App — mobile */}
+                    {/* Go To App — identical for both */}
                     <div className="mt-4 px-1">
                       <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
                         <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
@@ -426,7 +429,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </Link>
                     </div>
 
-                    {/* Theme + logout */}
+                    {/* Footer — identical for both */}
                     <div className="flex items-center justify-between px-4 py-3 mt-4 rounded-xl bg-sidebar-accent/50">
                       <span className="text-sm text-sidebar-foreground/60 font-medium">
                         {theme === "dark" ? "Dark mode" : "Light mode"}

@@ -108,12 +108,14 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 
 function ReviewerRoute({ component: Component }: { component: React.ComponentType }) {
   const { isReviewer, isLoading } = useAuth();
+  const { isAdmin } = useAdminAuth();
   const [, navigate] = useLocation();
+  const canAccess = isReviewer || isAdmin;
   useEffect(() => {
-    if (!isLoading && !isReviewer) navigate("/");
-  }, [isReviewer, isLoading, navigate]);
+    if (!isLoading && !canAccess) navigate("/");
+  }, [canAccess, isLoading, navigate]);
   if (isLoading) return <PageLoader />;
-  if (!isReviewer) return null;
+  if (!canAccess) return null;
   return <Component />;
 }
 
