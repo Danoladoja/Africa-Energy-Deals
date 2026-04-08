@@ -1,6 +1,6 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable, newslettersTable } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import { gatherExternalIntelligence, type ScrapedItem } from "./web-intelligence.js";
 
 const SECTORS = ["Solar", "Wind", "Hydro", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Bioenergy", "Geothermal", "Nuclear", "Clean Cooking", "Coal"];
@@ -228,30 +228,22 @@ export async function generateNewsletter(periodDays = 7): Promise<GeneratedNewsl
 }
 
 export async function saveNewsletter(newsletter: GeneratedNewsletter): Promise<number> {
-  // Core fields only — avoids failures on production DBs that may be missing
-  // optional columns (content_html, external_sources_used, pdf_url) added later in schema
-  const coreValues = {
-    editionNumber: newsletter.editionNumber,
-    title: newsletter.title,
-    content: newsletter.content,
-    executiveSummary: newsletter.executiveSummary,
-    spotlightSector: newsletter.spotlightSector,
-    spotlightCountry: newsletter.spotlightCountry,
-    projectsAnalyzed: newsletter.projectsAnalyzed,
-    totalInvestmentCovered: newsletter.totalInvestmentCovered,
-    status: "draft" as const,
-  };
-
-  try {
-    const [inserted] = await db.insert(newslettersTable).values({
-      ...coreValues,
-      externalSourcesUsed: newsletter.externalSourcesUsed,
-    }).returning({ id: newslettersTable.id });
-    return inserted.id;
-  } catch (insertErr: any) {
-    // Retry without optional columns if first attempt fails (schema migration lag)
-    console.warn("[Newsletter] Insert with optional columns failed, retrying with core columns only:", insertErr.message?.slice(0, 200));
-    const [inserted] = await db.insert(newslettersTable).values(coreValues).returning({ id: newslettersTable.id });
-    return inserted.id;
-  }
+  // Use raw SQL to insert ONLY the columns that exist in all DB versions.
+  // Drizzle ORM's insert() always emits every column defined in the schema
+  // (with DEFAULT for unset ones) — which breaks on production DBs that are
+  // missing optional columns added later (content_html, external_sources_used, pdf_url).
+  const result = await db.execute(sql`
+    INSERT INTO newsletters
+      (edition_number, title, content, executive_summary,
+       spotlight_sector, spotlight_country,
+       projects_analyzed, total_investment_covered, status)
+    VALUES
+      (${newsletter.editionNumber}, ${newsletter.title}, ${newsletter.content},
+       ${newsletter.executiveSummary}, ${newsletter.spotlightSector},
+       ${newsletter.spotlightCountry}, ${newsletter.projectsAnalyzed},
+       ${newsletter.totalInvestmentCovered}, 'draft')
+    RETURNING id
+  `);
+  const rows = result.rows as Array<{ id: number }>;
+  return rows[0].id;
 }
