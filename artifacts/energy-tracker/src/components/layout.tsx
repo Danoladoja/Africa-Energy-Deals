@@ -21,6 +21,10 @@ import {
   Settings,
   ShieldCheck,
   ArrowRight,
+  ChevronDown,
+  Database,
+  ListTodo,
+  Newspaper,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,11 +48,17 @@ const publicNavItems = [
 
 const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
 
-// Admin-only nav items
+// Admin-only nav items (AI Discovery — Admin Dashboard is a dropdown)
 const adminNavItems = [
-  { name: "Admin Dashboard", href: "/admin",     icon: Settings },
-  { name: "AI Discovery",    href: "/discovery", icon: Sparkles },
+  { name: "AI Discovery", href: "/discovery", icon: Sparkles },
 ];
+
+const adminDashboardSections = [
+  { id: "overview",    label: "Overview",      icon: LayoutDashboard, href: "/admin?section=overview" },
+  { id: "pipeline",    label: "Data Pipeline", icon: Database,        href: "/admin?section=pipeline" },
+  { id: "queue",       label: "Review Queue",  icon: ListTodo,        href: "/admin?section=queue" },
+  { id: "newsletter",  label: "Newsletter",    icon: Newspaper,       href: "/admin?section=newsletter" },
+] as const;
 
 // Reviewer nav items (visible to reviewers + admins)
 const reviewerNavItems = [
@@ -104,6 +114,95 @@ function MobileNavItem({ item, onClose }: { item: NavItemType; onClose: () => vo
         )}
       </div>
     </Link>
+  );
+}
+
+function AdminNavDropdown() {
+  const [location] = useLocation();
+  const isOnAdmin = location === "/admin" || location.startsWith("/admin");
+  const [open, setOpen] = useState(isOnAdmin);
+
+  useEffect(() => {
+    if (isOnAdmin) setOpen(true);
+  }, [isOnAdmin]);
+
+  const currentSection = new URLSearchParams(window.location.search).get("section") ?? "overview";
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all ${
+          isOnAdmin
+            ? "bg-primary/10 text-primary"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        }`}
+      >
+        <Settings className="w-5 h-5 shrink-0" />
+        <span className="flex-1 text-left">Admin Dashboard</span>
+        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-1 ml-9 space-y-0.5">
+          {adminDashboardSections.map(s => {
+            const isActive = isOnAdmin && currentSection === s.id;
+            return (
+              <Link key={s.id} href={s.href}>
+                <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60"
+                }`}>
+                  <s.icon className="w-4 h-4 shrink-0" />
+                  {s.label}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
+  const [location] = useLocation();
+  const isOnAdmin = location === "/admin" || location.startsWith("/admin");
+  const [open, setOpen] = useState(isOnAdmin);
+  const currentSection = new URLSearchParams(window.location.search).get("section") ?? "overview";
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-colors ${
+          isOnAdmin ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
+        }`}
+      >
+        <Settings className="w-5 h-5 shrink-0" />
+        <span className="text-base font-medium flex-1 text-left">Admin Dashboard</span>
+        <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-1 ml-9 space-y-0.5">
+          {adminDashboardSections.map(s => {
+            const isActive = isOnAdmin && currentSection === s.id;
+            return (
+              <Link key={s.id} href={s.href} onClick={onClose}>
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-foreground/60 hover:bg-white/5 hover:text-foreground"
+                }`}>
+                  <s.icon className="w-5 h-5 shrink-0" />
+                  {s.label}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -177,6 +276,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               {/* Admin-only items */}
+              {isAdmin && <AdminNavDropdown />}
               {isAdmin && adminNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
@@ -411,6 +511,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </div>
 
                     {/* Admin-only items */}
+                    {isAdmin && <MobileAdminNavDropdown onClose={() => setMobileMenuOpen(false)} />}
                     {isAdmin && adminNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}

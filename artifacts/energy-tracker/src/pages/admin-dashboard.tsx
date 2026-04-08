@@ -6,7 +6,7 @@ import {
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
-  LogOut, Settings, ChevronRight, ExternalLink,
+  ChevronRight, ExternalLink,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -72,65 +72,6 @@ function ConfidenceBadge({ score }: { score: number | null }) {
   const pct = Math.round(score * 100);
   const color = score >= 0.8 ? "text-green-400" : score >= 0.6 ? "text-yellow-400" : "text-red-400";
   return <span className={`text-xs font-mono ${color}`}>{pct}%</span>;
-}
-
-// ── Sidebar ────────────────────────────────────────────────────────────────────
-function Sidebar({ section, setSection, pendingCount }: { section: AdminSection; setSection: (s: AdminSection) => void; pendingCount: number }) {
-  const { logout } = useAdminAuth();
-  const navItems: { id: AdminSection; label: string; icon: typeof Database; badge?: number }[] = [
-    { id: "overview",    label: "Overview",       icon: LayoutDashboard },
-    { id: "pipeline",    label: "Data Pipeline",  icon: Database },
-    { id: "queue",       label: "Review Queue",   icon: ListTodo, badge: pendingCount },
-    { id: "newsletter",  label: "Newsletter",     icon: Newspaper },
-  ];
-
-  return (
-    <aside className="w-56 shrink-0 border-r border-border bg-card/50 flex flex-col h-full">
-      <div className="px-4 py-5 border-b border-border">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center">
-            <Settings className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-foreground leading-tight">Admin</p>
-            <p className="text-[10px] text-muted-foreground">AfriEnergy Control</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ id, label, icon: Icon, badge }) => (
-          <button
-            key={id}
-            onClick={() => setSection(id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left ${
-              section === id
-                ? "bg-primary/15 text-primary border border-primary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            }`}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            <span className="flex-1 truncate">{label}</span>
-            {badge !== undefined && badge > 0 && (
-              <span className="text-[10px] font-bold bg-yellow-400/20 text-yellow-400 px-1.5 py-0.5 rounded-full leading-none">
-                {badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      <div className="p-2 border-t border-border">
-        <button
-          onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-400/5 transition-all"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          Sign Out
-        </button>
-      </div>
-    </aside>
-  );
 }
 
 // ── Overview Section ───────────────────────────────────────────────────────────
@@ -817,8 +758,15 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
+function getInitialSection(): AdminSection {
+  const p = new URLSearchParams(window.location.search);
+  const s = p.get("section");
+  if (s === "pipeline" || s === "queue" || s === "newsletter" || s === "overview") return s;
+  return "overview";
+}
+
 export default function AdminDashboard() {
-  const [section, setSection] = useState<AdminSection>("overview");
+  const [section, setSectionRaw] = useState<AdminSection>(getInitialSection);
   const [sources, setSources] = useState<SourceGroup[]>([]);
   const [bySource, setBySource] = useState<Record<string, SourceStat>>({});
   const [pendingItems, setPendingItems] = useState<Project[]>([]);
@@ -826,6 +774,13 @@ export default function AdminDashboard() {
   const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   const [subscriberStats, setSubscriberStats] = useState<{ total: number; optedIn: number; optedOut: number; subscribers: Subscriber[] } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const setSection = useCallback((s: AdminSection) => {
+    setSectionRaw(s);
+    const url = new URL(window.location.href);
+    url.searchParams.set("section", s);
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -880,22 +835,19 @@ export default function AdminDashboard() {
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background">
-        <Sidebar section={section} setSection={setSection} pendingCount={pendingCount} />
-        <main className="flex-1 overflow-y-auto">
-          {section === "overview" && (
-            <OverviewSection sources={sources} bySource={bySource} pendingCount={pendingCount} newsletters={newsletters} subscriberStats={subscriberStats} setSection={setSection} />
-          )}
-          {section === "pipeline" && (
-            <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
-          )}
-          {section === "queue" && (
-            <QueueSection pendingItems={pendingItems} pendingCount={pendingCount} setPendingItems={setPendingItems} setPendingCount={setPendingCount} loadQueue={loadQueue} />
-          )}
-          {section === "newsletter" && (
-            <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />
-          )}
-        </main>
+      <div className="h-full overflow-y-auto bg-background">
+        {section === "overview" && (
+          <OverviewSection sources={sources} bySource={bySource} pendingCount={pendingCount} newsletters={newsletters} subscriberStats={subscriberStats} setSection={setSection} />
+        )}
+        {section === "pipeline" && (
+          <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
+        )}
+        {section === "queue" && (
+          <QueueSection pendingItems={pendingItems} pendingCount={pendingCount} setPendingItems={setPendingItems} setPendingCount={setPendingCount} loadQueue={loadQueue} />
+        )}
+        {section === "newsletter" && (
+          <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />
+        )}
       </div>
     </Layout>
   );
