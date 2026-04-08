@@ -15,12 +15,12 @@ import {
   Bell,
   UserCircle2,
   Code2,
-  Database,
   ClipboardList,
   Sun,
   Moon,
   Settings,
   ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -130,13 +130,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // "Analytics & Tools" is always just publicNavItems — admin/review items live in their own section
   const navItems = publicNavItems;
-  // Administration section: shown only to admins and reviewers
-  const showAdminSection = isAdmin || isReviewer;
-  const administrationItems = isAdmin
-    ? [...adminNavItems, ...reviewerNavItems]
-    : reviewerNavItems;
 
   useEffect(() => {
     if (!isAuthenticated) { setBellCount(0); return; }
@@ -170,116 +164,153 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-          <NavItem item={homeItem} />
-          <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-            Analytics & Tools
-          </div>
-          {navItems.map((item) => (
-            <NavItem key={item.href} item={item} />
-          ))}
-
-          {showAdminSection && (
-            <>
-              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="w-3 h-3" />
-                Administration
+        {/* ── Role-specific sidebar: Admin or Reviewer ── */}
+        {(isAdmin || isReviewer) ? (
+          <>
+            <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
+              {/* Role badge */}
+              <div className="flex items-center gap-2 px-4 mb-4">
+                <ShieldCheck className={`w-4 h-4 ${isAdmin ? "text-primary" : "text-blue-400"}`} />
+                <span className={`text-xs font-bold uppercase tracking-widest ${isAdmin ? "text-primary" : "text-blue-400"}`}>
+                  {isAdmin ? "Administrator" : "Reviewer"}
+                </span>
               </div>
-              {administrationItems.map((item) => (
+
+              {/* Admin items */}
+              {isAdmin && adminNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
-            </>
-          )}
 
-          <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-            Developer
-          </div>
-          <NavItem item={{ name: "API Docs", href: "/api-docs", icon: Code2 }} />
+              {/* Review Portal — shown to both admins and reviewers */}
+              {reviewerNavItems.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+            </nav>
 
-          {isAuthenticated && (
-            <>
-              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-                My Account
-              </div>
-              <Link href="/watches" className="block">
-                <div className="flex items-center justify-between px-4 py-3.5 rounded-xl transition-all text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground group">
-                  <div className="flex items-center gap-3">
-                    <Bell className="w-5 h-5" />
-                    <span>My Watches</span>
-                  </div>
-                  {bellCount > 0 && (
-                    <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                      {bellCount > 99 ? "99+" : bellCount}
-                    </span>
-                  )}
+            {/* Go To App button + footer */}
+            <div className="px-4 pb-3 space-y-2">
+              <Link href="/dashboard" className="block">
+                <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
+                  <span className="text-sm font-semibold">Go To App</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
-            </>
-          )}
-        </nav>
-        
-        {/* Ask AI button */}
-        <div className="px-4 pb-3">
-          <button
-            onClick={() => setAiOpen(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 hover:border-[#00e676]/35 transition-all group"
-          >
-            <Sparkles className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-semibold flex-1 text-left">Ask AI</span>
-            <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
-          </button>
-        </div>
+            </div>
 
-        <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
-          {/* Theme toggle */}
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs text-sidebar-foreground/50 font-medium">
-              {theme === "dark" ? "Dark mode" : "Light mode"}
-            </span>
-            <button
-              onClick={toggleTheme}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sidebar-border bg-sidebar-accent/60 hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-all text-xs font-medium"
-            >
-              {theme === "dark"
-                ? <Sun className="w-3.5 h-3.5" />
-                : <Moon className="w-3.5 h-3.5" />
-              }
-              {theme === "dark" ? "Light" : "Dark"}
-            </button>
-          </div>
+            <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-sidebar-foreground/50 font-medium">
+                  {theme === "dark" ? "Dark mode" : "Light mode"}
+                </span>
+                <button
+                  onClick={toggleTheme}
+                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sidebar-border bg-sidebar-accent/60 hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-all text-xs font-medium"
+                >
+                  {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                  {theme === "dark" ? "Light" : "Dark"}
+                </button>
+              </div>
+              {isAuthenticated && (
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
+                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {isAdmin && (
+                <button onClick={adminLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
+                  <LogOut className="w-4 h-4" />
+                  Sign out of admin
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── Regular user sidebar ── */
+          <>
+            <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
+              <NavItem item={homeItem} />
+              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                Analytics & Tools
+              </div>
+              {navItems.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                Developer
+              </div>
+              <NavItem item={{ name: "API Docs", href: "/api-docs", icon: Code2 }} />
+              {isAuthenticated && (
+                <>
+                  <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                    My Account
+                  </div>
+                  <Link href="/watches" className="block">
+                    <div className="flex items-center justify-between px-4 py-3.5 rounded-xl transition-all text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground group">
+                      <div className="flex items-center gap-3">
+                        <Bell className="w-5 h-5" />
+                        <span>My Watches</span>
+                      </div>
+                      {bellCount > 0 && (
+                        <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                          {bellCount > 99 ? "99+" : bellCount}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                </>
+              )}
+            </nav>
 
-          {isAuthenticated ? (
-            <div className="flex items-center gap-3">
-              <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
-              <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
+            {/* Ask AI button */}
+            <div className="px-4 pb-3">
               <button
-                onClick={handleUserLogout}
-                title="Sign out"
-                className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0"
+                onClick={() => setAiOpen(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 hover:border-[#00e676]/35 transition-all group"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <Sparkles className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-semibold flex-1 text-left">Ask AI</span>
+                <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
               </button>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#00e676]/10 border border-[#00e676]/25 text-[#00e676] hover:bg-[#00e676]/15 transition-colors w-full"
-            >
-              <Bell className="w-4 h-4" />
-              Sign In for Alerts
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              onClick={adminLogout}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out of admin
-            </button>
-          )}
-        </div>
+
+            <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-sidebar-foreground/50 font-medium">
+                  {theme === "dark" ? "Dark mode" : "Light mode"}
+                </span>
+                <button
+                  onClick={toggleTheme}
+                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sidebar-border bg-sidebar-accent/60 hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-all text-xs font-medium"
+                >
+                  {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                  {theme === "dark" ? "Light" : "Dark"}
+                </button>
+              </div>
+              {isAuthenticated ? (
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
+                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#00e676]/10 border border-[#00e676]/25 text-[#00e676] hover:bg-[#00e676]/15 transition-colors w-full"
+                >
+                  <Bell className="w-4 h-4" />
+                  Sign In for Alerts
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </aside>
 
       {/* Mobile Top Header */}
@@ -367,95 +398,102 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
-                {/* Ask AI — mobile drawer */}
-                <button
-                  onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all mb-2"
-                >
-                  <Sparkles className="w-5 h-5 shrink-0" />
-                  <span className="text-base font-semibold">Ask AI</span>
-                </button>
-
-                <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
-                <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
-                  Analytics & Tools
-                </div>
-                {navItems.map((item) => (
-                  <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
-                ))}
-
-                {showAdminSection && (
+                {(isAdmin || isReviewer) ? (
+                  /* ── Role-specific mobile nav ── */
                   <>
-                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest flex items-center gap-1.5">
-                      <ShieldCheck className="w-3 h-3" />
-                      Administration
+                    {/* Role badge */}
+                    <div className="flex items-center gap-2 px-4 py-2 mb-2">
+                      <ShieldCheck className={`w-4 h-4 ${isAdmin ? "text-primary" : "text-blue-400"}`} />
+                      <span className={`text-xs font-bold uppercase tracking-widest ${isAdmin ? "text-primary" : "text-blue-400"}`}>
+                        {isAdmin ? "Administrator" : "Reviewer"}
+                      </span>
                     </div>
-                    {administrationItems.map((item) => (
+
+                    {isAdmin && adminNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
-                  </>
-                )}
-                {/* Theme toggle — mobile drawer */}
-                <div className="flex items-center justify-between px-4 py-3 mt-2 rounded-xl bg-sidebar-accent/50">
-                  <span className="text-sm text-sidebar-foreground/60 font-medium">
-                    {theme === "dark" ? "Dark mode" : "Light mode"}
-                  </span>
-                  <button
-                    onClick={toggleTheme}
-                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all text-xs font-semibold"
-                  >
-                    {theme === "dark"
-                      ? <><Sun className="w-3.5 h-3.5" /> Light</>
-                      : <><Moon className="w-3.5 h-3.5" /> Dark</>
-                    }
-                  </button>
-                </div>
+                    {reviewerNavItems.map((item) => (
+                      <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
+                    ))}
 
-                {isAuthenticated && (
-                  <>
-                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
-                      My Account
-                    </div>
-                    <Link href="/watches" onClick={() => setMobileMenuOpen(false)}>
-                      <div className="flex items-center justify-between px-4 py-3.5 rounded-xl text-foreground/70 hover:bg-white/5 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <Bell className="w-5 h-5 shrink-0" />
-                          <span className="text-base font-medium">My Watches</span>
+                    {/* Go To App — mobile */}
+                    <div className="mt-4 px-1">
+                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
+                          <span className="text-base font-semibold">Go To App</span>
+                          <ArrowRight className="w-5 h-5" />
                         </div>
-                        {bellCount > 0 && (
-                          <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full">
-                            {bellCount > 99 ? "99+" : bellCount}
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                    <button
-                      onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }}
-                      className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      Sign Out
-                    </button>
+                      </Link>
+                    </div>
+
+                    {/* Theme + logout */}
+                    <div className="flex items-center justify-between px-4 py-3 mt-4 rounded-xl bg-sidebar-accent/50">
+                      <span className="text-sm text-sidebar-foreground/60 font-medium">
+                        {theme === "dark" ? "Dark mode" : "Light mode"}
+                      </span>
+                      <button onClick={toggleTheme} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all text-xs font-semibold">
+                        {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
+                      </button>
+                    </div>
+                    {isAuthenticated && (
+                      <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign Out
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => { adminLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors">
+                        <LogOut className="w-5 h-5" />Sign out of admin
+                      </button>
+                    )}
                   </>
-                )}
-                {!isAuthenticated && (
-                  <button
-                    onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }}
-                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
-                  >
-                    <Bell className="w-5 h-5" />
-                    Sign In for Alerts
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => { adminLogout(); setMobileMenuOpen(false); }}
-                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    Sign out of admin
-                  </button>
+                ) : (
+                  /* ── Regular user mobile nav ── */
+                  <>
+                    <button onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all mb-2">
+                      <Sparkles className="w-5 h-5 shrink-0" />
+                      <span className="text-base font-semibold">Ask AI</span>
+                    </button>
+
+                    <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
+                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
+                      Analytics & Tools
+                    </div>
+                    {navItems.map((item) => (
+                      <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
+                    ))}
+
+                    <div className="flex items-center justify-between px-4 py-3 mt-2 rounded-xl bg-sidebar-accent/50">
+                      <span className="text-sm text-sidebar-foreground/60 font-medium">
+                        {theme === "dark" ? "Dark mode" : "Light mode"}
+                      </span>
+                      <button onClick={toggleTheme} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all text-xs font-semibold">
+                        {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
+                      </button>
+                    </div>
+
+                    {isAuthenticated && (
+                      <>
+                        <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">My Account</div>
+                        <Link href="/watches" onClick={() => setMobileMenuOpen(false)}>
+                          <div className="flex items-center justify-between px-4 py-3.5 rounded-xl text-foreground/70 hover:bg-white/5 transition-colors">
+                            <div className="flex items-center gap-4">
+                              <Bell className="w-5 h-5 shrink-0" />
+                              <span className="text-base font-medium">My Watches</span>
+                            </div>
+                            {bellCount > 0 && <span className="text-xs font-bold bg-[#00e676] text-[#0b0f1a] px-1.5 py-0.5 rounded-full">{bellCount > 99 ? "99+" : bellCount}</span>}
+                          </div>
+                        </Link>
+                        <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors">
+                          <LogOut className="w-5 h-5" />Sign Out
+                        </button>
+                      </>
+                    )}
+                    {!isAuthenticated && (
+                      <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-[#00e676] hover:bg-[#00e676]/10 transition-colors">
+                        <Bell className="w-5 h-5" />Sign In for Alerts
+                      </button>
+                    )}
+                  </>
                 )}
               </nav>
 
