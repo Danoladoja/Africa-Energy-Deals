@@ -147,20 +147,27 @@ export interface GeneratedNewsletter {
 }
 
 export async function generateNewsletter(periodDays = 7): Promise<GeneratedNewsletter> {
-  // Get the last edition to determine rotation (select only needed columns)
-  const lastEdition = await db
-    .select({
-      editionNumber: newslettersTable.editionNumber,
-      spotlightSector: newslettersTable.spotlightSector,
-      spotlightCountry: newslettersTable.spotlightCountry,
-    })
-    .from(newslettersTable)
-    .orderBy(desc(newslettersTable.editionNumber))
-    .limit(1);
-
-  const lastSector = lastEdition[0]?.spotlightSector ?? null;
-  const lastCountry = lastEdition[0]?.spotlightCountry ?? null;
-  const editionNumber = (lastEdition[0]?.editionNumber ?? 0) + 1;
+  // Get the last edition to determine rotation — wrapped in try/catch in case
+  // the newsletters table is missing on a fresh production DB (schema not yet migrated)
+  let lastSector: string | null = null;
+  let lastCountry: string | null = null;
+  let editionNumber = 1;
+  try {
+    const lastEdition = await db
+      .select({
+        editionNumber: newslettersTable.editionNumber,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+      })
+      .from(newslettersTable)
+      .orderBy(desc(newslettersTable.editionNumber))
+      .limit(1);
+    lastSector = lastEdition[0]?.spotlightSector ?? null;
+    lastCountry = lastEdition[0]?.spotlightCountry ?? null;
+    editionNumber = (lastEdition[0]?.editionNumber ?? 0) + 1;
+  } catch (err) {
+    console.warn("[Newsletter] Could not load last edition (using defaults — run db push to migrate):", (err as Error).message?.slice(0, 200));
+  }
 
   const spotlightSector = getNextSector(lastSector);
   const spotlightCountry = getNextCountry(lastCountry);
@@ -221,7 +228,9 @@ export async function generateNewsletter(periodDays = 7): Promise<GeneratedNewsl
 }
 
 export async function saveNewsletter(newsletter: GeneratedNewsletter): Promise<number> {
-  const [inserted] = await db.insert(newslettersTable).values({
+  // Core fields only — avoids failures on production DBs that may be missing
+  // optional columns (content_html, external_sources_used, pdf_url) added later in schema
+  const coreValues = {
     editionNumber: newsletter.editionNumber,
     title: newsletter.title,
     content: newsletter.content,
@@ -230,9 +239,19 @@ export async function saveNewsletter(newsletter: GeneratedNewsletter): Promise<n
     spotlightCountry: newsletter.spotlightCountry,
     projectsAnalyzed: newsletter.projectsAnalyzed,
     totalInvestmentCovered: newsletter.totalInvestmentCovered,
-    externalSourcesUsed: newsletter.externalSourcesUsed,
-    status: "draft",
-  }).returning({ id: newslettersTable.id });
+    status: "draft" as const,
+  };
 
-  return inserted.id;
+  try {
+    const [inserted] = await db.insert(newslettersTable).values({
+      ...coreValues,
+      externalSourcesUsed: newsletter.externalSourcesUsed,
+    }).returning({ id: newslettersTable.id });
+    return inserted.id;
+  } catch (insertErr: any) {
+    // Retry without optional columns if first attempt fails (schema migration lag)
+    console.warn("[Newsletter] Insert with optional columns failed, retrying with core columns only:", insertErr.message?.slice(0, 200));
+    const [inserted] = await db.insert(newslettersTable).values(coreValues).returning({ id: newslettersTable.id });
+    return inserted.id;
+  }
 }
