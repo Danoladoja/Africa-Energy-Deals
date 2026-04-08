@@ -28,7 +28,8 @@ const WatchesPage      = lazy(() => import("@/pages/watches"));
 const EmbedDeals       = lazy(() => import("@/pages/embed-deals"));
 const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
 const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
-const AdminScraperPage = lazy(() => import("@/pages/admin-scraper"));
+const AdminScraperPage  = lazy(() => import("@/pages/admin-scraper"));
+const AdminDashboard   = lazy(() => import("@/pages/admin-dashboard"));
 const ComparePage      = lazy(() => import("@/pages/compare"));
 const ReviewDashboard  = lazy(() => import("@/pages/review"));
 const ReviewQueue      = lazy(() => import("@/pages/review-queue"));
@@ -217,8 +218,11 @@ function Router() {
           )}
         </Route>
         <Route path="/api-docs" component={ApiDocsPage} />
+        <Route path="/admin">
+          {() => <AdminRoute component={AdminDashboard} />}
+        </Route>
         <Route path="/admin/scraper">
-          {() => <AdminRoute component={AdminScraperPage} />}
+          {() => <AdminRoute component={AdminDashboard} />}
         </Route>
         <Route path="/review">
           {() => <ReviewerRoute component={ReviewDashboard} />}

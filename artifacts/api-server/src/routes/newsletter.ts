@@ -1,8 +1,21 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, newslettersTable, userEmailsTable } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { generateNewsletter, saveNewsletter } from "../services/newsletter-generator.js";
 import { dispatchNewsletter } from "../services/email-dispatch.js";
+import { isValidAdminToken } from "../middleware/adminAuth.js";
+
+function requireAdmin(req: Request, res: Response): boolean {
+  const bearer = req.headers.authorization?.startsWith("Bearer ")
+    ? req.headers.authorization.slice(7)
+    : null;
+  const headerPw = req.headers["x-admin-password"] as string | undefined;
+  if ((bearer && isValidAdminToken(bearer)) || (process.env.ADMIN_PASSWORD && headerPw === process.env.ADMIN_PASSWORD)) {
+    return true;
+  }
+  res.status(401).json({ error: "Unauthorized" });
+  return false;
+}
 
 const router: IRouter = Router();
 
@@ -152,12 +165,7 @@ h1{color:#00e676;margin:0 0 16px;}p{color:#94a3b8;line-height:1.6;}a{color:#00e6
 
 // POST /api/admin/newsletter/preview — generate without sending (admin only)
 router.post("/admin/newsletter/preview", async (req: Request, res: Response): Promise<void> => {
-  const adminPassword = req.headers["x-admin-password"] as string;
-  if (!process.env.ADMIN_PASSWORD || adminPassword !== process.env.ADMIN_PASSWORD) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
+  if (!requireAdmin(req, res)) return;
   try {
     const newsletter = await generateNewsletter(7);
     const id = await saveNewsletter(newsletter);
@@ -170,12 +178,7 @@ router.post("/admin/newsletter/preview", async (req: Request, res: Response): Pr
 
 // POST /api/admin/newsletter/generate — generate and send (admin only)
 router.post("/admin/newsletter/generate", async (req: Request, res: Response): Promise<void> => {
-  const adminPassword = req.headers["x-admin-password"] as string;
-  if (!process.env.ADMIN_PASSWORD || adminPassword !== process.env.ADMIN_PASSWORD) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
+  if (!requireAdmin(req, res)) return;
   try {
     const newsletter = await generateNewsletter(7);
     const id = await saveNewsletter(newsletter);
@@ -184,6 +187,37 @@ router.post("/admin/newsletter/generate", async (req: Request, res: Response): P
   } catch (err: any) {
     console.error("[Newsletter] Generate error:", err);
     res.status(500).json({ error: err.message ?? "Generation failed" });
+  }
+});
+
+// GET /api/admin/subscribers — subscriber stats (admin only)
+router.get("/admin/subscribers", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const [{ total }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(userEmailsTable);
+    const [{ opted }] = await db
+      .select({ opted: sql<number>`count(*)::int` })
+      .from(userEmailsTable)
+      .where(eq(userEmailsTable.newsletterOptIn, true));
+    const recent = await db
+      .select({
+        id: userEmailsTable.id,
+        email: userEmailsTable.email,
+        role: userEmailsTable.role,
+        newsletterOptIn: userEmailsTable.newsletterOptIn,
+        newsletterFrequency: userEmailsTable.newsletterFrequency,
+        createdAt: userEmailsTable.createdAt,
+        lastNewsletterSentAt: userEmailsTable.lastNewsletterSentAt,
+      })
+      .from(userEmailsTable)
+      .orderBy(desc(userEmailsTable.createdAt))
+      .limit(50);
+    res.json({ total, optedIn: opted, optedOut: total - opted, subscribers: recent });
+  } catch (err) {
+    console.error("[Newsletter] Subscribers error:", err);
+    res.status(500).json({ error: "Failed to fetch subscribers" });
   }
 });
 
