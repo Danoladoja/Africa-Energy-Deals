@@ -117,16 +117,42 @@ function MobileNavItem({ item, onClose }: { item: NavItemType; onClose: () => vo
   );
 }
 
+function useAdminSection() {
+  const [activeSection, setActiveSection] = useState(
+    () => new URLSearchParams(window.location.search).get("section") ?? "overview"
+  );
+  useEffect(() => {
+    const handler = (e: Event) => setActiveSection((e as CustomEvent<string>).detail);
+    window.addEventListener("adminSectionChange", handler);
+    return () => window.removeEventListener("adminSectionChange", handler);
+  }, []);
+  return activeSection;
+}
+
+function dispatchAdminSection(sectionId: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("section", sectionId);
+  window.history.pushState({}, "", url.toString());
+  window.dispatchEvent(new CustomEvent("adminSectionChange", { detail: sectionId }));
+}
+
 function AdminNavDropdown() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const isOnAdmin = location === "/admin" || location.startsWith("/admin");
   const [open, setOpen] = useState(isOnAdmin);
+  const activeSection = useAdminSection();
 
   useEffect(() => {
     if (isOnAdmin) setOpen(true);
   }, [isOnAdmin]);
 
-  const currentSection = new URLSearchParams(window.location.search).get("section") ?? "overview";
+  const handleSectionClick = (sectionId: string) => {
+    if (isOnAdmin) {
+      dispatchAdminSection(sectionId);
+    } else {
+      navigate(`/admin?section=${sectionId}`);
+    }
+  };
 
   return (
     <div>
@@ -145,18 +171,20 @@ function AdminNavDropdown() {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && currentSection === s.id;
+            const isActive = isOnAdmin && activeSection === s.id;
             return (
-              <Link key={s.id} href={s.href}>
-                <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+              <button
+                key={s.id}
+                onClick={() => handleSectionClick(s.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60"
-                }`}>
-                  <s.icon className="w-4 h-4 shrink-0" />
-                  {s.label}
-                </div>
-              </Link>
+                }`}
+              >
+                <s.icon className="w-4 h-4 shrink-0" />
+                {s.label}
+              </button>
             );
           })}
         </div>
@@ -166,10 +194,19 @@ function AdminNavDropdown() {
 }
 
 function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const isOnAdmin = location === "/admin" || location.startsWith("/admin");
   const [open, setOpen] = useState(isOnAdmin);
-  const currentSection = new URLSearchParams(window.location.search).get("section") ?? "overview";
+  const activeSection = useAdminSection();
+
+  const handleSectionClick = (sectionId: string) => {
+    onClose();
+    if (isOnAdmin) {
+      dispatchAdminSection(sectionId);
+    } else {
+      navigate(`/admin?section=${sectionId}`);
+    }
+  };
 
   return (
     <div>
@@ -186,18 +223,20 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && currentSection === s.id;
+            const isActive = isOnAdmin && activeSection === s.id;
             return (
-              <Link key={s.id} href={s.href} onClick={onClose}>
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-colors cursor-pointer ${
+              <button
+                key={s.id}
+                onClick={() => handleSectionClick(s.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-foreground/60 hover:bg-white/5 hover:text-foreground"
-                }`}>
-                  <s.icon className="w-5 h-5 shrink-0" />
-                  {s.label}
-                </div>
-              </Link>
+                }`}
+              >
+                <s.icon className="w-5 h-5 shrink-0" />
+                {s.label}
+              </button>
             );
           })}
         </div>
@@ -312,19 +351,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {theme === "dark" ? "Light" : "Dark"}
                 </button>
               </div>
-              {isAuthenticated && (
-                <div className="flex items-center gap-3">
-                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
-                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
-                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
               {isAdmin && (
                 <button onClick={adminLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
                   <LogOut className="w-4 h-4" />
                   Sign out of admin
+                </button>
+              )}
+              {!isAdmin && isReviewer && (
+                <button onClick={handleUserLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
+                  <LogOut className="w-4 h-4" />
+                  Sign out of reviewer
                 </button>
               )}
             </div>
@@ -539,14 +575,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
                       </button>
                     </div>
-                    {isAuthenticated && (
-                      <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
-                        <LogOut className="w-5 h-5" />Sign Out
+                    {isAdmin && (
+                      <button onClick={() => { adminLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign out of admin
                       </button>
                     )}
-                    {isAdmin && (
-                      <button onClick={() => { adminLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors">
-                        <LogOut className="w-5 h-5" />Sign out of admin
+                    {!isAdmin && isReviewer && (
+                      <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign out of reviewer
                       </button>
                     )}
                   </>

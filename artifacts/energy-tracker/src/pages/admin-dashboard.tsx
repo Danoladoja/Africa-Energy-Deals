@@ -780,6 +780,16 @@ export default function AdminDashboard() {
     const url = new URL(window.location.href);
     url.searchParams.set("section", s);
     window.history.replaceState({}, "", url.toString());
+    window.dispatchEvent(new CustomEvent("adminSectionChange", { detail: s }));
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const s = (e as CustomEvent<string>).detail as AdminSection;
+      setSectionRaw(s);
+    };
+    window.addEventListener("adminSectionChange", handler);
+    return () => window.removeEventListener("adminSectionChange", handler);
   }, []);
 
   const loadData = useCallback(async () => {
