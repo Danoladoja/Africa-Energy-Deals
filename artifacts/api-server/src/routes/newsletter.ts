@@ -57,7 +57,20 @@ router.get("/newsletters", async (req: Request, res: Response): Promise<void> =>
 router.get("/newsletters/latest", async (_req: Request, res: Response): Promise<void> => {
   try {
     const [newsletter] = await db
-      .select()
+      .select({
+        id: newslettersTable.id,
+        editionNumber: newslettersTable.editionNumber,
+        title: newslettersTable.title,
+        executiveSummary: newslettersTable.executiveSummary,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+        projectsAnalyzed: newslettersTable.projectsAnalyzed,
+        totalInvestmentCovered: newslettersTable.totalInvestmentCovered,
+        generatedAt: newslettersTable.generatedAt,
+        sentAt: newslettersTable.sentAt,
+        status: newslettersTable.status,
+        recipientCount: newslettersTable.recipientCount,
+      })
       .from(newslettersTable)
       .orderBy(desc(newslettersTable.editionNumber))
       .limit(1);
@@ -82,7 +95,21 @@ router.get("/newsletters/:id", async (req: Request, res: Response): Promise<void
       return;
     }
     const [newsletter] = await db
-      .select()
+      .select({
+        id: newslettersTable.id,
+        editionNumber: newslettersTable.editionNumber,
+        title: newslettersTable.title,
+        content: newslettersTable.content,
+        executiveSummary: newslettersTable.executiveSummary,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+        projectsAnalyzed: newslettersTable.projectsAnalyzed,
+        totalInvestmentCovered: newslettersTable.totalInvestmentCovered,
+        generatedAt: newslettersTable.generatedAt,
+        sentAt: newslettersTable.sentAt,
+        status: newslettersTable.status,
+        recipientCount: newslettersTable.recipientCount,
+      })
       .from(newslettersTable)
       .where(eq(newslettersTable.id, id))
       .limit(1);

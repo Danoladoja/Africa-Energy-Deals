@@ -147,9 +147,13 @@ export interface GeneratedNewsletter {
 }
 
 export async function generateNewsletter(periodDays = 7): Promise<GeneratedNewsletter> {
-  // Get the last edition to determine rotation
+  // Get the last edition to determine rotation (select only needed columns)
   const lastEdition = await db
-    .select()
+    .select({
+      editionNumber: newslettersTable.editionNumber,
+      spotlightSector: newslettersTable.spotlightSector,
+      spotlightCountry: newslettersTable.spotlightCountry,
+    })
     .from(newslettersTable)
     .orderBy(desc(newslettersTable.editionNumber))
     .limit(1);
