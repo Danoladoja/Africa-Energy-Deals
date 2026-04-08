@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { db, sessionsTable, userEmailsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { isValidAdminToken } from "./adminAuth.js";
 
 export interface ReviewerRequest extends Request {
   reviewerEmail?: string;
@@ -18,6 +19,14 @@ export async function reviewerAuthMiddleware(
     return;
   }
   const token = authHeader.slice(7);
+
+  // Allow admin tokens to access the review portal
+  if (isValidAdminToken(token)) {
+    req.reviewerEmail = "admin";
+    req.reviewerRole = "admin";
+    next();
+    return;
+  }
 
   try {
     const [session] = await db

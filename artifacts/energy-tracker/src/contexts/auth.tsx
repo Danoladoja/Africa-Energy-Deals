@@ -131,3 +131,20 @@ export function authedFetch(url: string, init?: RequestInit): Promise<Response> 
     },
   });
 }
+
+/**
+ * Like authedFetch but also falls back to the admin token when no user session exists.
+ * Used by review-portal pages so admins can access review endpoints.
+ */
+export function reviewerFetch(url: string, init?: RequestInit): Promise<Response> {
+  const userToken = getSessionToken();
+  const adminToken = (() => { try { return localStorage.getItem("afrienergy_admin_token"); } catch { return null; } })();
+  const token = userToken || adminToken;
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}

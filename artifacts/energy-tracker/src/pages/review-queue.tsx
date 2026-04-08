@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
-import { useAuth, authedFetch } from "@/contexts/auth";
+import { useAuth, reviewerFetch } from "@/contexts/auth";
+import { useAdminAuth } from "@/contexts/admin-auth";
 import { ChevronLeft, ChevronRight, ExternalLink, CircleDot, AlertCircle, CheckCircle2, ClipboardList } from "lucide-react";
 import { SECTOR_COLORS } from "@/utils/chart-colors";
 
@@ -49,6 +50,9 @@ function confidenceBar(score: number | null) {
 
 export default function ReviewQueue() {
   const { isReviewer, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useAdminAuth();
+  const canAccess = isReviewer || isAdmin;
+  const isLoading = authLoading || adminLoading;
   const search = useSearch();
   const params = new URLSearchParams(search);
   const statusFilter = params.get("status") ?? "pending";
@@ -59,16 +63,16 @@ export default function ReviewQueue() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading || !isReviewer) { setLoading(false); return; }
+    if (isLoading || !canAccess) { setLoading(false); return; }
     setLoading(true);
-    authedFetch(`/api/review/queue?status=${statusFilter}&page=${pageParam}`)
+    reviewerFetch(`/api/review/queue?status=${statusFilter}&page=${pageParam}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => setError("Failed to load queue"))
       .finally(() => setLoading(false));
-  }, [authLoading, isReviewer, statusFilter, pageParam]);
+  }, [isLoading, canAccess, statusFilter, pageParam]);
 
-  if (authLoading || loading) {
+  if (isLoading || loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -78,7 +82,7 @@ export default function ReviewQueue() {
     );
   }
 
-  if (!isReviewer) {
+  if (!canAccess) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">

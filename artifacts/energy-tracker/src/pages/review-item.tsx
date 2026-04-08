@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
-import { useAuth, authedFetch } from "@/contexts/auth";
+import { useAuth, reviewerFetch } from "@/contexts/auth";
+import { useAdminAuth } from "@/contexts/admin-auth";
 import {
   ClipboardList, ArrowLeft, ExternalLink, CheckCircle2,
   AlertCircle, Clock, RefreshCw, Globe, Loader2
@@ -55,6 +56,9 @@ export default function ReviewItem() {
   const search = useSearch();
   const statusFilter = new URLSearchParams(search).get("from") ?? "pending";
   const { isReviewer, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useAdminAuth();
+  const canAccess = isReviewer || isAdmin;
+  const isAuthLoading = authLoading || adminLoading;
 
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +71,7 @@ export default function ReviewItem() {
 
   const loadData = () => {
     setLoading(true);
-    authedFetch(`/api/review/${id}`)
+    reviewerFetch(`/api/review/${id}`)
       .then((r) => r.json())
       .then((d) => {
         setData(d);
@@ -78,9 +82,9 @@ export default function ReviewItem() {
   };
 
   useEffect(() => {
-    if (authLoading || !isReviewer) { setLoading(false); return; }
+    if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
-  }, [authLoading, isReviewer, id]);
+  }, [isAuthLoading, canAccess, id]);
 
   async function handleTestUrl() {
     const urlToTest = newUrl || data?.project.sourceUrl;
@@ -88,7 +92,7 @@ export default function ReviewItem() {
     setTestLoading(true);
     setTestResult(null);
     try {
-      const r = await authedFetch("/api/review/test-url", {
+      const r = await reviewerFetch("/api/review/test-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlToTest, dealId: parseInt(id) }),
@@ -106,7 +110,7 @@ export default function ReviewItem() {
     if (!newUrl.trim()) { toast.error("URL cannot be empty"); return; }
     setSavingUrl(true);
     try {
-      const r = await authedFetch(`/api/review/${id}/url`, {
+      const r = await reviewerFetch(`/api/review/${id}/url`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newUrl: newUrl.trim(), note: urlNote || undefined }),
@@ -125,7 +129,7 @@ export default function ReviewItem() {
   async function handleSetStatus(status: string) {
     setSavingStatus(true);
     try {
-      const r = await authedFetch(`/api/review/${id}/status`, {
+      const r = await reviewerFetch(`/api/review/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -151,7 +155,7 @@ export default function ReviewItem() {
     );
   }
 
-  if (!isReviewer) {
+  if (!canAccess) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">

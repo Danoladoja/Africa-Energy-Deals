@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { useAuth, authedFetch } from "@/contexts/auth";
+import { useAuth, reviewerFetch } from "@/contexts/auth";
+import { useAdminAuth } from "@/contexts/admin-auth";
 import { ClipboardList, CircleDot, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 
 interface Stats {
@@ -12,22 +13,25 @@ interface Stats {
 
 export default function ReviewDashboard() {
   const { isReviewer, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useAdminAuth();
+  const canAccess = isReviewer || isAdmin;
+  const isLoading = authLoading || adminLoading;
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!isReviewer) { setLoading(false); return; }
+    if (isLoading) return;
+    if (!canAccess) { setLoading(false); return; }
 
-    authedFetch("/api/review/stats")
+    reviewerFetch("/api/review/stats")
       .then((r) => r.json())
       .then((d) => setStats(d))
       .catch(() => setError("Failed to load stats"))
       .finally(() => setLoading(false));
-  }, [authLoading, isReviewer]);
+  }, [isLoading, canAccess]);
 
-  if (authLoading || loading) {
+  if (isLoading || loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -37,7 +41,7 @@ export default function ReviewDashboard() {
     );
   }
 
-  if (!isReviewer) {
+  if (!canAccess) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
