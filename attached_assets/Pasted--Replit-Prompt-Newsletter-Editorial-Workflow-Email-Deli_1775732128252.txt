@@ -1,0 +1,789 @@
+# Replit Prompt — Newsletter Editorial Workflow & Email Delivery Fix
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** CRITICAL (email delivery is completely broken) + HIGH (editorial workflow)
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance badge, conversation history, the chatbot endpoint, and all non-newsletter pages work correctly. Magic-link sign-in emails (which use `resend.emails.send()`) also work. Only modify:
+1. `email-dispatch.ts` — fix delivery
+2. `newsletter.ts` routes — add editorial endpoints
+3. Admin frontend — new editorial UI
+4. `newsletter-generator.ts` — add section revision function
+
+---
+
+## OVERVIEW — Two Changes, One Prompt
+
+### Change A: Fix Email Delivery (CRITICAL)
+
+Newsletter emails never arrive. The Resend API Logs prove it:
+- `POST /emails/batch` → **403 Forbidden** (every newsletter send)
+- `POST /emails` → **200 OK** (all magic-link emails work)
+
+The dispatch code uses `resend.emails.batch.send()`, which is blocked on the current Resend plan. The code silently swallows the 403 and marks newsletters "sent" anyway. **Zero newsletter emails have ever been delivered.**
+
+### Change B: Add Editorial Workflow (HIGH)
+
+The current admin flow is: click "Generate & Send" → newsletter is generated and immediately dispatched. There is no opportunity to review, revise, or approve content before it reaches subscribers. The admin needs a multi-step editorial workflow:
+
+**Generate Draft → Review & Revise → Approve & Send**
+
+---
+
+## CHANGE A: Fix Email Delivery
+
+### File: `artifacts/api-server/src/services/email-dispatch.ts`
+
+### What to Do
+
+**1. Replace batch send with individual sends:**
+
+Find the newsletter send function. It currently uses batch:
+
+```javascript
+// BROKEN — Resend returns 403 for /emails/batch
+await resend.emails.batch.send([...])
+```
+
+Replace with a loop of individual sends:
+
+```javascript
+async function sendNewsletterEmails(
+  newsletter: { title: string; contentHtml: string },
+  subscribers: { email: string }[]
+): Promise<{ sent: number; failed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let sent = 0;
+
+  for (const subscriber of subscribers) {
+    try {
+      await resend.emails.send({
+        from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+        to: subscriber.email,
+        subject: newsletter.title,
+        html: newsletter.contentHtml,
+      });
+      sent++;
+      // Small delay to avoid Resend rate limits
+      await new Promise(resolve => setTimeout(resolve, 150));
+    } catch (error: any) {
+      console.error(`Failed to send to ${subscriber.email}:`, error?.message);
+      errors.push(`${subscriber.email}: ${error?.message}`);
+    }
+  }
+
+  return { sent, failed: errors.length, errors };
+}
+```
+
+**2. Fix the status update — only mark "sent" if emails actually delivered:**
+
+In the newsletter route handler that calls the dispatch function, change:
+
+```javascript
+// BEFORE (bad): marks sent regardless of Resend response
+await updateNewsletter(id, { status: 'sent', sentAt: new Date(), recipientCount: subscribers.length });
+
+// AFTER (correct): only mark sent if at least one email succeeded
+const result = await sendNewsletterEmails(newsletter, subscribers);
+const status = result.sent > 0 ? 'sent' : 'failed';
+await updateNewsletter(id, {
+  status,
+  sentAt: result.sent > 0 ? new Date() : null,
+  recipientCount: result.sent
+});
+
+// Return delivery report to admin UI
+return { status, sent: result.sent, failed: result.failed, errors: result.errors };
+```
+
+**3. Log dispatch results for debugging:**
+
+```javascript
+console.log(`Newsletter #${id} dispatch: ${result.sent} sent, ${result.failed} failed`);
+if (result.errors.length > 0) {
+  console.error(`Delivery failures:`, result.errors);
+}
+```
+
+---
+
+## CHANGE B: Newsletter Editorial Workflow
+
+The goal is to replace the current "one-click generate-and-send" with a three-phase editorial flow that gives the admin full control over content quality before dispatch.
+
+### Phase 1: Generate Draft
+
+The admin generates a newsletter draft (Insights or Brief) which is saved to the database with status `"draft"`. The admin is then shown the full content for review.
+
+### Phase 2: Review & Revise
+
+The admin can:
+- **Read the full rendered newsletter** in a preview pane (HTML as subscribers would see it)
+- **Chat with the AI agent** to request revisions (e.g., "Make the executive summary tighter", "Add more about solar in East Africa", "Strengthen the data in section 3")
+- **Directly edit** the newsletter markdown/text inline
+- **Regenerate specific sections** with one click
+- See a side-by-side of the current draft and the live preview
+
+### Phase 3: Approve & Send
+
+Only after the admin is satisfied do they click "Approve & Send", which dispatches the finalized newsletter.
+
+---
+
+### B1. New API Endpoints
+
+**File:** `artifacts/api-server/src/routes/newsletter.ts`
+
+Add these endpoints:
+
+```
+GET  /api/admin/newsletter/:id/full      — Get full newsletter content (markdown + HTML) for editing
+PUT  /api/admin/newsletter/:id/content   — Save edited content (manual edits)
+POST /api/admin/newsletter/:id/revise    — AI-powered revision of the newsletter
+POST /api/admin/newsletter/:id/send      — Approve and send a draft newsletter
+```
+
+#### GET /api/admin/newsletter/:id/full
+
+Returns the complete newsletter data for the editorial view:
+
+```javascript
+router.get('/api/admin/newsletter/:id/full', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const newsletter = await getNewsletterById(id);
+  if (!newsletter) return res.status(404).json({ error: 'Newsletter not found' });
+
+  res.json({
+    id: newsletter.id,
+    title: newsletter.title,
+    content: newsletter.content,           // Markdown source
+    contentHtml: newsletter.contentHtml,    // Rendered HTML
+    executiveSummary: newsletter.executiveSummary,
+    type: newsletter.type,
+    status: newsletter.status,
+    projectsAnalyzed: newsletter.projectsAnalyzed,
+    totalInvestmentCovered: newsletter.totalInvestmentCovered,
+    generatedAt: newsletter.generatedAt,
+    // Parse content into sections for section-level editing
+    sections: parseNewsletterSections(newsletter.content),
+  });
+});
+```
+
+Add a helper to parse the markdown into sections:
+
+```javascript
+function parseNewsletterSections(markdown: string): Array<{ heading: string; body: string; index: number }> {
+  const sections: Array<{ heading: string; body: string; index: number }> = [];
+  const lines = markdown.split('\n');
+  let currentSection = { heading: '', body: '', index: 0 };
+  let sectionIndex = 0;
+
+  for (const line of lines) {
+    if (line.match(/^##\s+\d+\.\s+/)) {
+      // New section heading (e.g., "## 1. EXECUTIVE SUMMARY")
+      if (currentSection.heading) {
+        sections.push({ ...currentSection });
+      }
+      currentSection = { heading: line.replace(/^##\s+/, ''), body: '', index: sectionIndex++ };
+    } else {
+      currentSection.body += line + '\n';
+    }
+  }
+  if (currentSection.heading) sections.push(currentSection);
+  return sections;
+}
+```
+
+#### PUT /api/admin/newsletter/:id/content
+
+Saves manual edits to the newsletter content. **CRITICAL:** The `renderNewsletterHtml()` function MUST produce the full branded email template, not just bare HTML tags. See the "Full Email Template Rendering" section below.
+
+```javascript
+router.put('/api/admin/newsletter/:id/content', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { content, title } = req.body;
+
+  if (!content) return res.status(400).json({ error: 'Content is required' });
+
+  // Re-render markdown into the FULL branded email template
+  const contentHtml = renderNewsletterHtml(content, title);
+
+  await updateNewsletter(id, { content, contentHtml, title });
+
+  res.json({ success: true, contentHtml });
+});
+```
+
+#### Full Email Template Rendering — `renderNewsletterHtml()`
+
+This function must produce the **exact same styled HTML** that subscribers receive in their email. It is the single source of truth for how the newsletter looks — used both for the admin Preview tab and for the actual email dispatch.
+
+The function should:
+1. Convert the markdown content to HTML (using `marked`, `markdown-it`, or whatever library is already in use)
+2. Wrap the converted HTML in the **full AfriEnergy email template** — the same branded wrapper used in `email-dispatch.ts`. This includes:
+   - AfriEnergy branded header bar (logo, "AfriEnergy Insights" or "Africa Energy Brief" title)
+   - Proper email-safe CSS (inline styles, not external stylesheets)
+   - Styled section headings with the brand accent color
+   - Tables rendered with borders, padding, and alternating row colors
+   - Bullet lists with proper spacing
+   - Bold/italic text preserved
+   - A branded footer with unsubscribe link, social links, and disclaimer
+   - Responsive layout (max-width container, mobile-friendly padding)
+
+```javascript
+function renderNewsletterHtml(markdown: string, title?: string): string {
+  // Step 1: Convert markdown to HTML
+  const bodyHtml = markdownToHtml(markdown);
+
+  // Step 2: Wrap in the branded email template
+  // This MUST be the same template used by email-dispatch.ts
+  return emailTemplate(bodyHtml, title);
+}
+```
+
+If the email template currently only exists inside `email-dispatch.ts`, extract it into a shared utility (e.g., `services/email-template.ts`) so both the dispatch and the editorial preview use the same template. **The preview and the actual email must be visually identical.**
+
+#### POST /api/admin/newsletter/:id/revise
+
+AI-powered revision. The admin sends a natural-language instruction, and Claude revises the newsletter accordingly:
+
+```javascript
+router.post('/api/admin/newsletter/:id/revise', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { instruction, sectionIndex } = req.body;
+  // instruction: "Make the executive summary more concise"
+  // sectionIndex: optional — if provided, only revise that section
+
+  if (!instruction) return res.status(400).json({ error: 'Revision instruction is required' });
+
+  const newsletter = await getNewsletterById(id);
+  if (!newsletter) return res.status(404).json({ error: 'Newsletter not found' });
+
+  try {
+    const revisedContent = await reviseNewsletter(
+      newsletter.content,
+      instruction,
+      sectionIndex,
+      newsletter.type
+    );
+
+    const contentHtml = renderNewsletterHtml(revisedContent);
+    await updateNewsletter(id, { content: revisedContent, contentHtml });
+
+    res.json({
+      success: true,
+      content: revisedContent,
+      contentHtml,
+      sections: parseNewsletterSections(revisedContent),
+    });
+  } catch (error: any) {
+    console.error('Revision failed:', error);
+    res.status(500).json({ error: 'Revision failed: ' + error.message });
+  }
+});
+```
+
+#### POST /api/admin/newsletter/:id/send
+
+Approve and send a draft newsletter:
+
+```javascript
+router.post('/api/admin/newsletter/:id/send', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const newsletter = await getNewsletterById(id);
+
+  if (!newsletter) return res.status(404).json({ error: 'Newsletter not found' });
+  if (newsletter.status === 'sent') return res.status(400).json({ error: 'Already sent' });
+
+  // Get opted-in subscribers
+  const subscribers = await getOptedInSubscribers();
+
+  // Send using individual sends (not batch!)
+  const result = await sendNewsletterEmails(
+    { title: newsletter.title, contentHtml: newsletter.contentHtml },
+    subscribers
+  );
+
+  const status = result.sent > 0 ? 'sent' : 'failed';
+  await updateNewsletter(id, {
+    status,
+    sentAt: result.sent > 0 ? new Date() : null,
+    recipientCount: result.sent
+  });
+
+  res.json({
+    success: result.sent > 0,
+    sent: result.sent,
+    failed: result.failed,
+    errors: result.errors,
+  });
+});
+```
+
+---
+
+### B2. AI Revision Function
+
+**File:** `artifacts/api-server/src/services/newsletter-generator.ts`
+
+Add a new `reviseNewsletter()` function alongside the existing `generateNewsletter()`:
+
+```javascript
+export async function reviseNewsletter(
+  currentContent: string,
+  instruction: string,
+  sectionIndex?: number,
+  type?: string
+): Promise<string> {
+  let contentToRevise = currentContent;
+  let prefix = '';
+  let suffix = '';
+
+  // If sectionIndex is specified, only send that section to Claude
+  if (sectionIndex !== undefined) {
+    const sections = currentContent.split(/(?=^## \d+\.\s)/m);
+    if (sectionIndex >= 0 && sectionIndex < sections.length) {
+      prefix = sections.slice(0, sectionIndex).join('');
+      contentToRevise = sections[sectionIndex];
+      suffix = sections.slice(sectionIndex + 1).join('');
+    }
+  }
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    system: `You are the editor of the AfriEnergy ${type === 'brief' ? 'Brief' : 'Insights'} newsletter.
+You will be given the current newsletter content (or a section of it) and an editorial instruction.
+Revise the content according to the instruction.
+IMPORTANT RULES:
+- Preserve all factual data, numbers, project names, and dollar amounts exactly as they are
+- Preserve the overall structure and section numbering
+- Only change what the instruction asks for
+- Return ONLY the revised content in the same markdown format — no commentary or explanation
+- Do not add new data or statistics that weren't in the original
+- Keep the same professional tone unless the instruction asks otherwise`,
+    messages: [
+      {
+        role: 'user',
+        content: `## Current Content\n\n${contentToRevise}\n\n## Editorial Instruction\n\n${instruction}\n\nPlease return the revised content only.`
+      }
+    ]
+  });
+
+  const revisedSection = response.content[0].type === 'text' ? response.content[0].text : '';
+
+  // If we split by section, reassemble
+  if (sectionIndex !== undefined) {
+    return prefix + revisedSection + suffix;
+  }
+  return revisedSection;
+}
+```
+
+---
+
+### B3. Admin Frontend — Editorial UI
+
+**File:** The admin page component (likely `artifacts/energy-tracker/src/pages/admin-scraper.tsx` or similar)
+
+Replace the current Newsletter tab with a three-view editorial flow:
+
+#### View 1: Newsletter Hub (default)
+
+This is the landing view when the admin clicks the "Newsletter" tab.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Newsletter & Insights                                               │
+│  AI-powered publications — monthly reports & biweekly briefs         │
+│                                                                       │
+│  ┌────────────────────────────┐  ┌────────────────────────────┐      │
+│  │  📊 AfriEnergy Insights     │  │  ⚡ Africa Energy Brief     │      │
+│  │  Monthly Deep-Dive Report   │  │  Biweekly Quick Update     │      │
+│  │  2,500–3,500 words          │  │  600–900 words             │      │
+│  │  1st Monday of each month   │  │  Every other Monday        │      │
+│  │                              │  │                            │      │
+│  │  [Generate Draft]            │  │  [Generate Draft]          │      │
+│  └────────────────────────────┘  └────────────────────────────┘      │
+│                                                                       │
+│  ┌─ Drafts in Progress ─────────────────────────────────────────┐    │
+│  │  #6  Africa Energy Brief — Apr 9, 2026    Status: draft       │    │
+│  │      Generated 10 min ago                 [Continue Editing]  │    │
+│  └───────────────────────────────────────────────────────────────┘    │
+│                                                                       │
+│  Editions (5)    Subscribers (13)                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Key elements:
+- Two cards for generating each type (Insights / Brief)
+- **"Drafts in Progress"** section showing any newsletters with status "draft" — each with a "Continue Editing" button
+- The existing Editions and Subscribers tabs below
+
+When the admin clicks **"Generate Draft"**, the system:
+1. Calls `POST /api/admin/newsletter/preview` with `{ type: "insights" }` or `{ type: "brief" }`
+2. Shows a loading state: "Generating draft... This may take up to 2 minutes"
+3. When complete, automatically navigates to View 2 (the Editorial Review)
+
+#### View 2: Editorial Workspace (the core new feature)
+
+This is the main editorial workspace. It appears after generating a draft or when clicking "Continue Editing" on an existing draft. It has **three sub-tabs** that the admin can switch between freely: **Preview**, **Editor**, and **AI Revise**.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ← Back to Newsletter Hub                                            │
+│                                                                       │
+│  Editing: Africa Energy Brief #6 — April 9, 2026         [draft]    │
+│                                                                       │
+│  [ Preview ]   [ Editor ]   [ AI Revise ]                            │
+│  ─────────────────────────────────────────────────────────────────    │
+│                                                                       │
+│  (active tab content renders here — see below)                       │
+│                                                                       │
+│  ─────────────────────────────────────────────────────────────────    │
+│  [Regenerate All]                              [Approve & Send ✓]    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+**Sub-tab 1: PREVIEW (pixel-accurate email preview)**
+
+This is NOT a markdown render. This is the **actual final email** as subscribers will receive it — with the full branded HTML template, AfriEnergy header, styled sections, tables, footer, and unsubscribe link.
+
+**How to implement:**
+
+Use an `<iframe>` with `srcdoc` set to the newsletter's `contentHtml` field. The `contentHtml` already contains the full email template (branded header, CSS styles, tables, footer) because the `renderNewsletterHtml()` function wraps the content in the email template. Rendering it inside an iframe ensures:
+- The email's inline CSS doesn't conflict with the admin page styles
+- The admin sees exactly what lands in the subscriber's inbox
+- Tables, fonts, colors, spacing, and layout are all accurate
+
+```tsx
+{/* Preview tab */}
+<div className="border rounded-lg bg-white" style={{ height: '70vh' }}>
+  <iframe
+    srcDoc={activeDraft.contentHtml}
+    title="Newsletter Preview"
+    className="w-full h-full rounded-lg"
+    sandbox="allow-same-origin"
+    style={{ border: 'none' }}
+  />
+</div>
+```
+
+**CRITICAL:** The `contentHtml` stored in the database MUST be the full styled email HTML — not just markdown converted to bare `<p>` and `<h2>` tags. The `renderNewsletterHtml()` function must wrap the content in the same branded email template used by `email-dispatch.ts`:
+- AfriEnergy branded header (logo, title bar)
+- Styled body with proper fonts, colors, padding
+- Tables rendered with borders and alternating row colors
+- Section headings with the AfriEnergy accent color
+- Branded footer with unsubscribe link, social links, disclaimer
+
+If `renderNewsletterHtml()` doesn't already produce a fully styled email, fix it so it does. The same template used for email dispatch should be used for `contentHtml` storage — one source of truth.
+
+---
+
+**Sub-tab 2: EDITOR (full markdown editor for direct manual edits)**
+
+This is a proper editing interface where the admin can directly modify the newsletter text. It is NOT hidden behind a button — it is a first-class tab the admin can enter at any time.
+
+**Layout:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Title:                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │ Africa Energy Brief — April 9, 2026                             │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  Content (Markdown):                                                  │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │ # AFRICA ENERGY BRIEF — Edition #6                              │ │
+│  │ **April 9, 2026 | Biweekly Intelligence Flash**                 │ │
+│  │                                                                   │ │
+│  │ ---                                                               │ │
+│  │                                                                   │ │
+│  │ ## 1. HEADLINE NUMBERS                                            │ │
+│  │                                                                   │ │
+│  │ The tracked Africa energy portfolio stands at **$178.7B across   │ │
+│  │ 298 projects in 44 countries**, with **13 new projects added**   │ │
+│  │ in the last 14 days...                                            │ │
+│  │                                                                   │ │
+│  │ ## 2. DEALS TO WATCH                                              │ │
+│  │                                                                   │ │
+│  │ - **Mozambique First Wind Energy Project**...                     │ │
+│  │                                                                   │ │
+│  │ (full markdown content, scrollable, ~50-80 lines)                 │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  [Save Changes]   [Discard Changes]     Unsaved changes indicator    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key requirements:**
+
+1. **Title field** — editable text input for the newsletter title
+2. **Content textarea** — a large, monospaced `<textarea>` (or a proper code editor like CodeMirror/Monaco if available) showing the full markdown source. It should:
+   - Be at least 60vh tall (enough to see substantial content without excessive scrolling)
+   - Use a monospaced font (`font-family: monospace`) so markdown formatting is easy to read
+   - Have line numbers if possible (nice-to-have)
+   - Support standard text editing: select all, undo/redo, find & replace (browser native)
+3. **[Save Changes]** button — calls `PUT /api/admin/newsletter/:id/content` with the edited `{ content, title }`. On success:
+   - The backend re-renders the markdown to `contentHtml` using the full email template
+   - The Preview tab updates to reflect the saved changes
+   - A success toast appears: "Changes saved"
+4. **[Discard Changes]** button — reverts the textarea to the last saved version. Shows confirmation: "Discard unsaved changes?"
+5. **Unsaved changes indicator** — if the admin has modified the text but not saved, show a yellow dot or text: "Unsaved changes". Also warn if they try to navigate away.
+
+**On save, the backend must:**
+```javascript
+// PUT /api/admin/newsletter/:id/content handler
+const contentHtml = renderNewsletterHtml(content); // Re-render into full email template
+await updateNewsletter(id, { content, contentHtml, title });
+```
+
+This ensures the Preview tab always reflects the latest edits, rendered in the full branded email format.
+
+---
+
+**Sub-tab 3: AI REVISE (conversational AI editing assistant)**
+
+This is where the admin interacts with the AI agent to request changes without manually editing markdown.
+
+**Layout:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                       │
+│  Section:  [ All sections ▾ ]  /  [ 1. Headline Numbers ▾ ]         │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │ Make the executive summary more concise and add a stronger      │ │
+│  │ opening hook about the $178.7B portfolio                        │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│  [Revise]                                                             │
+│                                                                       │
+│  Quick actions:                                                       │
+│  [Shorten]  [Strengthen data]  [More concise]  [Improve flow]        │
+│  [Simplify language]  [Add analysis]  [Fix formatting]               │
+│                                                                       │
+│  ─── Revision History ───────────────────────────────────────────    │
+│                                                                       │
+│  ▸ "Made exec summary more concise" — 2 min ago        [Undo]       │
+│  ▸ "Strengthened data references in section 3" — 5 min ago [Undo]   │
+│  ▸ Original draft — 12 min ago                                       │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key elements:**
+
+1. **Section selector dropdown** — choose "All sections" to revise the entire newsletter, or pick a specific section (e.g., "2. Deals to Watch") to revise only that part. This maps to the `sectionIndex` parameter in the API.
+
+2. **Instruction text area** — where the admin types what they want changed. Examples:
+   - "Make the executive summary more concise"
+   - "Add more detail about solar projects in East Africa"
+   - "Strengthen the data citations in section 3"
+   - "Rewrite section 4 with a more analytical tone"
+   - "The deal sizes in section 2 seem wrong — double check against the database"
+
+3. **[Revise] button** — calls `POST /api/admin/newsletter/:id/revise` with `{ instruction, sectionIndex }`. Shows a loading state: "AI is revising..." (this can take 10-30 seconds). When complete, both the Preview and Editor tabs update with the revised content.
+
+4. **Quick action buttons** — pre-built revision instructions:
+   - "Shorten" → `"Make this 30% shorter while keeping all key data points and dollar amounts"`
+   - "Strengthen data" → `"Add more specific numbers, project names, and dollar amounts from the data"`
+   - "More concise" → `"Tighten the prose. Remove filler words and redundant sentences. Be direct."`
+   - "Improve flow" → `"Improve transitions between paragraphs and the overall narrative flow"`
+   - "Simplify language" → `"Use simpler language. Avoid jargon. Make it readable for a non-specialist audience."`
+   - "Add analysis" → `"Add more analytical commentary. Don't just state facts — explain what they mean and why they matter."`
+   - "Fix formatting" → `"Fix any markdown formatting issues. Ensure consistent heading levels, bullet styles, and bold/italic usage."`
+
+5. **Revision history with Undo** — each revision is logged with the instruction text and timestamp. Each entry has an **[Undo]** button that reverts the content to the state before that revision. This requires storing previous content versions in frontend state (an array of `{ content, contentHtml, instruction, timestamp }`).
+
+---
+
+**Bottom action bar (always visible across all sub-tabs):**
+
+- **[Regenerate All]** — Completely regenerates the newsletter from scratch. Shows a confirmation: "This will discard all edits and generate a fresh draft. Continue?"
+- **[Approve & Send ✓]** — The final dispatch button. Shows a confirmation dialog:
+
+```
+┌──────────────────────────────────────┐
+│  Ready to send?                       │
+│                                       │
+│  Africa Energy Brief #6              │
+│  → 13 opted-in subscribers           │
+│                                       │
+│  This cannot be undone.              │
+│                                       │
+│  [Cancel]           [Send Now ✓]     │
+└──────────────────────────────────────┘
+```
+
+Clicking "Send Now" calls `POST /api/admin/newsletter/:id/send`. After sending:
+- Show a success toast: "Newsletter sent to 13 subscribers"
+- Or show error details: "Sent to 11 of 13 subscribers. 2 failures: [details]"
+- Navigate back to View 1 (Newsletter Hub)
+
+#### View 3: Edition Detail (read-only, for past sent newsletters)
+
+When clicking on a past edition in the Editions list, show a read-only preview with delivery stats. This already partially exists but should now show:
+- Full rendered HTML preview
+- Delivery stats: "Sent to 13 subscribers on Apr 9, 2026 at 09:26 UTC"
+- Type badge: "Monthly Insights" or "Biweekly Brief"
+- [Download PDF] button
+
+---
+
+### B4. Frontend State Management
+
+In the admin page component, add state for the editorial workflow:
+
+```typescript
+// Newsletter editorial state
+const [editorialView, setEditorialView] = useState<'hub' | 'workspace' | 'detail'>('hub');
+const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'ai-revise'>('preview');
+const [activeNewsletterId, setActiveNewsletterId] = useState<number | null>(null);
+const [activeDraft, setActiveDraft] = useState<any>(null);
+
+// Editor tab state
+const [editedTitle, setEditedTitle] = useState('');
+const [editedContent, setEditedContent] = useState('');
+const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+// AI Revise tab state
+const [revisionInstruction, setRevisionInstruction] = useState('');
+const [selectedSectionIndex, setSelectedSectionIndex] = useState<number | undefined>(undefined);
+const [isRevising, setIsRevising] = useState(false);
+const [revisionHistory, setRevisionHistory] = useState<Array<{
+  instruction: string;
+  timestamp: Date;
+  previousContent: string;
+  previousContentHtml: string;
+}>>([]);
+
+// General
+const [isGenerating, setIsGenerating] = useState(false);
+const [isSending, setIsSending] = useState(false);
+```
+
+Key functions:
+
+```typescript
+// Generate a new draft
+async function generateDraft(type: 'insights' | 'brief') {
+  setIsGenerating(true);
+  const res = await fetch('/api/admin/newsletter/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type }),
+  });
+  const { jobId } = await res.json();
+  // Poll for completion...
+  // When done, fetch the draft and switch to editor view
+  const draft = await fetchNewsletterFull(draftId);
+  setActiveDraft(draft);
+  setEditorialView('editor');
+  setIsGenerating(false);
+}
+
+// AI revision
+async function reviseContent(instruction: string, sectionIndex?: number) {
+  setIsRevising(true);
+  const res = await fetch(`/api/admin/newsletter/${activeNewsletterId}/revise`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ instruction, sectionIndex }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    setActiveDraft(prev => ({ ...prev, content: data.content, contentHtml: data.contentHtml, sections: data.sections }));
+    setRevisionHistory(prev => [{ instruction, timestamp: new Date() }, ...prev]);
+  }
+  setIsRevising(false);
+}
+
+// Save manual edits
+async function saveContent(content: string) {
+  const res = await fetch(`/api/admin/newsletter/${activeNewsletterId}/content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    setActiveDraft(prev => ({ ...prev, content, contentHtml: data.contentHtml }));
+  }
+}
+
+// Approve & Send
+async function approveAndSend() {
+  setIsSending(true);
+  const res = await fetch(`/api/admin/newsletter/${activeNewsletterId}/send`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  setIsSending(false);
+  if (data.success) {
+    // Show success, return to hub
+    setEditorialView('hub');
+    refreshNewsletters();
+  } else {
+    // Show error with details
+  }
+}
+```
+
+---
+
+### B5. Update the Newsletter Tab Copy
+
+- Change heading from "Newsletter & Insights" to "Newsletter & Insights"  (keep)
+- Change subtitle from "AI-generated weekly briefings — generation, history, subscribers" to "AI-powered publications — monthly reports & biweekly briefs"
+- Change "Generate Newsletter" to the two-card layout described in View 1
+- In the Editions list, add type badges:
+  - `insights` → amber badge: "Monthly Insights"
+  - `brief` → blue badge: "Biweekly Brief"
+- Add status badges: "draft" (yellow), "sent" (green), "failed" (red)
+
+---
+
+## IMPLEMENTATION ORDER
+
+1. **Fix email dispatch FIRST** (Change A) — this is the critical blocker; newsletters are generated but never delivered
+2. Add the editorial API endpoints (B1) — `GET /full`, `PUT /content`, `POST /revise`, `POST /send`
+3. Add the `reviseNewsletter()` AI function (B2)
+4. Build the frontend editorial views (B3, B4, B5)
+5. Test the full flow: Generate Draft → Review → Revise with AI → Approve & Send → Verify email arrives
+
+---
+
+## TESTING CHECKLIST
+
+After implementing all changes:
+
+**Email delivery:**
+1. ✅ Check Resend Logs → `POST /emails → 200` for each subscriber (NOT `/emails/batch → 403`)
+2. ✅ Check Resend Emails page → individual newsletter emails appear (not just magic links)
+3. ✅ Newsletter actually arrives in inbox
+4. ✅ If some sends fail, admin sees the failure count and error details
+
+**Editorial workflow:**
+5. ✅ Generate a Brief draft from admin → newsletter saved with status "draft", workspace opens
+6. ✅ **Preview tab** renders the newsletter in the full branded email template inside an iframe — looks exactly like the actual email (header, styled sections, tables, footer, unsubscribe link)
+7. ✅ **Editor tab** shows a full markdown editor with the newsletter source — admin can edit title, rewrite sections, fix typos, restructure content freely
+8. ✅ Saving in the Editor tab re-renders the HTML — switching to Preview shows the changes in the branded template
+9. ✅ **AI Revise tab** — type a revision instruction → AI revises → Preview and Editor tabs both update
+10. ✅ Section selector works — can revise just one section or the whole newsletter
+11. ✅ Quick action buttons send the right revision instructions
+12. ✅ Revision history shows all past revisions with Undo capability
+13. ✅ "Approve & Send" dispatches to all subscribers after confirmation dialog
+14. ✅ Drafts persist — navigating away and back shows "Drafts in Progress" with "Continue Editing"
+15. ✅ Past sent editions show as read-only preview with delivery stats

@@ -7,7 +7,7 @@ import {
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
-  ChevronRight, ExternalLink,
+  ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -559,9 +559,24 @@ function QueueSection({ pendingItems, pendingCount, setPendingItems, setPendingC
 }
 
 // ── Newsletter Section ─────────────────────────────────────────────────────────
-type PubType = "insights" | "brief";
-type GenMode = "preview" | "send";
-type ActiveGen = `${PubType}-${GenMode}` | null;
+type NlPubType = "insights" | "brief";
+type NlView = "hub" | "workspace";
+type WorkspaceTab = "preview" | "editor" | "ai-revise";
+
+interface NewsletterFull extends Newsletter {
+  content: string;
+  contentHtml: string | null;
+  previewHtml: string;
+  sections: Array<{ heading: string; body: string; index: number }>;
+}
+
+interface RevisionEntry {
+  instruction: string;
+  timestamp: Date;
+  previousContent: string;
+  previousContentHtml: string;
+  previousPreviewHtml: string;
+}
 
 function NlTypeBadge({ type }: { type?: string }) {
   if (type === "brief") {
@@ -570,99 +585,435 @@ function NlTypeBadge({ type }: { type?: string }) {
   return <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold shrink-0">Monthly Insights</span>;
 }
 
+function NlStatusBadge({ status }: { status: string }) {
+  const cls = status === "sent" ? "bg-green-500/10 text-green-400 border-green-500/20"
+    : status === "failed" ? "bg-red-500/10 text-red-400 border-red-500/20"
+    : status === "draft" ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+    : "bg-muted text-muted-foreground border-border";
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border shrink-0 ${cls}`}>{status}</span>;
+}
+
 function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, loadSubscribers }: {
   newsletters: Newsletter[];
   subscriberStats: { total: number; optedIn: number; optedOut: number; subscribers: Subscriber[] } | null;
   loadNewsletters: () => Promise<void>;
   loadSubscribers: () => Promise<void>;
 }) {
-  const [generating, setGenerating] = useState<ActiveGen>(null);
-  const [genResult, setGenResult] = useState<{ title: string; status: string; recipientCount?: number; pubType: PubType } | null>(null);
-  const [genError, setGenError] = useState<{ message: string; pubType: PubType } | null>(null);
-  const [showFullError, setShowFullError] = useState(false);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [expandedContent, setExpandedContent] = useState<Record<number, string>>({});
-  const [activeTab, setActiveTab] = useState<"editions" | "subscribers">("editions");
+  // Hub state
+  const [generating, setGenerating] = useState<NlPubType | null>(null);
+  const [genError, setGenError] = useState<{ message: string; pubType: NlPubType } | null>(null);
+  const [hubTab, setHubTab] = useState<"editions" | "subscribers">("editions");
 
-  async function triggerGenerate(pubType: PubType, mode: GenMode) {
-    const key: ActiveGen = `${pubType}-${mode}`;
-    setGenerating(key); setGenResult(null); setGenError(null); setShowFullError(false);
+  // Editorial workspace state
+  const [nlView, setNlView] = useState<NlView>("hub");
+  const [activeDraft, setActiveDraft] = useState<NewsletterFull | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("preview");
+
+  // Editor tab state
+  const [editedTitle, setEditedTitle] = useState("");
+  const [editedContent, setEditedContent] = useState("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // AI Revise tab state
+  const [revisionInstruction, setRevisionInstruction] = useState("");
+  const [selectedSection, setSelectedSection] = useState<number | undefined>(undefined);
+  const [isRevising, setIsRevising] = useState(false);
+  const [revisionHistory, setRevisionHistory] = useState<RevisionEntry[]>([]);
+
+  // Send state
+  const [isSending, setIsSending] = useState(false);
+  const [sendConfirm, setSendConfirm] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; success: boolean } | null>(null);
+
+  async function openWorkspace(id: number) {
+    const res = await fetch(`${API}/admin/newsletter/${id}/full`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to load newsletter");
+    const data: NewsletterFull = await res.json();
+    setActiveDraft(data);
+    setEditedTitle(data.title);
+    setEditedContent(data.content ?? "");
+    setHasUnsavedChanges(false);
+    setRevisionHistory([]);
+    setRevisionInstruction("");
+    setSelectedSection(undefined);
+    setSendResult(null);
+    setNlView("workspace");
+    setWorkspaceTab("preview");
+  }
+
+  async function generateDraft(type: NlPubType) {
+    setGenerating(type); setGenError(null);
     try {
-      // Insights uses /preview or /generate; Brief uses /preview-brief or /generate-brief
-      const endpointMap: Record<string, string> = {
-        "insights-preview": "/admin/newsletter/preview",
-        "insights-send":    "/admin/newsletter/generate",
-        "brief-preview":    "/admin/newsletter/preview-brief",
-        "brief-send":       "/admin/newsletter/generate-brief",
-      };
-      const endpoint = endpointMap[key];
+      const endpoint = type === "insights" ? "/admin/newsletter/preview" : "/admin/newsletter/preview-brief";
       const startRes = await fetch(`${API}${endpoint}`, { method: "POST", headers: authHeaders() });
-      if (!startRes.ok) {
-        const err = await startRes.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error ?? "Failed to start generation");
-      }
+      if (!startRes.ok) throw new Error((await startRes.json().catch(() => ({}))).error ?? "Failed to start");
       const { jobId } = await startRes.json();
-      if (!jobId) throw new Error("No job ID returned from server");
-
-      // Poll for completion (every 4 seconds, up to 10 minutes)
-      const maxAttempts = 150;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      for (let i = 0; i < 150; i++) {
         await new Promise(r => setTimeout(r, 4000));
-        const pollRes = await fetch(`${API}/admin/newsletter/job/${jobId}`, { headers: authHeaders() });
-        if (!pollRes.ok) {
-          const err = await pollRes.json().catch(() => ({ error: "Unknown error" }));
-          throw new Error(err.error ?? "Generation failed");
-        }
-        const poll = await pollRes.json();
+        const poll = await fetch(`${API}/admin/newsletter/job/${jobId}`, { headers: authHeaders() }).then(r => r.json());
         if (poll.status === "running") continue;
         if (poll.status === "error") throw new Error(poll.error ?? "Generation failed");
-        setGenResult({ title: poll.title, status: poll.status, recipientCount: poll.recipientCount, pubType });
         await loadNewsletters();
+        await openWorkspace(poll.id);
         return;
       }
-      throw new Error("Generation timed out after 10 minutes — please try again");
+      throw new Error("Timed out after 10 minutes");
     } catch (err: any) {
-      setGenError({ message: err.message ?? "Failed to generate", pubType });
+      setGenError({ message: err.message ?? "Failed to generate", pubType: type });
     } finally {
       setGenerating(null);
     }
   }
 
-  async function loadContent(id: number) {
-    if (expandedContent[id]) { setExpanded(prev => prev === id ? null : id); return; }
+  async function saveContent() {
+    if (!activeDraft) return;
+    setIsSaving(true);
     try {
-      const res = await fetch(`${API}/newsletters/${id}`, { headers: authHeaders() });
+      const res = await fetch(`${API}/admin/newsletter/${activeDraft.id}/content`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ content: editedContent, title: editedTitle }),
+      });
       const data = await res.json();
-      setExpandedContent(prev => ({ ...prev, [id]: data.content ?? "" }));
-      setExpanded(id);
-    } catch { /* ignore */ }
+      if (data.success) {
+        setActiveDraft(prev => prev ? { ...prev, content: editedContent, title: editedTitle, contentHtml: data.contentHtml, previewHtml: data.previewHtml } : prev);
+        setHasUnsavedChanges(false);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   }
 
+  async function reviseContent(instruction: string, sectionIndex?: number) {
+    if (!activeDraft || !instruction.trim()) return;
+    const historyEntry: RevisionEntry = {
+      instruction,
+      timestamp: new Date(),
+      previousContent: activeDraft.content ?? "",
+      previousContentHtml: activeDraft.contentHtml ?? "",
+      previousPreviewHtml: activeDraft.previewHtml,
+    };
+    setIsRevising(true);
+    try {
+      const res = await fetch(`${API}/admin/newsletter/${activeDraft.id}/revise`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ instruction, sectionIndex }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRevisionHistory(prev => [historyEntry, ...prev]);
+        setActiveDraft(prev => prev ? { ...prev, content: data.content, contentHtml: data.contentHtml, previewHtml: data.previewHtml, sections: data.sections } : prev);
+        setEditedContent(data.content);
+        setRevisionInstruction("");
+      } else {
+        alert("Revision failed: " + (data.error ?? "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Revision failed: " + (err.message ?? "Unknown error"));
+    } finally {
+      setIsRevising(false);
+    }
+  }
+
+  function undoRevision(index: number) {
+    const entry = revisionHistory[index];
+    if (!activeDraft || !entry) return;
+    setActiveDraft(prev => prev ? { ...prev, content: entry.previousContent, contentHtml: entry.previousContentHtml, previewHtml: entry.previousPreviewHtml } : prev);
+    setEditedContent(entry.previousContent);
+    setRevisionHistory(prev => prev.slice(index + 1));
+  }
+
+  async function approveAndSend() {
+    if (!activeDraft) return;
+    setIsSending(true);
+    try {
+      const res = await fetch(`${API}/admin/newsletter/${activeDraft.id}/send`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      setSendResult({ sent: data.sent ?? 0, success: data.success });
+      if (data.success) {
+        await loadNewsletters();
+        setTimeout(() => {
+          setSendConfirm(false);
+          setSendResult(null);
+          setNlView("hub");
+          setActiveDraft(null);
+        }, 3000);
+      }
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  const drafts = newsletters.filter(n => n.status === "draft" || n.status === "preview");
   const sentCount = newsletters.filter(n => n.status === "sent").length;
   const insightsCount = newsletters.filter(n => !n.type || n.type === "insights").length;
   const briefCount = newsletters.filter(n => n.type === "brief").length;
 
-  const pubCards: { type: PubType; label: string; subtitle: string; detail: string; cadence: string; border: string; badgeCls: string }[] = [
-    {
-      type: "insights",
-      label: "AfriEnergy Insights",
-      subtitle: "Monthly Deep-Dive",
-      detail: "2,500–3,500 words + charts",
-      cadence: "Published 1st Monday of each month",
-      border: "border-primary/30",
-      badgeCls: "bg-primary/10 text-primary",
-    },
-    {
-      type: "brief",
-      label: "Africa Energy Brief",
-      subtitle: "Biweekly Quick Update",
-      detail: "600–900 words · 3–5 min read",
-      cadence: "Published every other Monday",
-      border: "border-blue-500/30",
-      badgeCls: "bg-blue-500/10 text-blue-400",
-    },
+  const pubCards: { type: NlPubType; label: string; subtitle: string; detail: string; cadence: string; border: string; badgeCls: string }[] = [
+    { type: "insights", label: "AfriEnergy Insights", subtitle: "Monthly Deep-Dive", detail: "2,500–3,500 words + charts", cadence: "1st Monday of each month", border: "border-primary/30", badgeCls: "bg-primary/10 text-primary" },
+    { type: "brief", label: "Africa Energy Brief", subtitle: "Biweekly Quick Update", detail: "600–900 words · 3–5 min read", cadence: "Every other Monday", border: "border-blue-500/30", badgeCls: "bg-blue-500/10 text-blue-400" },
   ];
 
+  // ── WORKSPACE VIEW ──────────────────────────────────────────────────────────
+  if (nlView === "workspace" && activeDraft) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Send confirmation modal */}
+        {sendConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+              {sendResult ? (
+                sendResult.success ? (
+                  <div className="text-center">
+                    <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-4" />
+                    <p className="text-lg font-bold text-foreground mb-1">Sent!</p>
+                    <p className="text-sm text-muted-foreground">Newsletter sent to {sendResult.sent} subscribers.</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <XCircle className="w-10 h-10 text-red-400 mx-auto mb-4" />
+                    <p className="text-lg font-bold text-foreground mb-1">Delivery failed</p>
+                    <p className="text-sm text-muted-foreground">0 of {subscriberStats?.optedIn ?? "?"} emails delivered.</p>
+                    <button onClick={() => { setSendConfirm(false); setSendResult(null); }} className="mt-4 px-4 py-2 rounded-lg border border-border text-sm">Close</button>
+                  </div>
+                )
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-5">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                    <p className="text-base font-bold text-foreground">Ready to send?</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-1 font-medium truncate">{activeDraft.title}</p>
+                  <p className="text-sm text-muted-foreground mb-6">→ {subscriberStats?.optedIn ?? "?"} opted-in subscribers</p>
+                  <p className="text-xs text-muted-foreground/70 mb-6">This cannot be undone.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setSendConfirm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+                    <button onClick={approveAndSend} disabled={isSending} className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                      {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      {isSending ? "Sending…" : "Send Now"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex items-center gap-4 px-8 py-4 border-b border-border/50 bg-card/20 shrink-0">
+          <button onClick={() => { setNlView("hub"); setActiveDraft(null); }} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div className="w-px h-5 bg-border/50" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-foreground truncate">{activeDraft.title}</p>
+              <NlTypeBadge type={activeDraft.type} />
+              <NlStatusBadge status={activeDraft.status} />
+            </div>
+          </div>
+          <button onClick={() => { loadNewsletters(); loadSubscribers(); }} className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex items-center px-8 border-b border-border/40 bg-background shrink-0">
+          {([
+            { id: "preview", label: "Preview", icon: <Eye className="w-3.5 h-3.5" /> },
+            { id: "editor", label: "Editor", icon: <Edit3 className="w-3.5 h-3.5" /> },
+            { id: "ai-revise", label: "AI Revise", icon: <Bot className="w-3.5 h-3.5" /> },
+          ] as const).map(t => (
+            <button key={t.id} onClick={() => setWorkspaceTab(t.id)}
+              className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-all ${workspaceTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-auto px-8 py-6 min-h-0">
+          {/* PREVIEW TAB */}
+          {workspaceTab === "preview" && (
+            <div className="rounded-xl overflow-hidden border border-border/30 bg-muted/10" style={{ height: "70vh" }}>
+              <iframe
+                srcDoc={activeDraft.previewHtml}
+                title="Newsletter Preview"
+                className="w-full h-full"
+                sandbox="allow-same-origin"
+                style={{ border: "none" }}
+              />
+            </div>
+          )}
+
+          {/* EDITOR TAB */}
+          {workspaceTab === "editor" && (
+            <div className="space-y-4 max-w-4xl">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Title</label>
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={e => { setEditedTitle(e.target.value); setHasUnsavedChanges(true); }}
+                  className="w-full px-4 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Content (Markdown)</label>
+                  {hasUnsavedChanges && (
+                    <span className="flex items-center gap-1 text-[11px] text-amber-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" /> Unsaved changes
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={editedContent}
+                  onChange={e => { setEditedContent(e.target.value); setHasUnsavedChanges(true); }}
+                  className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"
+                  style={{ fontFamily: "monospace", fontSize: "13px", lineHeight: "1.65", height: "60vh" }}
+                  spellCheck={false}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveContent}
+                  disabled={isSaving || !hasUnsavedChanges}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isSaving ? "Saving…" : saveSuccess ? "✓ Saved" : "Save Changes"}
+                </button>
+                <button
+                  onClick={() => { if (confirm("Discard unsaved changes?")) { setEditedTitle(activeDraft.title); setEditedContent(activeDraft.content ?? ""); setHasUnsavedChanges(false); } }}
+                  disabled={!hasUnsavedChanges}
+                  className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Discard Changes
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* AI REVISE TAB */}
+          {workspaceTab === "ai-revise" && (
+            <div className="space-y-6 max-w-3xl">
+              {/* Section selector */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Section</label>
+                <select
+                  value={selectedSection ?? "all"}
+                  onChange={e => setSelectedSection(e.target.value === "all" ? undefined : parseInt(e.target.value))}
+                  className="px-3 py-2 rounded-xl bg-card border border-border text-foreground text-sm focus:outline-none focus:border-primary/50"
+                >
+                  <option value="all">All sections</option>
+                  {(activeDraft.sections ?? []).map(s => (
+                    <option key={s.index} value={s.index}>{s.heading}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Instruction input */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Revision instruction</label>
+                <textarea
+                  value={revisionInstruction}
+                  onChange={e => setRevisionInstruction(e.target.value)}
+                  placeholder='e.g. "Make the executive summary more concise and add a stronger opening hook"'
+                  className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"
+                  rows={4}
+                />
+              </div>
+
+              <button
+                onClick={() => reviseContent(revisionInstruction, selectedSection)}
+                disabled={isRevising || !revisionInstruction.trim()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRevising ? <><Loader2 className="w-4 h-4 animate-spin" /> AI is revising…</> : <><Bot className="w-4 h-4" /> Revise</>}
+              </button>
+
+              {/* Quick actions */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Quick actions</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Shorten", prompt: "Make this 30% shorter while keeping all key data points and dollar amounts" },
+                    { label: "Strengthen data", prompt: "Add more specific numbers, project names, and dollar amounts from the data" },
+                    { label: "More concise", prompt: "Tighten the prose. Remove filler words and redundant sentences. Be direct." },
+                    { label: "Improve flow", prompt: "Improve transitions between paragraphs and the overall narrative flow" },
+                    { label: "Simplify language", prompt: "Use simpler language. Avoid jargon. Make it readable for a non-specialist audience." },
+                    { label: "Add analysis", prompt: "Add more analytical commentary. Don't just state facts — explain what they mean and why they matter." },
+                    { label: "Fix formatting", prompt: "Fix any markdown formatting issues. Ensure consistent heading levels, bullet styles, and bold/italic usage." },
+                  ].map(qa => (
+                    <button
+                      key={qa.label}
+                      onClick={() => reviseContent(qa.prompt, selectedSection)}
+                      disabled={isRevising}
+                      className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {qa.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Revision history */}
+              {revisionHistory.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Revision history</p>
+                  <div className="space-y-2">
+                    {revisionHistory.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-foreground/80 truncate">"{entry.instruction}"</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{ago(entry.timestamp.toISOString())}</p>
+                        </div>
+                        <button
+                          onClick={() => undoRevision(i)}
+                          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Undo
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom action bar */}
+        <div className="shrink-0 border-t border-border/50 px-8 py-4 flex items-center justify-between bg-card/20">
+          <button
+            onClick={() => { if (confirm("This will discard all edits and generate a fresh draft. Continue?")) { setNlView("hub"); setActiveDraft(null); } }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" /> Regenerate All
+          </button>
+          <button
+            onClick={() => setSendConfirm(true)}
+            disabled={activeDraft.status === "sent"}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
+          >
+            <Send className="w-4 h-4" />
+            {activeDraft.status === "sent" ? "Already Sent" : "Approve & Send"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── HUB VIEW ───────────────────────────────────────────────────────────────
   return (
     <div className="p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-8">
@@ -679,9 +1030,9 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Total Editions", value: newsletters.length, icon: <Newspaper className="w-4 h-4" />, color: "text-primary" },
-          { label: "Sent",           value: sentCount,          icon: <Send className="w-4 h-4" />,     color: "text-green-400" },
-          { label: "Subscribers",    value: subscriberStats?.optedIn ?? "—", icon: <Users className="w-4 h-4" />, color: "text-cyan-400" },
-          { label: "Total Users",    value: subscriberStats?.total ?? "—",   icon: <Mail className="w-4 h-4" />, color: "text-blue-400" },
+          { label: "Sent", value: sentCount, icon: <Send className="w-4 h-4" />, color: "text-green-400" },
+          { label: "Subscribers", value: subscriberStats?.optedIn ?? "—", icon: <Users className="w-4 h-4" />, color: "text-cyan-400" },
+          { label: "Total Users", value: subscriberStats?.total ?? "—", icon: <Mail className="w-4 h-4" />, color: "text-blue-400" },
         ].map(({ label, value, icon, color }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4">
             <div className={`flex items-center gap-2 ${color} mb-2`}>{icon}<span className="text-xs font-medium uppercase tracking-wider">{label}</span></div>
@@ -693,15 +1044,12 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
         ))}
       </div>
 
-      {/* Two-card generation controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      {/* Generation cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {pubCards.map(card => {
-          const isAnyGenerating = !!generating;
-          const isPreviewRunning = generating === `${card.type}-preview`;
-          const isSendRunning = generating === `${card.type}-send`;
-          const cardResult = genResult?.pubType === card.type ? genResult : null;
+          const isRunning = generating === card.type;
+          const isAnyRunning = !!generating;
           const cardError = genError?.pubType === card.type ? genError : null;
-
           return (
             <div key={card.type} className={`bg-card border ${card.border} rounded-xl overflow-hidden`}>
               <div className="px-5 py-4 border-b border-border/60">
@@ -710,53 +1058,23 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                 </div>
                 <h2 className="font-bold text-foreground text-sm">{card.label}</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{card.detail}</p>
-                <p className="text-[11px] text-muted-foreground/70 mt-0.5">{card.cadence}</p>
+                <p className="text-[11px] text-muted-foreground/60 mt-0.5">{card.cadence}</p>
               </div>
               <div className="px-5 py-4 space-y-3">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  <strong className="text-foreground">Preview</strong> saves without emailing.{" "}
-                  <strong className="text-foreground">Generate & Send</strong> dispatches to all opted-in subscribers.
-                </p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => triggerGenerate(card.type, "preview")}
-                    disabled={isAnyGenerating}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isPreviewRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                    {isPreviewRunning ? "Generating…" : "Preview"}
-                  </button>
-                  <button
-                    onClick={() => triggerGenerate(card.type, "send")}
-                    disabled={isAnyGenerating}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSendRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    {isSendRunning ? "Sending…" : "Generate & Send"}
-                  </button>
-                </div>
-                {(isPreviewRunning || isSendRunning) && (
-                  <p className="text-[11px] text-muted-foreground animate-pulse">AI is generating content — this takes 2–3 minutes…</p>
-                )}
-                {cardResult && (
-                  <div className="p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-                    <p className="text-xs font-medium text-green-400 mb-0.5">
-                      {cardResult.status === "sent" ? `✓ Sent to ${cardResult.recipientCount ?? 0} subscribers` : "✓ Preview generated — saved to Editions"}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">{cardResult.title}</p>
-                  </div>
-                )}
+                <p className="text-xs text-muted-foreground leading-relaxed">Generate a draft to review and revise before sending to subscribers.</p>
+                <button
+                  onClick={() => generateDraft(card.type)}
+                  disabled={isAnyRunning}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Edit3 className="w-3.5 h-3.5" />}
+                  {isRunning ? "Generating draft…" : "Generate Draft"}
+                </button>
+                {isRunning && <p className="text-[11px] text-muted-foreground animate-pulse">AI is generating content — this takes 2–3 minutes…</p>}
                 {cardError && (
                   <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
-                    <p className="text-xs font-semibold text-red-400 mb-1">✗ Generation failed</p>
-                    <p className="text-[11px] text-red-400/80 break-words">
-                      {showFullError ? cardError.message : cardError.message.slice(0, 200)}{cardError.message.length > 200 && !showFullError && "…"}
-                    </p>
-                    {cardError.message.length > 200 && (
-                      <button onClick={() => setShowFullError(v => !v)} className="text-[10px] text-muted-foreground hover:text-foreground mt-1 underline">
-                        {showFullError ? "Show less" : "Show full error"}
-                      </button>
-                    )}
+                    <p className="text-xs font-semibold text-red-400 mb-0.5">✗ Generation failed</p>
+                    <p className="text-[11px] text-red-400/80 break-words">{cardError.message.slice(0, 250)}</p>
                   </div>
                 )}
               </div>
@@ -765,16 +1083,43 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
         })}
       </div>
 
+      {/* Drafts in Progress */}
+      {drafts.length > 0 && (
+        <div className="mb-8">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Drafts in Progress</p>
+          <div className="space-y-2">
+            {drafts.map(nl => (
+              <div key={nl.id} className="flex items-center gap-4 px-5 py-3.5 bg-card border border-amber-500/20 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 text-xs font-bold text-amber-400">#{nl.editionNumber}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-foreground truncate">{nl.title}</p>
+                    <NlTypeBadge type={nl.type} />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Generated {ago(nl.generatedAt)}</p>
+                </div>
+                <button
+                  onClick={() => openWorkspace(nl.id).catch(err => alert(err.message))}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> Continue Editing
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabs: Editions / Subscribers */}
       <div className="flex items-center gap-0 mb-6 border-b border-border/40">
         {(["editions", "subscribers"] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all capitalize ${activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <button key={tab} onClick={() => setHubTab(tab)} className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all capitalize ${hubTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {tab === "editions" ? `Editions (${newsletters.length})` : `Subscribers (${subscriberStats?.optedIn ?? "…"})`}
           </button>
         ))}
       </div>
 
-      {activeTab === "editions" && (
+      {hubTab === "editions" && (
         <div className="space-y-3">
           {newsletters.length === 0 ? (
             <div className="text-center py-16 bg-card border border-border rounded-xl">
@@ -789,7 +1134,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <p className="text-sm font-medium text-foreground truncate">{nl.title}</p>
                     <NlTypeBadge type={nl.type} />
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${nl.status === "sent" ? "bg-green-500/10 text-green-400" : nl.status === "failed" ? "bg-red-500/10 text-red-400" : "bg-muted text-muted-foreground"}`}>{nl.status}</span>
+                    <NlStatusBadge status={nl.status} />
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
                     <span>Generated {fmtDate(nl.generatedAt)}</span>
@@ -800,23 +1145,22 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                     {nl.spotlightCountry && <span>🌍 {nl.spotlightCountry}</span>}
                   </div>
                 </div>
-                <button onClick={() => loadContent(nl.id)} className="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-border text-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all">
-                  {expanded === nl.id ? "Collapse" : "Read"}
-                </button>
+                {(nl.status === "draft" || nl.status === "preview") ? (
+                  <button onClick={() => openWorkspace(nl.id).catch(err => alert(err.message))} className="shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-primary/30 text-primary font-medium hover:bg-primary/5 transition-all">
+                    <Edit3 className="w-3 h-3" /> Edit
+                  </button>
+                ) : (
+                  <button onClick={() => openWorkspace(nl.id).catch(err => alert(err.message))} className="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-border text-muted-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all">
+                    <Eye className="w-3 h-3 inline mr-1" /> View
+                  </button>
+                )}
               </div>
-              {expanded === nl.id && expandedContent[nl.id] && (
-                <div className="px-5 pb-5 border-t border-border/50 pt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/80 text-sm leading-relaxed whitespace-pre-wrap">
-                    {expandedContent[nl.id].slice(0, 3000)}{expandedContent[nl.id].length > 3000 && "…"}
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
       )}
 
-      {activeTab === "subscribers" && (
+      {hubTab === "subscribers" && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           {!subscriberStats ? (
             <div className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>

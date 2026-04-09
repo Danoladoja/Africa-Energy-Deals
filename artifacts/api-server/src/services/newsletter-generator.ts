@@ -703,6 +703,56 @@ export async function generateBrief(periodDays = 14): Promise<GeneratedNewslette
   };
 }
 
+// ── AI-powered editorial revision ─────────────────────────────────────────────
+
+export async function reviseNewsletter(
+  currentContent: string,
+  instruction: string,
+  sectionIndex?: number,
+  type?: string
+): Promise<string> {
+  let contentToRevise = currentContent;
+  let prefix = "";
+  let suffix = "";
+
+  if (sectionIndex !== undefined) {
+    const sections = currentContent.split(/(?=^## \d+\.\s)/m);
+    if (sectionIndex >= 0 && sectionIndex < sections.length) {
+      prefix = sections.slice(0, sectionIndex).join("");
+      contentToRevise = sections[sectionIndex];
+      suffix = sections.slice(sectionIndex + 1).join("");
+    }
+  }
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    system: `You are the editor of the AfriEnergy ${type === "brief" ? "Brief" : "Insights"} newsletter.
+You will be given the current newsletter content (or a section of it) and an editorial instruction.
+Revise the content according to the instruction.
+IMPORTANT RULES:
+- Preserve all factual data, numbers, project names, and dollar amounts exactly as they are
+- Preserve the overall structure and section numbering
+- Only change what the instruction asks for
+- Return ONLY the revised content in the same markdown format — no commentary or explanation
+- Do not add new data or statistics that weren't in the original
+- Keep the same professional tone unless the instruction asks otherwise`,
+    messages: [
+      {
+        role: "user",
+        content: `## Current Content\n\n${contentToRevise}\n\n## Editorial Instruction\n\n${instruction}\n\nPlease return the revised content only.`,
+      },
+    ],
+  });
+
+  const revisedSection = response.content[0].type === "text" ? response.content[0].text : "";
+
+  if (sectionIndex !== undefined) {
+    return prefix + revisedSection + suffix;
+  }
+  return revisedSection;
+}
+
 // ── Save newsletter (works for both Insights and Brief) ───────────────────────
 
 export async function saveNewsletter(newsletter: GeneratedNewsletter): Promise<number> {

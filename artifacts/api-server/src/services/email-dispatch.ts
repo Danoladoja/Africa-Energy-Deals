@@ -408,3 +408,29 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
 export async function dispatchBrief(newsletterId: number): Promise<number> {
   return dispatchNewsletter(newsletterId);
 }
+
+export function buildFullEmailHtml(newsletter: {
+  title: string;
+  content: string;
+  contentHtml?: string | null;
+  editionNumber: number;
+  id?: number;
+  type?: string | null;
+}): string {
+  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("Africa Energy Brief");
+  if (isBrief) {
+    return buildBriefEmailHtml({
+      title: newsletter.title,
+      content: newsletter.content,
+      contentHtml: newsletter.contentHtml,
+      editionNumber: newsletter.editionNumber,
+    });
+  }
+  return buildNewsletterEmailHtml({
+    title: newsletter.title,
+    content: newsletter.content,
+    contentHtml: newsletter.contentHtml,
+    editionNumber: newsletter.editionNumber,
+    id: newsletter.id ?? 0,
+  });
+}

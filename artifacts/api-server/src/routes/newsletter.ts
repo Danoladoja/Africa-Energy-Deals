@@ -1,9 +1,26 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, newslettersTable, userEmailsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
-import { generateNewsletter, generateBrief, saveNewsletter } from "../services/newsletter-generator.js";
-import { dispatchNewsletter, dispatchBrief } from "../services/email-dispatch.js";
+import { generateNewsletter, generateBrief, saveNewsletter, reviseNewsletter, markdownToHtml } from "../services/newsletter-generator.js";
+import { dispatchNewsletter, dispatchBrief, buildFullEmailHtml } from "../services/email-dispatch.js";
 import { isValidAdminToken } from "../middleware/adminAuth.js";
+
+function parseNewsletterSections(markdown: string): Array<{ heading: string; body: string; index: number }> {
+  const sections: Array<{ heading: string; body: string; index: number }> = [];
+  const lines = markdown.split("\n");
+  let currentSection = { heading: "", body: "", index: 0 };
+  let sectionIndex = 0;
+  for (const line of lines) {
+    if (line.match(/^##\s+\d+\.\s+/)) {
+      if (currentSection.heading) sections.push({ ...currentSection });
+      currentSection = { heading: line.replace(/^##\s+/, ""), body: "", index: sectionIndex++ };
+    } else {
+      currentSection.body += line + "\n";
+    }
+  }
+  if (currentSection.heading) sections.push(currentSection);
+  return sections;
+}
 
 function requireAdmin(req: Request, res: Response): boolean {
   const bearer = req.headers.authorization?.startsWith("Bearer ")
@@ -326,6 +343,178 @@ router.post("/admin/newsletter/generate-brief", (req: Request, res: Response): v
       jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
     }
   })();
+});
+
+// ─── Editorial Workflow Endpoints ────────────────────────────────────────────
+
+// GET /api/admin/newsletter/:id/full — full content + sections + preview HTML
+router.get("/admin/newsletter/:id/full", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
+  try {
+    const [nl] = await db
+      .select({
+        id: newslettersTable.id,
+        editionNumber: newslettersTable.editionNumber,
+        title: newslettersTable.title,
+        content: newslettersTable.content,
+        contentHtml: newslettersTable.contentHtml,
+        executiveSummary: newslettersTable.executiveSummary,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+        projectsAnalyzed: newslettersTable.projectsAnalyzed,
+        totalInvestmentCovered: newslettersTable.totalInvestmentCovered,
+        generatedAt: newslettersTable.generatedAt,
+        sentAt: newslettersTable.sentAt,
+        status: newslettersTable.status,
+        recipientCount: newslettersTable.recipientCount,
+        type: newslettersTable.type,
+      })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, id))
+      .limit(1);
+
+    if (!nl) { res.status(404).json({ error: "Newsletter not found" }); return; }
+
+    const previewHtml = buildFullEmailHtml({
+      title: nl.title,
+      content: nl.content ?? "",
+      contentHtml: nl.contentHtml,
+      editionNumber: nl.editionNumber,
+      id: nl.id,
+      type: nl.type,
+    });
+
+    res.json({
+      ...nl,
+      sections: parseNewsletterSections(nl.content ?? ""),
+      previewHtml,
+    });
+  } catch (err) {
+    console.error("[Newsletter] Full get error:", err);
+    res.status(500).json({ error: "Failed to fetch newsletter" });
+  }
+});
+
+// PUT /api/admin/newsletter/:id/content — save manual edits
+router.put("/admin/newsletter/:id/content", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
+  const { content, title } = req.body ?? {};
+  if (!content) { res.status(400).json({ error: "content is required" }); return; }
+
+  try {
+    const [existing] = await db
+      .select({ editionNumber: newslettersTable.editionNumber, type: newslettersTable.type, title: newslettersTable.title })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, id))
+      .limit(1);
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+    const contentHtml = markdownToHtml(content);
+    const finalTitle = title ?? existing.title;
+
+    await db.execute(sql`
+      UPDATE newsletters SET content = ${content}, content_html = ${contentHtml}, title = ${finalTitle}
+      WHERE id = ${id}
+    `);
+
+    const previewHtml = buildFullEmailHtml({
+      title: finalTitle,
+      content,
+      contentHtml,
+      editionNumber: existing.editionNumber,
+      id,
+      type: existing.type,
+    });
+
+    res.json({ success: true, contentHtml, previewHtml });
+  } catch (err) {
+    console.error("[Newsletter] Content update error:", err);
+    res.status(500).json({ error: "Failed to save content" });
+  }
+});
+
+// POST /api/admin/newsletter/:id/revise — AI-powered revision
+router.post("/admin/newsletter/:id/revise", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
+  const { instruction, sectionIndex } = req.body ?? {};
+  if (!instruction) { res.status(400).json({ error: "instruction is required" }); return; }
+
+  try {
+    const [nl] = await db
+      .select({
+        content: newslettersTable.content,
+        title: newslettersTable.title,
+        editionNumber: newslettersTable.editionNumber,
+        type: newslettersTable.type,
+      })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, id))
+      .limit(1);
+    if (!nl) { res.status(404).json({ error: "Not found" }); return; }
+
+    const revisedContent = await reviseNewsletter(
+      nl.content ?? "",
+      instruction,
+      sectionIndex,
+      nl.type ?? undefined
+    );
+
+    const contentHtml = markdownToHtml(revisedContent);
+
+    await db.execute(sql`
+      UPDATE newsletters SET content = ${revisedContent}, content_html = ${contentHtml} WHERE id = ${id}
+    `);
+
+    const previewHtml = buildFullEmailHtml({
+      title: nl.title,
+      content: revisedContent,
+      contentHtml,
+      editionNumber: nl.editionNumber,
+      id,
+      type: nl.type,
+    });
+
+    res.json({
+      success: true,
+      content: revisedContent,
+      contentHtml,
+      previewHtml,
+      sections: parseNewsletterSections(revisedContent),
+    });
+  } catch (err: any) {
+    console.error("[Newsletter] Revise error:", err);
+    res.status(500).json({ error: "Revision failed: " + (err.message ?? "Unknown error") });
+  }
+});
+
+// POST /api/admin/newsletter/:id/send — approve and dispatch a draft
+router.post("/admin/newsletter/:id/send", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
+
+  try {
+    const [nl] = await db
+      .select({ status: newslettersTable.status })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, id))
+      .limit(1);
+    if (!nl) { res.status(404).json({ error: "Newsletter not found" }); return; }
+    if (nl.status === "sent") { res.status(400).json({ error: "Already sent" }); return; }
+
+    const sent = await dispatchNewsletter(id);
+
+    res.json({ success: sent > 0, sent, failed: 0, errors: [] });
+  } catch (err: any) {
+    console.error("[Newsletter] Send error:", err);
+    res.status(500).json({ error: "Send failed: " + (err.message ?? "Unknown error") });
+  }
 });
 
 // GET /api/admin/subscribers — subscriber stats (admin only)
