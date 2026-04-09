@@ -19,7 +19,7 @@ const VALID_DEAL_STAGES = ["Announced", "Mandated", "Financial Close", "Construc
 const ALLOWED_UPDATE_FIELDS = [
   "projectName", "country", "region", "technology", "status",
   "dealSizeUsdMn", "capacityMw", "yearAnnounced", "latitude", "longitude",
-  "description", "newsUrl", "sourceUrl",
+  "description", "newsUrl", "newsUrl2", "sourceUrl",
   // Deal lifecycle & enriched fields
   "dealStage", "developer", "financiers", "dfiInvolvement", "offtaker",
   "financialCloseDate", "commissioningDate", "announcementDate",
@@ -64,7 +64,7 @@ router.get("/projects", async (req, res) => {
       page = "1", limit = "50",
     } = req.query;
 
-    const conditions = [];
+    const conditions = [eq(projectsTable.reviewStatus, "approved")];
     if (country) conditions.push(ilike(projectsTable.country, String(country)));
     if (region) conditions.push(ilike(projectsTable.region, String(region)));
     if (technology) conditions.push(ilike(projectsTable.technology, String(technology)));
@@ -81,7 +81,7 @@ router.get("/projects", async (req, res) => {
     if (hasGrant === "true") conditions.push(isNotNull(projectsTable.grantComponent));
 
     const offset = (Number(page) - 1) * Number(limit);
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const [projects, countResult] = await Promise.all([
       db.select().from(projectsTable).where(whereClause).limit(Number(limit)).offset(Math.max(0, Number(offset) || 0)).orderBy(projectsTable.id),
@@ -103,6 +103,7 @@ router.get("/projects/latest", async (req, res) => {
     const projects = await db
       .select()
       .from(projectsTable)
+      .where(eq(projectsTable.reviewStatus, "approved"))
       .orderBy(desc(projectsTable.createdAt), desc(projectsTable.announcedYear))
       .limit(limit);
     res.json({ projects });
@@ -112,12 +113,15 @@ router.get("/projects/latest", async (req, res) => {
   }
 });
 
-// GET single project by ID
+// GET single project by ID (approved only for public access)
 router.get("/projects/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid project ID" });
-    const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
+    const [project] = await db
+      .select()
+      .from(projectsTable)
+      .where(and(eq(projectsTable.id, id), eq(projectsTable.reviewStatus, "approved")));
     if (!project) return res.status(404).json({ error: "Project not found" });
     res.json(project);
   } catch (error) {

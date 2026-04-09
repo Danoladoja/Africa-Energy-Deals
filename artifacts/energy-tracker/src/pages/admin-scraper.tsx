@@ -64,6 +64,7 @@ interface Project {
   description: string | null;
   sourceUrl: string | null;
   newsUrl: string | null;
+  newsUrl2: string | null;
   reviewStatus: string;
   discoveredAt: string | null;
   confidenceScore: number | null;
@@ -277,7 +278,13 @@ export default function AdminScraperPage() {
     }
   }
 
-  async function reviewItem(id: number, action: ReviewAction) {
+  async function reviewItem(id: number, action: ReviewAction, project?: Project) {
+    if (action === "approve" && project && !project.newsUrl2) {
+      const proceed = window.confirm(
+        `"${project.projectName}" only has ${[project.sourceUrl, project.newsUrl].filter(Boolean).length}/3 sources (no secondary news source). It is recommended to add a second news source before approving for stronger data integrity.\n\nApprove anyway?`
+      );
+      if (!proceed) return;
+    }
     setReviewActions((prev) => ({ ...prev, [id]: "loading" }));
     try {
       await fetch(`${API}/scraper/review/${id}`, {
@@ -672,14 +679,29 @@ export default function AdminScraperPage() {
                         {project.financiers && (
                           <p className="text-xs text-muted-foreground mt-0.5">Financiers: <span className="text-foreground/70">{project.financiers}</span></p>
                         )}
-                        {(project.sourceUrl || project.newsUrl) && (
-                          <a
-                            href={project.sourceUrl ?? project.newsUrl ?? "#"}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline mt-0.5 block truncate"
-                          >
-                            {project.sourceUrl ?? project.newsUrl}
+                        {/* Source completeness badge */}
+                        {(() => {
+                          const count = [project.sourceUrl, project.newsUrl, project.newsUrl2].filter(Boolean).length;
+                          const cls = count === 3 ? "text-green-400 bg-green-400/10 border-green-500/20" : count >= 2 ? "text-amber-400 bg-amber-400/10 border-amber-500/20" : "text-red-400 bg-red-400/10 border-red-500/20";
+                          return (
+                            <span className={`inline-flex items-center text-xs px-1.5 py-0.5 rounded border font-medium mt-0.5 ${cls}`}>
+                              {count}/3 sources
+                            </span>
+                          );
+                        })()}
+                        {project.sourceUrl && (
+                          <a href={project.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-0.5 block truncate">
+                            Source: {project.sourceUrl}
+                          </a>
+                        )}
+                        {project.newsUrl && (
+                          <a href={project.newsUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline mt-0.5 block truncate">
+                            News 1: {project.newsUrl}
+                          </a>
+                        )}
+                        {project.newsUrl2 && (
+                          <a href={project.newsUrl2} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-300 hover:underline mt-0.5 block truncate">
+                            News 2: {project.newsUrl2}
                           </a>
                         )}
                       </div>
@@ -698,7 +720,7 @@ export default function AdminScraperPage() {
                         ) : (
                           <>
                             <button
-                              onClick={() => reviewItem(project.id, "approve")}
+                              onClick={() => reviewItem(project.id, "approve", project)}
                               className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors"
                               title="Approve"
                             >

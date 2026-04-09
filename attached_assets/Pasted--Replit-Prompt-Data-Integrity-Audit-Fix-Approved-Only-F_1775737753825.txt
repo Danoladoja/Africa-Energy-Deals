@@ -1,0 +1,485 @@
+# Replit Prompt — Data Integrity Audit Fix: Approved-Only Filtering & News Source Expansion
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** HIGH — unapproved/unvetted projects are visible across the entire live app
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance badge, conversation history, newsletter generation, admin panel review queue, magic-link auth, and the auto-discovery scraper pipeline all work correctly. These changes target ONLY:
+1. **Backend API query filtering** — add `WHERE review_status = 'approved'` to all public-facing endpoints
+2. **Database schema** — add a `news_url_2` column for a second news source
+3. **Frontend display** — show source provenance badges and dual news sources
+4. **Admin review queue** — require 2 news sources before approval
+5. **AI/Newsletter data pipeline** — ensure only approved projects feed into AI insights and newsletters
+
+**Do NOT touch:** Auth flows, scraper logic, the auto-discovery pipeline, admin panel structure, or the newsletter editorial workflow.
+
+---
+
+## DIAGNOSIS — DATA INTEGRITY AUDIT RESULTS
+
+### The Core Problem: Zero Filtering on Public API
+
+The `GET /api/projects` endpoint returns **ALL 298 projects** regardless of their `reviewStatus`. There is no server-side filtering. Every page — landing, map, studio, insights, AI chatbot, and newsletters — consumes this unfiltered data.
+
+### Audit Findings (Live Data as of April 9, 2026)
+
+| Metric | All Projects (current) | Approved Only (correct) | Inflation |
+|---|---|---|---|
+| Total projects | 298 | 157 | +141 ghost projects (47%) |
+| Total investment | $178.7B | $115.4B | **+$63.2B false investment** |
+| Countries | 44 | 40 | +4 ghost countries |
+| Map pins (with coordinates) | 144 | 99 | +45 unapproved pins |
+
+### Review Status Breakdown
+
+- **Approved:** 157 (52.7%) — vetted, should be visible
+- **Rejected:** 90 (30.2%) — disqualified, should NEVER appear
+- **Needs Source:** 39 (13.1%) — awaiting source verification
+- **Pending:** 12 (4.0%) — newly auto-discovered, not yet reviewed
+
+### What Each Page Currently Shows (ALL BROKEN)
+
+1. **Landing page `/`** — "Latest Deals" section shows `pending` auto-discovered projects (confirmed: Ghana Floating Solar #792, Adani Kenya #791 with `reviewStatus: "pending"`)
+2. **Investment Map `/map`** — plots 144 pins including 45 unapproved projects with coordinates
+3. **Data Studio `/studio`** — all charts, filters, and stats computed from 298 unfiltered projects
+4. **AI Insights `/insights`** — AI chatbot receives all 298 projects as context, so its analysis includes unvetted data
+5. **Newsletter generator** — generates insights from unfiltered project data
+6. **Landing page stats** — hero section shows inflated "$178.7B in tracked investments" and "44 countries"
+
+### Source Coverage Gaps
+
+- **0** approved projects are missing `sourceUrl` (good)
+- **15** approved projects are missing `newsUrl` (needs attention)
+- **No `newsUrl2` field exists** — schema only supports 1 news source per project
+- User wants **2 news source URLs** per project for data integrity
+
+---
+
+## CHANGE 1: Add Approved-Only Filtering to All Public API Endpoints (CRITICAL)
+
+### Problem
+The `GET /api/projects` endpoint (and any other public endpoints) returns all projects regardless of review status. Rejected, pending, and needs_source projects appear on the live site.
+
+### File: `artifacts/api-server/src/routes/projects.ts` (or wherever project routes are defined)
+
+### What to do:
+
+**A. Add a default `reviewStatus = 'approved'` filter to the main GET /api/projects endpoint:**
+
+Find the query that fetches projects for the public API. It currently does something like:
+
+```javascript
+// BROKEN — returns everything including rejected/pending projects
+const projects = await db.query('SELECT * FROM projects ORDER BY created_at DESC LIMIT $1', [limit]);
+```
+
+Or if using Drizzle ORM:
+```javascript
+const projects = await db.select().from(projectsTable).orderBy(desc(projectsTable.createdAt)).limit(limit);
+```
+
+**Add a WHERE clause that filters by reviewStatus for all public (non-admin) requests:**
+
+```javascript
+// CORRECT — only return approved projects to public endpoints
+const projects = await db.select()
+  .from(projectsTable)
+  .where(eq(projectsTable.reviewStatus, 'approved'))
+  .orderBy(desc(projectsTable.createdAt))
+  .limit(limit);
+```
+
+Or in raw SQL:
+```sql
+SELECT * FROM projects WHERE review_status = 'approved' ORDER BY created_at DESC LIMIT $1
+```
+
+**B. Keep the admin endpoints unfiltered:**
+
+The admin routes (e.g., `GET /api/admin/projects`, or any route behind admin auth) should continue to return ALL projects so the admin can review, approve, and reject. If admin routes share the same handler, add a parameter:
+
+```javascript
+// Public route — approved only
+router.get('/api/projects', (req, res) => {
+  const reviewStatus = 'approved'; // ALWAYS approved for public
+  // ... query with WHERE review_status = 'approved'
+});
+
+// Admin route — all statuses, with optional filter
+router.get('/api/admin/projects', adminAuth, (req, res) => {
+  const reviewStatus = req.query.reviewStatus; // optional filter for admin UI
+  // ... query with optional WHERE clause
+});
+```
+
+**C. Apply the same filter to ALL public endpoints that serve project data:**
+
+Search the entire codebase for any endpoint that queries the `projects` table and returns data to the frontend. Common ones to check:
+
+- `GET /api/projects` — main project list ← ADD FILTER
+- `GET /api/projects/:id` — individual project detail ← ADD FILTER (reject if not approved, unless admin)
+- `GET /api/projects/search` or any search endpoint ← ADD FILTER
+- Any stats/aggregation endpoint ← ADD FILTER
+- Any endpoint that feeds data to the AI chatbot ← ADD FILTER
+- The newsletter generator's data-fetching query ← ADD FILTER
+
+**D. Update the AI chat/insights endpoint:**
+
+Find where the AI chatbot receives project data as context (likely in the `/api/chat` or `/api/insights` handler, or in the system prompt builder). Ensure it only receives approved projects:
+
+```javascript
+// In the chat handler or system prompt builder
+const projects = await db.select()
+  .from(projectsTable)
+  .where(eq(projectsTable.reviewStatus, 'approved'))
+  .orderBy(desc(projectsTable.createdAt));
+
+// Pass only these to the AI context
+const systemPrompt = `You have access to ${projects.length} vetted energy projects...`;
+```
+
+**E. Update the newsletter generator's data query:**
+
+In `artifacts/api-server/src/services/newsletter-generator.ts`, find where it fetches projects to generate newsletter content. Add the approved filter:
+
+```javascript
+// In generateNewsletter() or similar function
+const projects = await db.select()
+  .from(projectsTable)
+  .where(eq(projectsTable.reviewStatus, 'approved'))
+  .orderBy(desc(projectsTable.createdAt));
+```
+
+---
+
+## CHANGE 2: Fix Landing Page Stats to Use Approved-Only Data
+
+### Problem
+The landing page hero section displays inflated statistics because it counts all 298 projects instead of the 157 approved ones. This shows "$178.7B" instead of the correct "$115.4B".
+
+### File: The landing page component (likely `artifacts/energy-tracker/src/pages/home.tsx` or `index.tsx` or `landing.tsx`)
+
+### What to do:
+
+**A. If stats are computed client-side from the projects array:**
+
+After Change 1 fixes the API to return only approved projects, the client-side stats will automatically correct themselves. Verify after deploying Change 1.
+
+**B. If there's a dedicated stats endpoint or the stats are hardcoded:**
+
+Search for any `/api/stats` or `/api/dashboard` endpoint, or look for hardcoded numbers in the frontend. Update to query only approved projects:
+
+```javascript
+const stats = await db.query(`
+  SELECT
+    COUNT(*) as total_projects,
+    COUNT(DISTINCT country) as total_countries,
+    COALESCE(SUM(deal_size_usd_mn), 0) as total_investment_mn
+  FROM projects
+  WHERE review_status = 'approved'
+`);
+```
+
+**C. Expected corrected stats after fix:**
+- Projects: **157** (not 298)
+- Investment: **~$115.4B** (not $178.7B)
+- Countries: **40** (not 44)
+
+---
+
+## CHANGE 3: Add Second News Source Field to Database Schema
+
+### Problem
+Each project currently has only one `newsUrl` field. For better data integrity and source verification, we need a second news source URL.
+
+### File: `lib/db/src/schema/projects.ts` (Drizzle ORM schema) AND database migration
+
+### What to do:
+
+**A. Add `newsUrl2` column to the Drizzle schema:**
+
+In the projects schema file, add alongside the existing `newsUrl`:
+
+```javascript
+// Existing field
+newsUrl: text('news_url'),
+
+// NEW — second news source
+newsUrl2: text('news_url_2'),
+```
+
+**B. Create and run the database migration:**
+
+⚠️ **CRITICAL: You MUST run the actual SQL migration against PostgreSQL.** Just adding the column to the Drizzle schema is NOT enough — the `type` column bug proved this. Run:
+
+```sql
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS news_url_2 TEXT;
+```
+
+You can either:
+1. Use `npx drizzle-kit push` to sync the schema, OR
+2. Add a migration file and run it, OR
+3. Run the ALTER TABLE directly against the Railway PostgreSQL database
+
+**Verify the column exists after migration:**
+```sql
+SELECT column_name FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'news_url_2';
+```
+
+**C. Update the project API responses to include the new field:**
+
+Make sure `newsUrl2` appears in the project JSON response alongside `newsUrl`. If the API uses `SELECT *`, it will automatically include it. If it selects specific columns, add `news_url_2` to the select list.
+
+**D. Update any project creation/update endpoints to accept `newsUrl2`:**
+
+In the admin project edit endpoint (likely `PUT /api/admin/projects/:id` or similar):
+
+```javascript
+// Accept newsUrl2 in the request body
+const { newsUrl, newsUrl2, ...otherFields } = req.body;
+
+// Include in the update query
+await db.update(projectsTable)
+  .set({ newsUrl, newsUrl2, ...otherFields })
+  .where(eq(projectsTable.id, projectId));
+```
+
+---
+
+## CHANGE 4: Update Admin Review Queue to Show and Require News Sources
+
+### Problem
+The admin review interface needs to display both news source fields and encourage reviewers to add a second source before approving.
+
+### File: The admin scraper/review page component (likely `artifacts/energy-tracker/src/pages/admin-scraper.tsx`)
+
+### What to do:
+
+**A. Add a second news URL input field in the project review/edit form:**
+
+Find the form that displays when reviewing a project. It currently has fields for `sourceUrl` and `newsUrl`. Add `newsUrl2`:
+
+```jsx
+{/* Existing */}
+<label>Primary News Source</label>
+<input value={project.newsUrl} onChange={...} placeholder="https://..." />
+
+{/* NEW */}
+<label>Secondary News Source</label>
+<input value={project.newsUrl2} onChange={...} placeholder="https://... (recommended)" />
+```
+
+**B. Add a visual indicator for source completeness:**
+
+In the project review list, show a source completeness badge:
+
+```jsx
+// Source completeness indicator
+const sourceScore = [project.sourceUrl, project.newsUrl, project.newsUrl2].filter(Boolean).length;
+const sourceLabel = sourceScore === 3 ? '3/3 Sources ✓' : `${sourceScore}/3 Sources`;
+const sourceColor = sourceScore === 3 ? 'green' : sourceScore >= 2 ? 'amber' : 'red';
+```
+
+Display this badge next to each project in the review queue so the admin can quickly see which projects need more sources.
+
+**C. Add a soft warning (NOT a hard block) when approving with fewer than 2 news sources:**
+
+When the admin clicks "Approve" on a project that has no `newsUrl2`:
+
+```jsx
+const handleApprove = (project) => {
+  if (!project.newsUrl2) {
+    const proceed = window.confirm(
+      'This project has only 1 news source. It is recommended to add a second source for data integrity. Approve anyway?'
+    );
+    if (!proceed) return;
+  }
+  // proceed with approval
+  approveProject(project.id);
+};
+```
+
+**Important:** This should be a soft warning, NOT a hard requirement. The admin should be able to approve with 1 source if they judge the primary source sufficient.
+
+---
+
+## CHANGE 5: Update Frontend Source Provenance Display
+
+### Problem
+The live site should show source provenance for transparency, displaying both news source links when available.
+
+### File: Project detail pages and project cards throughout the frontend
+
+### What to do:
+
+**A. Update project cards/list items to show source count:**
+
+Wherever projects are displayed (landing page deals list, map popups, studio table, etc.), add a small source indicator:
+
+```jsx
+{/* Source provenance badge */}
+<span className="text-xs text-gray-500">
+  {project.newsUrl2 ? '2 sources' : project.newsUrl ? '1 source' : 'No news source'}
+</span>
+```
+
+**B. Update project detail view to show both news links:**
+
+If there's a project detail modal or page, display both sources:
+
+```jsx
+<div className="sources">
+  <h4>Sources</h4>
+  {project.sourceUrl && (
+    <a href={project.sourceUrl} target="_blank" rel="noopener">Primary Source ↗</a>
+  )}
+  {project.newsUrl && (
+    <a href={project.newsUrl} target="_blank" rel="noopener">News Source 1 ↗</a>
+  )}
+  {project.newsUrl2 && (
+    <a href={project.newsUrl2} target="_blank" rel="noopener">News Source 2 ↗</a>
+  )}
+</div>
+```
+
+**C. Update the map popup to include source links:**
+
+In the map component, when a user clicks a pin, the popup should show the source links for that project.
+
+---
+
+## CHANGE 6: Update Auto-Discovery Pipeline Default Status
+
+### Problem
+Auto-discovered projects currently arrive with `reviewStatus: 'pending'` but they're visible on the live site because there's no filtering. After Change 1 adds the approved-only filter, newly discovered projects will correctly be hidden until reviewed. Verify this works.
+
+### File: `artifacts/api-server/src/services/scraper.ts` or wherever auto-discovery inserts new projects
+
+### What to do:
+
+**A. Verify that auto-discovered projects are inserted with `reviewStatus: 'pending'`:**
+
+Check the INSERT query for new auto-discovered projects. It should already set:
+```javascript
+reviewStatus: 'pending',
+isAutoDiscovered: true,
+```
+
+If it does, no change needed — Change 1's filter will automatically hide them until an admin reviews and approves them.
+
+**B. If auto-discovered projects are inserted WITHOUT a reviewStatus (defaulting to null):**
+
+Fix the insert to always set a status:
+```javascript
+await db.insert(projectsTable).values({
+  ...projectData,
+  reviewStatus: 'pending',  // MUST be set explicitly
+  isAutoDiscovered: true,
+  discoveredAt: new Date(),
+});
+```
+
+**C. Also verify the database has a DEFAULT value for the column:**
+
+```sql
+ALTER TABLE projects ALTER COLUMN review_status SET DEFAULT 'pending';
+```
+
+This ensures any project inserted without an explicit reviewStatus gets `pending` (hidden from public) rather than `null` (which could bypass the filter).
+
+---
+
+## CHANGE 7: Add Data Provenance to Newsletter Generator
+
+### Problem
+The newsletter generator should only use approved project data, and should mention source counts in generated content for credibility.
+
+### File: `artifacts/api-server/src/services/newsletter-generator.ts`
+
+### What to do:
+
+**A. Filter projects to approved-only (already covered in Change 1E above)**
+
+**B. Include source quality metadata in the AI prompt:**
+
+When passing project data to Claude for newsletter generation, include the source information:
+
+```javascript
+const projectSummaries = projects.map(p => ({
+  name: p.projectName,
+  country: p.country,
+  technology: p.technology,
+  dealSize: p.dealSizeUsdMn,
+  sourceUrl: p.sourceUrl,
+  newsUrl: p.newsUrl,
+  newsUrl2: p.newsUrl2,
+  sourceCount: [p.sourceUrl, p.newsUrl, p.newsUrl2].filter(Boolean).length,
+}));
+
+// In the system prompt or user message to Claude:
+const prompt = `
+  Generate a newsletter based on these ${projects.length} vetted and approved energy projects.
+  All projects have been reviewed and verified by our editorial team.
+  Projects with multiple news sources have stronger verification.
+  ...
+`;
+```
+
+---
+
+## After All Changes — Testing Checklist
+
+### Phase 1: API Filtering (Change 1)
+1. `GET /api/projects` — verify it returns exactly **157 projects** (all with `reviewStatus: 'approved'`)
+2. `GET /api/projects` — verify NO project in the response has `reviewStatus` of `rejected`, `pending`, or `needs_source`
+3. `GET /api/projects/:id` with a rejected project ID — should return 404 or forbidden
+4. Admin routes (`/api/admin/projects`) — should still return all 298 projects
+
+### Phase 2: Frontend Verification (Changes 2, 5)
+5. Landing page hero stats should show ~**157 projects**, ~**$115.4B**, ~**40 countries**
+6. Landing page "Latest Deals" should show ONLY approved projects
+7. Map at `/map` should show ~**99 pins** (not 144)
+8. Studio at `/studio` charts and filters should reflect approved-only data
+9. AI chatbot at `/insights` should base its analysis on 157 approved projects only
+
+### Phase 3: Schema & Admin (Changes 3, 4)
+10. Run: `SELECT column_name FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'news_url_2';` — should return 1 row
+11. Admin review page shows both newsUrl and newsUrl2 input fields
+12. Editing a project and saving a newsUrl2 value persists correctly
+13. Source completeness badge appears in the review queue
+
+### Phase 4: Newsletter & AI (Changes 1E, 7)
+14. Generate a newsletter preview — verify it references only approved projects
+15. AI chat: ask "How many projects are tracked?" — should answer ~157, not 298
+
+### Phase 5: Auto-Discovery Pipeline (Change 6)
+16. Verify any newly auto-discovered project appears in admin review queue with `pending` status
+17. Verify the newly discovered project does NOT appear on any public page
+
+---
+
+## Summary of All Changes
+
+| Change | Priority | File(s) | What |
+|---|---|---|---|
+| 1 | CRITICAL | `projects.ts` routes, chat handler, newsletter generator | Add `WHERE review_status = 'approved'` to ALL public endpoints |
+| 2 | HIGH | Landing page component | Fix hero stats to reflect approved-only data |
+| 3 | HIGH | Drizzle schema + DB migration | Add `news_url_2` column |
+| 4 | MEDIUM | Admin scraper page | Add second newsUrl field, source completeness badge, soft warning |
+| 5 | MEDIUM | Frontend project cards/detail/map | Show source provenance (dual news links) |
+| 6 | MEDIUM | Scraper/auto-discovery service | Verify pending default status + DB column default |
+| 7 | LOW | Newsletter generator | Pass source metadata to AI, use approved-only data |
+
+### Critical Implementation Order
+1. **First:** Change 1 (approved-only API filtering) — this is the foundation; everything else depends on it
+2. **Second:** Change 3 (database migration for newsUrl2) — schema must exist before UI can use it
+3. **Third:** Changes 2, 4, 5 (frontend updates) — can be done in parallel
+4. **Fourth:** Changes 6, 7 (pipeline and newsletter) — verification and enhancement
+
+### Root Cause
+The application was built without a data access layer that distinguishes between "all data" (admin) and "public data" (approved only). The `reviewStatus` field exists and the admin review queue works, but the approval gate was never enforced on the API endpoints that serve data to the public frontend. Every page consumes the same unfiltered `GET /api/projects` endpoint.

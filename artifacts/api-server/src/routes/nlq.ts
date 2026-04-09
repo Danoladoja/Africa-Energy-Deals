@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable } from "@workspace/db";
-import { ilike, and, gte, lte } from "drizzle-orm";
+import { ilike, and, gte, lte, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -99,8 +99,8 @@ router.post("/nlq", async (req, res) => {
       filters = {};
     }
 
-    // Step 2: Query the database with extracted filters
-    const conditions = [];
+    // Step 2: Query the database with extracted filters (approved only)
+    const conditions = [eq(projectsTable.reviewStatus, "approved")];
     if (filters.country)     conditions.push(ilike(projectsTable.country,    filters.country));
     if (filters.region)      conditions.push(ilike(projectsTable.region,     filters.region));
     if (filters.technology)  conditions.push(ilike(projectsTable.technology, filters.technology));
@@ -111,7 +111,7 @@ router.post("/nlq", async (req, res) => {
     if (filters.yearMin)     conditions.push(gte(projectsTable.announcedYear, Number(filters.yearMin)));
     if (filters.yearMax)     conditions.push(lte(projectsTable.announcedYear, Number(filters.yearMax)));
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
     const projects = await db
       .select()
       .from(projectsTable)

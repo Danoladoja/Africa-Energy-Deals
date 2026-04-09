@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable, newslettersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -104,10 +105,14 @@ router.post("/chat", async (req: Request, res: Response): Promise<void> => {
   };
 
   try {
-    // Query the database for relevant project data
+    // Query the database for relevant project data (approved only)
     let projects: any[] = [];
     try {
-      projects = await db.select().from(projectsTable).limit(500);
+      projects = await db
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.reviewStatus, "approved"))
+        .limit(500);
     } catch (dbErr) {
       console.error("[Chat] DB query error:", dbErr);
     }

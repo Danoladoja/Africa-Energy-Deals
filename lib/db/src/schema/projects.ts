@@ -19,6 +19,7 @@ export const projectsTable = pgTable("energy_projects", {
   closedYear: integer("closed_year"),
   sourceUrl: text("source_url"),
   newsUrl: text("news_url"),
+  newsUrl2: text("news_url_2"),
   isAutoDiscovered: boolean("is_auto_discovered").default(false).notNull(),
   reviewStatus: text("review_status").default("approved").notNull(),
   discoveredAt: timestamp("discovered_at"),

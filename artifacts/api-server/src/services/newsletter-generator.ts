@@ -1,6 +1,6 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, projectsTable, newslettersTable } from "@workspace/db";
-import { desc, sql } from "drizzle-orm";
+import { desc, sql, eq } from "drizzle-orm";
 import { gatherExternalIntelligence, type ScrapedItem } from "./web-intelligence.js";
 import {
   generateSectorChart,
@@ -587,7 +587,7 @@ export async function generateNewsletter(periodDays = 30): Promise<GeneratedNews
   const spotlightCountry = getNextCountry(lastCountry);
 
   const [projects, externalIntel] = await Promise.all([
-    db.select().from(projectsTable).limit(500),
+    db.select().from(projectsTable).where(eq(projectsTable.reviewStatus, "approved")).limit(500),
     gatherExternalIntelligence(),
   ]);
 
@@ -681,7 +681,7 @@ export async function generateBrief(periodDays = 14): Promise<GeneratedNewslette
   }
 
   const [projects, externalIntel] = await Promise.all([
-    db.select().from(projectsTable).limit(500),
+    db.select().from(projectsTable).where(eq(projectsTable.reviewStatus, "approved")).limit(500),
     gatherExternalIntelligence(),
   ]);
 
