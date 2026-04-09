@@ -1,25 +1,24 @@
-import { Resend } from "resend";
+import { BrevoClient } from "@getbrevo/brevo";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const FROM = process.env.SMTP_FROM ?? "AfriEnergy Tracker <noreply@afrienergytracker.io>";
+const FROM_NAME  = "AfriEnergy Tracker";
+const FROM_EMAIL = process.env.SMTP_FROM_EMAIL ?? "noreply@afrienergytracker.io";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  if (!process.env.RESEND_API_KEY) {
-    console.log(`[Email] (no RESEND_API_KEY configured — would send to ${to})`);
+  if (!process.env.BREVO_API_KEY) {
+    console.log(`[Email] (no BREVO_API_KEY configured — would send to ${to})`);
     console.log(`[Email] Subject: ${subject}`);
     console.log(`[Email] HTML: ${html.replace(/<[^>]+>/g, " ").trim().slice(0, 300)}`);
     return;
   }
 
   try {
-    const { error } = await resend.emails.send({ from: FROM, to, subject, html });
-
-    if (error) {
-      console.error(`[Email] Resend API error sending to ${to}:`, error);
-      throw new Error(`Email delivery failed: ${error.message}`);
-    }
-
+    const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    });
     console.log(`[Email] Sent to ${to}: ${subject}`);
   } catch (err) {
     console.error(`[Email] Unexpected error sending to ${to}:`, err);

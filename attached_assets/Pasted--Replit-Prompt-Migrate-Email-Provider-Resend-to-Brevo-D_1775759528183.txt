@@ -1,0 +1,295 @@
+# Replit Prompt — Migrate Email Provider: Resend to Brevo
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** CRITICAL — Resend free tier only allows 5 emails/day, need Brevo (300/day free)
+
+---
+
+## WHY WE'RE MIGRATING
+
+The Resend free tier has a **5 emails/day** and **41/month** quota. The newsletter has 13 subscribers, so a single send exhausts the daily limit. Brevo's free tier allows **300 emails/day** (9,000/month), which is more than enough.
+
+The Resend API itself works — we confirmed a successful test send returned `{"data":{"id":"bf87a390..."}}`. The problem is purely the quota.
+
+---
+
+## STEP 1: Install the Brevo SDK
+
+```bash
+npm install @getbrevo/brevo
+```
+
+Run this in the `artifacts/api-server` directory (or wherever the `package.json` for the API server lives).
+
+---
+
+## STEP 2: Find All Resend Usage
+
+Search the codebase for:
+- `require('resend')` or `from 'resend'`
+- `new Resend(`
+- `resend.emails.send(`
+- `RESEND_API_KEY`
+
+The email send code is in one of these files:
+- `artifacts/api-server/src/services/email-dispatch.ts`
+- `artifacts/api-server/src/routes/newsletter.ts`
+
+---
+
+## STEP 3: Replace Resend with Brevo
+
+### Old Resend code (find and replace):
+
+```typescript
+import { Resend } from 'resend';
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Sending an email:
+const result = await resend.emails.send({
+  from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+  to: subscriber.email,
+  subject: newsletter.title,
+  html: newsletter.contentHtml,
+});
+```
+
+### New Brevo code:
+
+```typescript
+import { BrevoClient } from '@getbrevo/brevo';
+
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY!,
+});
+
+// Sending an email:
+const result = await brevo.transactionalEmails.sendTransacEmail({
+  sender: {
+    name: 'AfriEnergy Tracker',
+    email: 'noreply@afrienergytracker.io',
+  },
+  to: [{ email: subscriber.email }],
+  subject: newsletter.title,
+  htmlContent: newsletter.contentHtml,
+});
+```
+
+### Key differences:
+| Resend | Brevo |
+|---|---|
+| `from: 'Name <email>'` | `sender: { name: '...', email: '...' }` |
+| `to: 'email@...'` | `to: [{ email: '...' }]` (array of objects) |
+| `html: '...'` | `htmlContent: '...'` |
+| `resend.emails.send({...})` | `brevo.transactionalEmails.sendTransacEmail({...})` |
+| `RESEND_API_KEY` env var | `BREVO_API_KEY` env var |
+| `result.data.id` | `result.messageId` |
+
+---
+
+## STEP 4: Update the Newsletter Send Loop
+
+Find the loop that sends to each subscriber. It currently looks something like this:
+
+```typescript
+for (const subscriber of subscribers) {
+  try {
+    const result = await resend.emails.send({
+      from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+      to: subscriber.email,
+      subject: newsletter.title,
+      html: contentHtml,
+    });
+    console.log(`✓ Sent to ${subscriber.email} — ID: ${result.data?.id}`);
+    sentCount++;
+  } catch (err: any) {
+    console.error(`✗ Failed to send to ${subscriber.email}:`, err?.message);
+    errors.push(subscriber.email);
+  }
+}
+```
+
+Replace with:
+
+```typescript
+for (const subscriber of subscribers) {
+  try {
+    const result = await brevo.transactionalEmails.sendTransacEmail({
+      sender: {
+        name: 'AfriEnergy Tracker',
+        email: 'noreply@afrienergytracker.io',
+      },
+      to: [{ email: subscriber.email }],
+      subject: newsletter.title,
+      htmlContent: contentHtml,
+    });
+    console.log(`✓ Sent to ${subscriber.email} — Brevo messageId: ${result.messageId}`);
+    sentCount++;
+  } catch (err: any) {
+    console.error(`✗ Failed to send to ${subscriber.email}:`, err?.message || err);
+    errors.push(subscriber.email);
+  }
+}
+```
+
+---
+
+## STEP 5: Update the Test Email Endpoint
+
+Update the existing `/api/test-email` endpoint (or `/api/admin/newsletter/test-email`) to use Brevo instead of Resend:
+
+```typescript
+app.get('/api/test-email', async (req, res) => {
+  const diagnostics: any = { timestamp: new Date().toISOString(), steps: [] };
+
+  try {
+    const apiKey = process.env.BREVO_API_KEY;
+    diagnostics.steps.push({
+      step: 'env_check',
+      keyExists: !!apiKey,
+      keyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'NOT SET',
+    });
+
+    if (!apiKey) {
+      diagnostics.error = 'BREVO_API_KEY is not set';
+      return res.json(diagnostics);
+    }
+
+    const { BrevoClient } = require('@getbrevo/brevo');
+    const brevo = new BrevoClient({ apiKey });
+
+    const result = await brevo.transactionalEmails.sendTransacEmail({
+      sender: { name: 'AfriEnergy Tracker', email: 'noreply@afrienergytracker.io' },
+      to: [{ email: 'danoladoja@gmail.com' }],
+      subject: `AfriEnergy Test — ${new Date().toLocaleTimeString()}`,
+      htmlContent: '<h2>Test Email from Brevo</h2><p>If you see this, Brevo is working. Sent at: ' + new Date().toISOString() + '</p>',
+    });
+
+    diagnostics.steps.push({ step: 'send_complete', result });
+    diagnostics.success = true;
+    return res.json(diagnostics);
+  } catch (err: any) {
+    diagnostics.steps.push({ step: 'error', message: err?.message, statusCode: err?.statusCode });
+    diagnostics.success = false;
+    diagnostics.error = err?.message || String(err);
+    return res.json(diagnostics);
+  }
+});
+```
+
+---
+
+## STEP 6: Remove Resend Dependency
+
+After confirming Brevo works:
+
+```bash
+npm uninstall resend
+```
+
+Also remove any leftover `import { Resend }` or `require('resend')` statements.
+
+---
+
+## STEP 7: Handle the Brevo SDK Version
+
+The Brevo Node.js SDK has two versions. If `@getbrevo/brevo` v5+ uses the `BrevoClient` import shown above, great. If the installed version is v3.x/v4.x, the import pattern is different:
+
+### v3.x/v4.x fallback (if BrevoClient import fails):
+
+```typescript
+import * as Brevo from '@getbrevo/brevo';
+
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY!
+);
+
+// Sending:
+const sendSmtpEmail = new Brevo.SendSmtpEmail();
+sendSmtpEmail.sender = { name: 'AfriEnergy Tracker', email: 'noreply@afrienergytracker.io' };
+sendSmtpEmail.to = [{ email: subscriber.email }];
+sendSmtpEmail.subject = newsletter.title;
+sendSmtpEmail.htmlContent = contentHtml;
+
+const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+console.log(`✓ Sent — messageId: ${result.body.messageId}`);
+```
+
+**Try v5 first (BrevoClient import). If it fails to compile, use the v3/v4 pattern above.**
+
+---
+
+## ENVIRONMENT VARIABLES
+
+### In Railway (production):
+1. **Add** `BREVO_API_KEY` with the API key from Brevo dashboard
+2. **Keep** `RESEND_API_KEY` for now (remove later after confirming Brevo works)
+
+### In Replit (development):
+1. Add `BREVO_API_KEY` to Replit secrets
+
+### Getting the Brevo API Key:
+1. Go to https://app.brevo.com
+2. Sign up for a free account (no credit card needed)
+3. Go to SMTP & API → API Keys
+4. Create a new API key
+5. The key starts with `xkeysib-`
+
+---
+
+## DOMAIN VERIFICATION IN BREVO
+
+For emails to send from `noreply@afrienergytracker.io`, the domain must be verified in Brevo:
+
+1. Go to Brevo dashboard → Settings → Senders, Domains & Dedicated IPs
+2. Click "Add a domain"
+3. Enter `afrienergytracker.io`
+4. Brevo will give you DNS records (TXT/CNAME) to add
+5. Add these records in the Hostinger DNS panel (afrienergytracker.io DNS is managed at Hostinger)
+6. Come back to Brevo and click "Verify"
+
+**IMPORTANT:** Until the domain is verified, Brevo may still send emails using their shared sending infrastructure, but deliverability will be lower. Verify the domain for production use.
+
+**NOTE:** If domain verification blocks immediate testing, Brevo allows sending from verified sender email addresses. Daniel can add `danoladoja@gmail.com` as a verified sender in Brevo → Settings → Senders to test immediately.
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING FEATURES
+
+Only modify email sending code. Do not change:
+- Newsletter generation (AI/Claude integration)
+- Subscriber management
+- Newsletter content/templates
+- Admin dashboard UI
+- Any other routes or features
+
+---
+
+## TESTING CHECKLIST
+
+After deploying with Brevo:
+1. Visit `https://africa-energy-deals-production.up.railway.app/api/test-email`
+2. Check the JSON response — should show `success: true` with a `messageId`
+3. Check your inbox for the test email
+4. If test works, send a newsletter from the admin panel
+5. Check Railway logs for `✓ Sent to ...` lines for all 13 subscribers
+6. Verify `recipientCount` in the database matches actual sends
+7. Remove the `/api/test-email` endpoint once confirmed working
+
+---
+
+## SUMMARY
+
+| Step | Action |
+|---|---|
+| 1 | `npm install @getbrevo/brevo` |
+| 2 | Replace all `Resend` imports/usage with `BrevoClient` |
+| 3 | Update send calls: `sender` object, `to` array, `htmlContent` |
+| 4 | Update test endpoint to use Brevo |
+| 5 | Add `BREVO_API_KEY` env var in Railway |
+| 6 | `npm uninstall resend` |
+| 7 | Verify domain `afrienergytracker.io` in Brevo dashboard |

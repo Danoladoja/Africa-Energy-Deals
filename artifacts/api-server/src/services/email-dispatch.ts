@@ -1,9 +1,9 @@
-import { Resend } from "resend";
+import { BrevoClient } from "@getbrevo/brevo";
 import { db, userEmailsTable, newslettersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
-const FROM_INSIGHTS = "AfriEnergy Insights <insights@send.afrienergytracker.io>";
-const FROM_BRIEF = "AfriEnergy Brief <brief@send.afrienergytracker.io>";
+const SENDER_INSIGHTS = { name: "AfriEnergy Insights", email: "insights@send.afrienergytracker.io" };
+const SENDER_BRIEF    = { name: "AfriEnergy Brief",    email: "brief@send.afrienergytracker.io" };
 
 
 function markdownToEmailHtml(md: string): string {
@@ -287,12 +287,12 @@ function buildBriefEmailHtml(newsletter: {
 }
 
 export async function dispatchNewsletter(newsletterId: number): Promise<number> {
-  if (!process.env.RESEND_API_KEY) {
-    console.log("[EmailDispatch] No RESEND_API_KEY configured — skipping email dispatch");
+  if (!process.env.BREVO_API_KEY) {
+    console.log("[EmailDispatch] No BREVO_API_KEY configured — skipping email dispatch");
     return 0;
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
   // Fetch newsletter
   const [newsletter] = await db
@@ -346,8 +346,8 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
         id: newsletter.id,
       });
 
-  const fromAddress = isBrief ? FROM_BRIEF : FROM_INSIGHTS;
-  console.log(`[EmailDispatch] Sending edition #${newsletter.editionNumber} ("${newsletter.type ?? "insights"}") to ${subscribers.length} subscriber(s)…`);
+  const sender = isBrief ? SENDER_BRIEF : SENDER_INSIGHTS;
+  console.log(`[EmailDispatch] Sending edition #${newsletter.editionNumber} ("${newsletter.type ?? "insights"}") via Brevo to ${subscribers.length} subscriber(s)…`);
 
   let sent = 0;
   const failures: { email: string; error: string }[] = [];
@@ -358,20 +358,20 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
         "{{UNSUBSCRIBE_URL}}",
         `https://afrienergytracker.io/api/newsletter/unsubscribe?token=${sub.unsubscribeToken ?? ""}`
       );
-      const result = await resend.emails.send({
-        from: fromAddress,
-        to: sub.email,
+      const result = await brevo.transactionalEmails.sendTransacEmail({
+        sender,
+        to: [{ email: sub.email }],
         subject: newsletter.title,
-        html: personalizedHtml,
+        htmlContent: personalizedHtml,
       });
-      console.log(`[EmailDispatch] ✓ Sent to ${sub.email} — Resend ID: ${(result as any)?.data?.id ?? "n/a"}`);
+      console.log(`[EmailDispatch] ✓ Sent to ${sub.email} — Brevo messageId: ${(result as any)?.messageId ?? "n/a"}`);
       sent++;
     } catch (err) {
       const msg = (err as Error).message ?? "Unknown error";
       console.error(`[EmailDispatch] ✗ Failed to send to ${sub.email}: ${msg}`);
       failures.push({ email: sub.email, error: msg });
     }
-    // 200ms between sends — stays within Resend rate limits, individual endpoint only
+    // 200ms between sends
     await new Promise(r => setTimeout(r, 200));
   }
 
