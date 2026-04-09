@@ -474,12 +474,70 @@ router.post("/admin/newsletter/:id/revise", adminAuthMiddleware, async (req: Req
   }
 });
 
+// GET /api/admin/newsletter/test-email — TEMPORARY DIAGNOSTIC: sends one test email and returns full Resend response
+router.get("/admin/newsletter/test-email", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      res.json({ success: false, error: "RESEND_API_KEY environment variable is not set", step: "env_check" });
+      return;
+    }
+
+    const keyPrefix = apiKey.substring(0, 8);
+    console.log(`[TEST-EMAIL] RESEND_API_KEY starts with: ${keyPrefix}...`);
+    console.log("[TEST-EMAIL] Sending test email to danoladoja@gmail.com...");
+
+    const { Resend } = await import("resend");
+    const resend = new Resend(apiKey);
+
+    const result = await resend.emails.send({
+      from: "AfriEnergy Tracker <noreply@afrienergytracker.io>",
+      to: "danoladoja@gmail.com",
+      subject: "AfriEnergy Test Email — Diagnostic Check",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #10b981;">AfriEnergy Tracker — Test Email</h2>
+          <p>This is a diagnostic test email sent at <strong>${new Date().toISOString()}</strong>.</p>
+          <p>If you received this, the Resend API is working correctly with your domain.</p>
+          <hr style="border: 1px solid #e0e0e0;">
+          <p style="color: #888; font-size: 12px;">Sent from afrienergytracker.io via Resend</p>
+        </div>
+      `,
+    });
+
+    console.log("[TEST-EMAIL] Resend response:", JSON.stringify(result));
+
+    res.json({
+      success: true,
+      resendResponse: result,
+      keyPrefix: keyPrefix + "...",
+      timestamp: new Date().toISOString(),
+      step: "send_complete",
+    });
+  } catch (err: any) {
+    console.error("[TEST-EMAIL] Error:", err);
+    res.json({
+      success: false,
+      error: err?.message || String(err),
+      errorName: err?.name,
+      statusCode: err?.statusCode,
+      fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+      step: "send_failed",
+    });
+  }
+});
+
 // POST /api/admin/newsletter/:id/send — approve and dispatch a draft
 router.post("/admin/newsletter/:id/send", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
 
   try {
+    console.log("=== NEWSLETTER SEND START ===");
+    console.log("Newsletter ID:", id);
+    console.log("RESEND_API_KEY set:", !!process.env.RESEND_API_KEY);
+    console.log("RESEND_API_KEY prefix:", process.env.RESEND_API_KEY?.substring(0, 8));
+
     const [nl] = await db
       .select({ status: newslettersTable.status })
       .from(newslettersTable)

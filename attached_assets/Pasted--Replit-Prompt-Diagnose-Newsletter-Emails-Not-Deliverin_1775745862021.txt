@@ -1,0 +1,158 @@
+# Replit Prompt — Diagnose: Newsletter Emails Not Delivering
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Priority:** CRITICAL — emails are still not arriving after code fixes
+
+---
+
+## SITUATION
+
+The newsletter send code was confirmed to use individual `resend.emails.send()` calls (not batch). Replit also fixed missing query columns and added per-subscriber logging. But emails still aren't arriving. The Resend dashboard is non-functional (stuck on "Loading..." across all pages), so we can't check delivery status there.
+
+We need to diagnose whether:
+1. The `RESEND_API_KEY` environment variable is set correctly
+2. The Resend API actually accepts the send request
+3. The domain `afrienergytracker.io` is verified in Resend
+4. The send call returns an error that's being swallowed
+
+---
+
+## TASK: Add a Diagnostic Test Email Endpoint
+
+Add a **temporary** diagnostic endpoint that sends a single test email and returns the **full Resend API response** (or error) in the HTTP response body. This bypasses the newsletter flow entirely to isolate whether Resend itself is working.
+
+### Add this route in `artifacts/api-server/src/routes/newsletter.ts` (or wherever newsletter routes are registered):
+
+```typescript
+// TEMPORARY DIAGNOSTIC — remove after confirming email works
+router.get('/api/admin/newsletter/test-email', async (req, res) => {
+  try {
+    // Step 1: Check if RESEND_API_KEY is set
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return res.json({
+        success: false,
+        error: 'RESEND_API_KEY environment variable is not set',
+        step: 'env_check'
+      });
+    }
+
+    // Log key prefix for verification (first 8 chars only — safe to log)
+    const keyPrefix = apiKey.substring(0, 8);
+    console.log(`[TEST-EMAIL] RESEND_API_KEY starts with: ${keyPrefix}...`);
+
+    // Step 2: Initialize Resend and send one test email
+    const { Resend } = await import('resend');
+    const resend = new Resend(apiKey);
+
+    console.log('[TEST-EMAIL] Sending test email to danoladoja@gmail.com...');
+
+    const result = await resend.emails.send({
+      from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+      to: 'danoladoja@gmail.com',
+      subject: 'AfriEnergy Test Email — Diagnostic Check',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1a5632;">AfriEnergy Tracker — Test Email</h2>
+          <p>This is a diagnostic test email sent at <strong>${new Date().toISOString()}</strong>.</p>
+          <p>If you received this, the Resend API is working correctly with your domain.</p>
+          <hr style="border: 1px solid #e0e0e0;">
+          <p style="color: #888; font-size: 12px;">Sent from afrienergytracker.io via Resend</p>
+        </div>
+      `,
+    });
+
+    console.log('[TEST-EMAIL] Resend response:', JSON.stringify(result));
+
+    // Step 3: Return full response
+    return res.json({
+      success: true,
+      resendResponse: result,
+      keyPrefix: keyPrefix + '...',
+      timestamp: new Date().toISOString(),
+      step: 'send_complete'
+    });
+
+  } catch (err: any) {
+    console.error('[TEST-EMAIL] Error:', err);
+    return res.json({
+      success: false,
+      error: err?.message || String(err),
+      errorName: err?.name,
+      statusCode: err?.statusCode,
+      fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+      step: 'send_failed'
+    });
+  }
+});
+```
+
+### IMPORTANT IMPLEMENTATION NOTES:
+
+1. This route should use the SAME auth middleware as the other admin newsletter routes (session/cookie auth)
+2. If the existing code already has a shared `resend` instance (e.g., imported from `email-dispatch.ts`), use that instead of creating a new one — this ensures we're testing the exact same configuration the newsletter send uses
+3. Do NOT use any subscriber lookup or newsletter content — just a hardcoded test email to `danoladoja@gmail.com`
+4. Return the FULL Resend response in the JSON body, including any `data.id` or error details
+
+---
+
+## ALSO: Add Railway Log Output to the Existing Send Flow
+
+If not already done, add these console.log lines at the TOP of the send route handler (the one that actually sends newsletters to subscribers):
+
+```typescript
+console.log('=== NEWSLETTER SEND START ===');
+console.log('Newsletter ID:', newsletterId);
+console.log('RESEND_API_KEY set:', !!process.env.RESEND_API_KEY);
+console.log('RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.substring(0, 8));
+```
+
+And around each individual send call:
+```typescript
+console.log(`[SEND] Attempting email to ${subscriber.email}...`);
+try {
+  const result = await resend.emails.send({ ... });
+  console.log(`[SEND] ✓ Success for ${subscriber.email} — ID: ${result.data?.id}`);
+} catch (err) {
+  console.error(`[SEND] ✗ Failed for ${subscriber.email}:`, err?.message, err?.statusCode);
+}
+```
+
+---
+
+## HOW TO USE THE DIAGNOSTIC
+
+After deploying, Daniel should:
+
+1. Navigate to `https://afrienergytracker.io/api/admin/newsletter/test-email` while logged into the admin panel
+2. The page will show a JSON response with one of these outcomes:
+
+**If RESEND_API_KEY is missing:**
+```json
+{ "success": false, "error": "RESEND_API_KEY environment variable is not set", "step": "env_check" }
+```
+→ Fix: Add `RESEND_API_KEY` in Railway environment variables
+
+**If Resend API rejects the request:**
+```json
+{ "success": false, "error": "...", "statusCode": 403, "step": "send_failed" }
+```
+→ Check the error message — could be invalid API key, unverified domain, or plan limits
+
+**If Resend API accepts:**
+```json
+{ "success": true, "resendResponse": { "data": { "id": "abc123..." } }, "step": "send_complete" }
+```
+→ The API is working; check spam folder. If `data.id` is present, Resend accepted the email.
+
+3. Check the Railway logs for the `[TEST-EMAIL]` lines
+4. Check your inbox (and spam folder) for the test email
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING FEATURES
+
+Only add the test route. Do not modify any existing routes, the send flow, or any other functionality. This is purely additive diagnostic code.
+
+Once the issue is diagnosed and emails are working, the test endpoint should be removed.
