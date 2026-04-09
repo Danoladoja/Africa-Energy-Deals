@@ -6,11 +6,14 @@ import {
   generateSectorChart,
   generatePipelineChart,
   generateRegionalChart,
+  generateCountryChart,
+  generateSectorCountChart,
   generateTopDealsTable,
   chartImageHtml,
   type SectorStat,
   type StageStat,
   type RegionStat,
+  type CountryStat,
 } from "./chart-generator.js";
 
 const SECTORS = ["Solar", "Wind", "Hydro", "Oil & Gas", "Grid Expansion", "Battery & Storage", "Hydrogen", "Bioenergy", "Geothermal", "Nuclear", "Clean Cooking", "Coal"];
@@ -117,8 +120,8 @@ Close with 4-5 crisp, specific, data-backed takeaways. Each takeaway should be o
 FORMATTING RULES:
 - Use ## for section headers (exactly as numbered above)
 - Use **bold** for project names, key figures, and important terms
-- Use markdown tables for sector and region comparisons
-- Use > blockquotes for key statistics or pull-quotes worth highlighting
+- Use markdown tables for sector and region comparisons — include at least 2 data tables across the newsletter
+- Use > blockquotes for key statistics or pull-quotes worth highlighting — you MUST include a MINIMUM OF 4 blockquote highlight boxes (> text) spread across the newsletter; do not leave a section without at least one if the data supports it
 - Write 2,500–3,500 words total. Every section is mandatory. Do not truncate.
 - Monetary values: "$1.2B", "$450M", "$12M" — always include the dollar sign
 - Capacity values: "200 MW", "1.2 GW"`;
@@ -165,7 +168,7 @@ FORMATTING:
 - Use ## for section headers
 - Use **bold** for project names and key figures
 - Use bullet points (- ) for all lists
-- Use > for any single key stat worth highlighting
+- Use > blockquotes for key stats worth highlighting — you MUST include a MINIMUM OF 3 blockquote quote boxes (> text) spread across the brief; at least one per major section
 - Monetary values: "$450M", "$1.2B"
 - Capacity: "200 MW"`;
 
@@ -209,7 +212,19 @@ function computeBreakdowns(projects: any[]) {
     return { stage, count: sp.length, investment: inv };
   });
 
-  return { bySector, byRegion, byStage };
+  const countryMap = new Map<string, { count: number; investment: number }>();
+  for (const p of projects) {
+    if (!p.country) continue;
+    const entry = countryMap.get(p.country) ?? { count: 0, investment: 0 };
+    entry.count += 1;
+    entry.investment += p.dealSizeUsdMn || 0;
+    countryMap.set(p.country, entry);
+  }
+  const byCountry: CountryStat[] = Array.from(countryMap.entries())
+    .map(([country, { count, investment }]) => ({ country, count, investment }))
+    .sort((a, b) => b.investment - a.investment);
+
+  return { bySector, byRegion, byStage, byCountry };
 }
 
 // ── Simple markdown → HTML converter for stored content_html ─────────────────
@@ -286,6 +301,8 @@ function injectChartsIntoHtml(html: string, charts: {
   sectorChart: string | null;
   pipelineChart: string | null;
   regionalChart: string | null;
+  countryChart: string | null;
+  sectorCountChart: string | null;
   topDealsTable: string;
 }): string {
   // Insert content before the next <h2 after the section containing `keyword`
@@ -295,7 +312,7 @@ function injectChartsIntoHtml(html: string, charts: {
     // Find next <h2 after this section heading
     const nextH2 = src.indexOf("<h2", keyIdx + keyword.length);
     if (nextH2 === -1) {
-      // Last section — append before any final divs
+      // Last section — append at end
       return src + content;
     }
     return src.slice(0, nextH2) + content + src.slice(nextH2);
@@ -303,7 +320,7 @@ function injectChartsIntoHtml(html: string, charts: {
 
   let result = html;
 
-  // After Executive Summary: Top Deals Table
+  // 1. After Executive Summary: Top Deals Table
   if (charts.topDealsTable) {
     const tableBlock = `<div style="margin:20px 0;">
       <h3 style="color:#065f46;font-size:15px;font-weight:700;margin:16px 0 10px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">📊 Top Deals by Investment Size</h3>
@@ -312,19 +329,29 @@ function injectChartsIntoHtml(html: string, charts: {
     result = insertAfterSection(result, "EXECUTIVE SUMMARY", tableBlock);
   }
 
-  // After Market Overview: Sector breakdown chart
+  // 2. After Market Overview: Sector investment chart
   if (charts.sectorChart) {
     result = insertAfterSection(result, "MARKET OVERVIEW", chartImageHtml(charts.sectorChart, "Investment by Sector (USD $M) — AfriEnergy Tracker Data"));
   }
 
-  // After Sector Spotlight: Regional investment chart
+  // 3. After Sector Spotlight: Regional investment chart
   if (charts.regionalChart) {
     result = insertAfterSection(result, "SECTOR SPOTLIGHT", chartImageHtml(charts.regionalChart, "Investment by Region (USD $M) — AfriEnergy Tracker Data"));
   }
 
-  // After Deal Pipeline Update: Pipeline funnel chart
+  // 4. After Country in Focus: Country investment chart
+  if (charts.countryChart) {
+    result = insertAfterSection(result, "COUNTRY IN FOCUS", chartImageHtml(charts.countryChart, "Top Countries by Total Investment (USD $M) — AfriEnergy Tracker Data"));
+  }
+
+  // 5. After Deal Pipeline Update: Pipeline funnel chart
   if (charts.pipelineChart) {
     result = insertAfterSection(result, "DEAL PIPELINE", chartImageHtml(charts.pipelineChart, "Deal Pipeline by Stage — Project Count — AfriEnergy Tracker Data"));
+  }
+
+  // 6. After Investment & Financing Trends: Sector project count chart
+  if (charts.sectorCountChart) {
+    result = insertAfterSection(result, "INVESTMENT", chartImageHtml(charts.sectorCountChart, "Active Projects by Sector — AfriEnergy Tracker Data"));
   }
 
   return result;
@@ -565,7 +592,7 @@ export async function generateNewsletter(periodDays = 30): Promise<GeneratedNews
   ]);
 
   const totalInvestment = projects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0);
-  const { bySector, byRegion, byStage } = computeBreakdowns(projects);
+  const { bySector, byRegion, byStage, byCountry } = computeBreakdowns(projects);
   const stats = {
     total: projects.length,
     totalInvestment,
@@ -591,25 +618,29 @@ export async function generateNewsletter(periodDays = 30): Promise<GeneratedNews
 
   const content = response.content[0].type === "text" ? response.content[0].text : "";
 
-  // Generate charts in parallel
+  // Generate all 5 charts + top deals table in parallel (minimum 6 visuals per edition)
   const top10Deals = projects
     .filter(p => p.dealSizeUsdMn)
     .sort((a, b) => (b.dealSizeUsdMn || 0) - (a.dealSizeUsdMn || 0))
     .slice(0, 10);
 
-  const [sectorChart, pipelineChart, regionalChart] = await Promise.all([
+  const [sectorChart, pipelineChart, regionalChart, countryChart, sectorCountChart] = await Promise.all([
     generateSectorChart(bySector),
     generatePipelineChart(byStage),
     generateRegionalChart(byRegion),
+    generateCountryChart(byCountry),
+    generateSectorCountChart(bySector),
   ]);
   const topDealsTable = generateTopDealsTable(top10Deals);
 
-  // Convert markdown → HTML and inject charts
+  // Convert markdown → HTML and inject all 6 visuals (1 table + 5 charts)
   const bodyHtml = markdownToHtml(content);
   const contentHtml = injectChartsIntoHtml(bodyHtml, {
     sectorChart,
     pipelineChart,
     regionalChart,
+    countryChart,
+    sectorCountChart,
     topDealsTable,
   });
 
@@ -655,7 +686,7 @@ export async function generateBrief(periodDays = 14): Promise<GeneratedNewslette
   ]);
 
   const totalInvestment = projects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0);
-  const { bySector, byStage } = computeBreakdowns(projects);
+  const { bySector, byRegion, byStage } = computeBreakdowns(projects);
   const stats = {
     total: projects.length,
     totalInvestment,
@@ -679,13 +710,36 @@ export async function generateBrief(periodDays = 14): Promise<GeneratedNewslette
 
   const content = response.content[0].type === "text" ? response.content[0].text : "";
 
-  // Generate one rotating chart (pipeline chart for the brief)
-  const pipelineChart = await generatePipelineChart(byStage);
+  // Generate 3 charts in parallel (minimum 3 per brief edition)
+  const [sectorChart, pipelineChart, regionalChart] = await Promise.all([
+    generateSectorChart(bySector),
+    generatePipelineChart(byStage),
+    generateRegionalChart(byRegion),
+  ]);
 
-  const bodyHtml = markdownToHtml(content);
-  const contentHtml = pipelineChart
-    ? bodyHtml + chartImageHtml(pipelineChart, "Deal Pipeline by Stage — AfriEnergy Tracker Data")
-    : bodyHtml;
+  // Inject charts at specific sections in the brief
+  function insertAfterBriefSection(src: string, keyword: string, content: string): string {
+    const keyIdx = src.toLowerCase().indexOf(keyword.toLowerCase());
+    if (keyIdx === -1) return src;
+    const nextH2 = src.indexOf("<h2", keyIdx + keyword.length);
+    if (nextH2 === -1) return src + content;
+    return src.slice(0, nextH2) + content + src.slice(nextH2);
+  }
+
+  let bodyHtml = markdownToHtml(content);
+  // 1. After Sector Pulse: sector investment chart
+  if (sectorChart) {
+    bodyHtml = insertAfterBriefSection(bodyHtml, "SECTOR PULSE", chartImageHtml(sectorChart, "Investment by Sector (USD $M) — AfriEnergy Tracker Data"));
+  }
+  // 2. After Deals to Watch: regional distribution chart
+  if (regionalChart) {
+    bodyHtml = insertAfterBriefSection(bodyHtml, "DEALS TO WATCH", chartImageHtml(regionalChart, "Investment by Region (USD $M) — AfriEnergy Tracker Data"));
+  }
+  // 3. After Data Snapshot (end): pipeline chart
+  if (pipelineChart) {
+    bodyHtml = bodyHtml + chartImageHtml(pipelineChart, "Deal Pipeline by Stage — AfriEnergy Tracker Data");
+  }
+  const contentHtml = bodyHtml;
 
   const execMatch = content.match(/## 1\. HEADLINE NUMBERS\s*([\s\S]*?)(?=## 2\.)/i);
   const executiveSummary = execMatch ? execMatch[1].trim().slice(0, 800) : content.slice(0, 400);

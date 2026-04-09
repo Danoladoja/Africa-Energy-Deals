@@ -23,6 +23,12 @@ export interface RegionStat {
   investment: number;
 }
 
+export interface CountryStat {
+  country: string;
+  count: number;
+  investment: number;
+}
+
 export interface DealRow {
   projectName: string | null;
   country: string | null;
@@ -232,6 +238,90 @@ export function generateTopDealsTable(deals: DealRow[], maxRows = 10): string {
   </thead>
   <tbody>${rowsHtml}</tbody>
 </table>`;
+}
+
+/**
+ * Horizontal bar chart — Top 10 countries by total investment
+ */
+export async function generateCountryChart(byCountry: CountryStat[]): Promise<string | null> {
+  const top = [...byCountry]
+    .sort((a, b) => b.investment - a.investment)
+    .slice(0, 10);
+
+  if (top.length === 0) return null;
+
+  const config = {
+    type: "horizontalBar",
+    data: {
+      labels: top.map(c => c.country),
+      datasets: [{
+        label: "Investment ($M)",
+        data: top.map(c => Math.round(c.investment)),
+        backgroundColor: top.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderWidth: 1,
+      }],
+    },
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: "Top Countries by Investment (USD $M)",
+          fontColor: "#ffffff",
+          fontSize: 14,
+          fontStyle: "bold",
+        },
+        legend: { display: false },
+      },
+      scales: {
+        xAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
+        yAxes: [{ ticks: { fontColor: "#e2e8f0" }, gridLines: { color: "#1e293b" } }],
+      },
+    },
+  };
+
+  return fetchChartAsBase64(config, 600, 380);
+}
+
+/**
+ * Vertical bar chart — Project count by sector (complement to investment chart)
+ */
+export async function generateSectorCountChart(bySector: SectorStat[]): Promise<string | null> {
+  const top = [...bySector]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  if (top.length === 0) return null;
+
+  const config = {
+    type: "bar",
+    data: {
+      labels: top.map(s => s.sector),
+      datasets: [{
+        label: "Project Count",
+        data: top.map(s => s.count),
+        backgroundColor: top.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderWidth: 1,
+      }],
+    },
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: "Active Projects by Sector",
+          fontColor: "#ffffff",
+          fontSize: 14,
+          fontStyle: "bold",
+        },
+        legend: { display: false },
+      },
+      scales: {
+        xAxes: [{ ticks: { fontColor: "#e2e8f0", maxRotation: 35 }, gridLines: { color: "#1e293b" } }],
+        yAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
+      },
+    },
+  };
+
+  return fetchChartAsBase64(config, 600, 340);
 }
 
 /**
