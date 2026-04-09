@@ -1,0 +1,114 @@
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+Everything on the Insights page (Chat tab, Newsletter tab, Quick Insight cards, dropdowns, conversation history, newsletter archive) is working. These are targeted additions only.
+
+---
+
+## Fix 1: Add Data Provenance Badge to AI Chat Responses
+
+**Problem:** When the AI chatbot returns a response, there is no data provenance badge showing how many projects were analyzed, the data source, or a disclaimer. The original spec requires this on every assistant message.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to do:**
+After each assistant message bubble, render a small badge like this:
+
+```
+📊 AfriEnergy Tracker · [N] projects analyzed · $[X]B tracked · [timestamp]
+⚠️ AI-generated analysis — verify critical data
+```
+
+The numbers should come from the backend `dataSummary` object. If the backend already attaches `dataSummary` in the final SSE chunk (`{ "type": "done", "dataSummary": {...} }`), use those values. If it doesn't, add it:
+
+**Backend file:** The chat endpoint handler (wherever `POST /api/chat` is defined)
+- After querying the database for project data, compute:
+```javascript
+const dataSummary = {
+  projectsAnalyzed: projects.length,
+  totalInvestment: projects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0),
+  countriesCovered: [...new Set(projects.map(p => p.country))].length,
+  sectorsCovered: [...new Set(projects.map(p => p.technology))].length,
+  queryTimestamp: new Date().toISOString()
+};
+```
+- Include it in the final SSE event
+
+**Frontend:** Parse the `dataSummary` from the `done` event and render the badge. Style it as a muted, small-text row below each assistant message. The badge must not be dismissible.
+
+---
+
+## Fix 2: Add Copy and Export PDF Buttons to AI Responses
+
+**Problem:** Assistant messages in the chat have no action buttons. The spec requires small "Copy" and "Export PDF" buttons at the bottom of each AI response.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to do:**
+Below each assistant message (after the provenance badge from Fix 1), add two small, subtle action buttons:
+
+- **Copy** — Copies the assistant message content (markdown) to the clipboard using `navigator.clipboard.writeText()`. Show a brief "Copied!" tooltip on click.
+- **Export PDF** — Generates a PDF of just that response (or the full conversation). Use a client-side approach: create a hidden div with styled HTML from the markdown content, then use `window.print()` with a print stylesheet, or use a library like `html2pdf.js` if available.
+
+Style these as small icon+text buttons (e.g., lucide-react `Copy` and `FileDown` icons), muted color, only becoming more visible on hover over the message.
+
+---
+
+## Fix 3: Add Download PDF Button to Newsletter Editions
+
+**Problem:** The Newsletter tab shows editions with a "Read" button but no "Download PDF" button. The spec requires each edition to be downloadable as PDF.
+
+**Files:**
+- `artifacts/energy-tracker/src/pages/insights.tsx` (frontend)
+- `artifacts/api-server/src/routes/newsletter.ts` (backend, if PDF endpoint doesn't exist)
+
+**What to do:**
+
+**Option A (simple — client-side):** Add a "Download PDF" button next to each "Read" button in the Newsletter tab. On click, open a new window with just the newsletter HTML content and trigger `window.print()` so the user can save as PDF.
+
+**Option B (better — server-side):** If a `GET /api/newsletters/:id/pdf` endpoint exists, wire the button to download from it. If it doesn't exist, implement Option A.
+
+For the Latest Edition hero card, add the button prominently. For Past Editions list items, add it as a small icon button next to "Read".
+
+---
+
+## Fix 4: Verify "Insights" in Regular User Sidebar Navigation
+
+**Problem:** The admin sidebar (visible when admin is logged in) shows: Admin Dashboard, AI Discovery, Review Portal. The regular user sidebar needs to be checked to confirm "Insights" appears with a Lightbulb icon and amber "AI" badge, positioned after "Dashboard" and before "Deal Tracker".
+
+**File:** `artifacts/energy-tracker/src/components/layout.tsx`
+
+**What to verify:**
+1. Open the app in an incognito window (or click "Go To App" from the admin sidebar) to see the regular user navigation
+2. Confirm "Insights" is in the sidebar nav between Dashboard and Deal Tracker
+3. Confirm it has a Lightbulb icon (from lucide-react)
+4. Confirm it has an amber "AI" badge: `<span className="ml-1 text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">AI</span>`
+
+If any of these are missing, add them.
+
+---
+
+## Fix 5: Improve Insights Page Load Performance
+
+**Problem:** The Insights page takes noticeably longer to reach "idle" state than other pages (Dashboard, Deal Tracker load quickly). This suggests background API calls or WebSocket connections are keeping the page in a loading state.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to investigate:**
+1. Check for any `useEffect` or `useQuery` hooks that fire on mount and make slow API calls (e.g., fetching all newsletters, fetching conversation history, pre-loading chat data)
+2. If the page fetches newsletters on mount, make it lazy — only fetch when the Newsletter tab is clicked
+3. If there's an SSE/WebSocket connection that opens on mount, defer it until the user actually sends a message
+4. Add `React.Suspense` boundaries or loading skeletons so the page renders the empty state immediately while data loads in the background
+5. The Quick Insight cards and greeting should appear instantly — they're static content and shouldn't depend on any API call
+
+**Goal:** The page should feel snappy on first load — show the greeting, cards, and input field within 1 second, even if background data is still loading.
+
+---
+
+## After All Changes
+
+1. `cd artifacts/energy-tracker && pnpm run build` — fix any TypeScript errors
+2. Test the Insights page loads quickly
+3. Test the Chat tab shows provenance badge + Copy/Export buttons after an AI response
+4. Test the Newsletter tab shows Download PDF buttons
+5. Check the regular user sidebar (incognito window) for "Insights" nav item
+6. Commit and push to master

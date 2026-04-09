@@ -4,7 +4,7 @@ import {
   Lightbulb, TrendingUp, Zap, Globe, BarChart3, GitBranch, Shield,
   Send, Plus, Trash2, Copy, MessageSquare, Newspaper, ChevronRight,
   CheckCheck, AlertTriangle, Loader2, ExternalLink, RotateCcw, X,
-  Database, Clock, Download,
+  Database, Clock, Download, FileDown,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,6 +13,60 @@ import { TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 import { SEOMeta } from "@/components/seo-meta";
 
 const BASE = "/api";
+
+// ── PDF export helper ─────────────────────────────────────────────────────────
+function printAsPdf(title: string, markdownContent: string) {
+  // Convert basic markdown to HTML for the print window
+  const html = markdownContent
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)\s*(?=<li>|$)/g, '$1')
+    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^---+$/gm, '<hr>')
+    .replace(/\n\n/g, '</p><p>');
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @media print { body { margin: 0; } }
+    body { font-family: Georgia, serif; font-size: 13px; line-height: 1.75; color: #111;
+           max-width: 800px; margin: 32px auto; padding: 0 24px; }
+    h1 { font-size: 22px; font-weight: 800; border-bottom: 3px solid #00a854; padding-bottom: 10px; margin-bottom: 24px; }
+    h2 { font-size: 17px; font-weight: 700; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; margin-top: 32px; }
+    h3 { font-size: 14px; font-weight: 700; margin-top: 24px; }
+    h4 { font-size: 13px; font-weight: 600; margin-top: 18px; }
+    p  { margin: 0 0 14px; }
+    ul, ol { padding-left: 24px; margin: 12px 0; }
+    li { margin: 4px 0; }
+    blockquote { border-left: 4px solid #00a854; margin: 16px 0; padding: 8px 16px;
+                 background: #f0fdf4; color: #166534; font-style: italic; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+    strong { font-weight: 700; }
+    .meta { font-size: 11px; color: #6b7280; margin-bottom: 24px; }
+    .disclaimer { font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb;
+                  margin-top: 32px; padding-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <p class="meta">AfriEnergy Tracker · Africa Energy Pulse · Generated ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+  <p>${html}</p>
+  <div class="disclaimer">⚠️ AI-generated analysis based on AfriEnergy Tracker database. Verify critical figures against primary sources.</div>
+  <script>window.onload = () => { window.print(); };<\/script>
+</body>
+</html>`);
+  win.document.close();
+}
 
 // ── Countries list ────────────────────────────────────────────────────────────
 const COUNTRIES = [
@@ -170,13 +224,21 @@ function AssistantBubble({ message, onCopy }: { message: any; onCopy: () => void
 
         {/* Actions */}
         {!message.isStreaming && !message.error && message.content && (
-          <div className="flex items-center gap-2 mt-2 pl-1">
+          <div className="flex items-center gap-1 mt-2 pl-1">
             <button
               onClick={handleCopy}
               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50"
             >
               {copied ? <CheckCheck className="w-3 h-3 text-[#00e676]" /> : <Copy className="w-3 h-3" />}
               {copied ? "Copied!" : "Copy"}
+            </button>
+            <button
+              onClick={() => printAsPdf("AfriEnergy AI Analysis", message.content)}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50"
+              title="Export as PDF"
+            >
+              <FileDown className="w-3 h-3" />
+              Export PDF
             </button>
           </div>
         )}
@@ -382,6 +444,7 @@ function NewsletterTab() {
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeLoading, setSubscribeLoading] = useState(false);
   const [subscribeMsg, setSubscribeMsg] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`${BASE}/newsletters?limit=20`)
@@ -390,6 +453,24 @@ function NewsletterTab() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  async function downloadNlPdf(id: number, title: string) {
+    setPdfLoading(id);
+    try {
+      let content = expandedContent[id];
+      if (!content) {
+        const r = await fetch(`${BASE}/newsletters/${id}`);
+        const d = await r.json();
+        content = d.content;
+        if (content) setExpandedContent(prev => ({ ...prev, [id]: content }));
+      }
+      if (content) printAsPdf(title, content);
+    } catch {
+      // silently fail
+    } finally {
+      setPdfLoading(null);
+    }
+  }
 
   async function loadContent(id: number) {
     if (expandedContent[id]) { setExpanded(id); return; }
@@ -498,6 +579,15 @@ function NewsletterTab() {
                   >
                     {expanded === latest.id ? "Collapse" : "Read Full Edition"}
                   </button>
+                  <button
+                    onClick={() => downloadNlPdf(latest.id, latest.title)}
+                    disabled={pdfLoading === latest.id}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
+                    title="Download as PDF"
+                  >
+                    {pdfLoading === latest.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                    Download PDF
+                  </button>
                 </div>
                 {expanded === latest.id && expandedContent[latest.id] && (
                   <div className="mt-5 pt-5 border-t border-border/50">
@@ -527,12 +617,22 @@ function NewsletterTab() {
                           {nl.spotlightCountry && <span className="text-[10px] text-blue-600 dark:text-blue-400">🌍 {nl.spotlightCountry}</span>}
                         </div>
                       </div>
-                      <button
-                        onClick={() => expanded === nl.id ? setExpanded(null) : loadContent(nl.id)}
-                        className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-border text-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
-                      >
-                        {expanded === nl.id ? "Collapse" : "Read"}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => expanded === nl.id ? setExpanded(null) : loadContent(nl.id)}
+                          className="text-[11px] px-2.5 py-1.5 rounded-lg border border-border text-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
+                        >
+                          {expanded === nl.id ? "Collapse" : "Read"}
+                        </button>
+                        <button
+                          onClick={() => downloadNlPdf(nl.id, nl.title)}
+                          disabled={pdfLoading === nl.id}
+                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
+                          title="Download PDF"
+                        >
+                          {pdfLoading === nl.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                     {expanded === nl.id && expandedContent[nl.id] && (
                       <div className="px-4 pb-4 border-t border-border/50 pt-4">
