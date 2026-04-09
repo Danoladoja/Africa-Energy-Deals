@@ -1,0 +1,134 @@
+## CONTEXT
+
+The existing test-email endpoint at `/api/admin/newsletter/test-email` returns `{"error":"Unauthorized"}` because it's behind admin auth. We need a version that works without auth so we can test Resend directly.
+
+The `RESEND_API_KEY` env var IS set (starts with `re_BX`), so the key exists. We need to find out what Resend returns when we try to send.
+
+---
+
+## TASK: Add a public (no-auth) test endpoint
+
+Add this route **BEFORE any auth middleware** in the Express app, or register it on the main app router outside the admin auth guard. The key requirement is: **this endpoint must NOT require any authentication**.
+
+### Option A: Add in the main server/app file (e.g., `server.ts`, `app.ts`, or `index.ts`)
+
+Find the main Express app file and add this route BEFORE the admin auth middleware is applied:
+
+```typescript
+// TEMPORARY — Public test email endpoint (remove after debugging)
+app.get('/api/test-email', async (req, res) => {
+  const diagnostics: any = {
+    timestamp: new Date().toISOString(),
+    steps: []
+  };
+
+  try {
+    // Step 1: Check env var
+    const apiKey = process.env.RESEND_API_KEY;
+    diagnostics.steps.push({
+      step: 'env_check',
+      keyExists: !!apiKey,
+      keyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'NOT SET',
+      keyLength: apiKey ? apiKey.length : 0
+    });
+
+    if (!apiKey) {
+      diagnostics.error = 'RESEND_API_KEY is not set';
+      return res.json(diagnostics);
+    }
+
+    // Step 2: Import and initialize Resend
+    const { Resend } = require('resend');
+    const resend = new Resend(apiKey);
+    diagnostics.steps.push({ step: 'resend_initialized' });
+
+    // Step 3: Send test email
+    const sendPayload = {
+      from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+      to: 'danoladoja@gmail.com',
+      subject: `AfriEnergy Test — ${new Date().toLocaleTimeString()}`,
+      html: '<h2>Test Email</h2><p>If you see this, Resend is working. Sent at: ' + new Date().toISOString() + '</p>'
+    };
+
+    diagnostics.steps.push({ step: 'sending', payload: { ...sendPayload, html: '[HTML content]' } });
+
+    const result = await resend.emails.send(sendPayload);
+
+    diagnostics.steps.push({ step: 'send_complete', result });
+    diagnostics.success = true;
+    diagnostics.resendResponse = result;
+
+    return res.json(diagnostics);
+
+  } catch (err: any) {
+    diagnostics.steps.push({
+      step: 'error',
+      message: err?.message,
+      name: err?.name,
+      statusCode: err?.statusCode,
+      code: err?.code
+    });
+    diagnostics.success = false;
+    diagnostics.error = err?.message || String(err);
+
+    // Try to serialize the full error
+    try {
+      diagnostics.fullError = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    } catch (e) {
+      diagnostics.fullError = String(err);
+    }
+
+    return res.json(diagnostics);
+  }
+});
+```
+
+### Option B: If routes are in separate files
+
+If you can't easily add to the main app file, create a new file `artifacts/api-server/src/routes/test-email.ts` and register it WITHOUT auth middleware:
+
+```typescript
+import { Router } from 'express';
+
+const router = Router();
+
+router.get('/api/test-email', async (req, res) => {
+  // Same code as above
+});
+
+export default router;
+```
+
+Then in the main app file, add it BEFORE auth:
+```typescript
+import testEmailRouter from './routes/test-email';
+app.use(testEmailRouter); // <-- BEFORE auth middleware
+```
+
+---
+
+## CRITICAL REQUIREMENTS
+
+1. **NO AUTH** — The endpoint MUST be accessible without any login, session, or token
+2. **Route path:** `/api/test-email` (NOT under `/api/admin/`)
+3. **Hardcoded recipient:** Only sends to `danoladoja@gmail.com` — no security risk
+4. **Full diagnostics:** Returns every step and the complete Resend API response
+5. **Use `require('resend')`** not dynamic import — to avoid any async module loading issues
+6. **Console logging:** Also `console.log` every step so Railway logs capture it too
+
+---
+
+## AFTER DEPLOY
+
+Visit this URL in any browser (no login needed):
+```
+https://afrienergytracker.io/api/test-email
+```
+
+Paste the full JSON response back to me. This will tell us exactly what Resend returns.
+
+---
+
+## ⚠️ REMOVE AFTER DEBUGGING
+
+This is a temporary diagnostic endpoint. Remove it once email delivery is confirmed working.

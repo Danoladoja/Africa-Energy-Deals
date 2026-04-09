@@ -211,6 +211,53 @@ app.get("/sitemap.xml", async (_req: Request, res: Response) => {
   }
 });
 
+// TEMPORARY DIAGNOSTIC — public, no auth, remove after email delivery confirmed
+app.get("/api/test-email", async (_req: Request, res: Response) => {
+  const diagnostics: Record<string, unknown> = { timestamp: new Date().toISOString(), steps: [] };
+  const steps = diagnostics.steps as unknown[];
+
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    steps.push({ step: "env_check", keyExists: !!apiKey, keyPrefix: apiKey ? apiKey.substring(0, 8) + "..." : "NOT SET", keyLength: apiKey?.length ?? 0 });
+    console.log("[TEST-EMAIL] RESEND_API_KEY set:", !!apiKey, "| prefix:", apiKey?.substring(0, 8));
+
+    if (!apiKey) {
+      diagnostics.error = "RESEND_API_KEY is not set";
+      res.json(diagnostics);
+      return;
+    }
+
+    const { Resend } = require("resend");
+    const resend = new Resend(apiKey);
+    steps.push({ step: "resend_initialized" });
+
+    const sendPayload = {
+      from: "AfriEnergy Tracker <noreply@afrienergytracker.io>",
+      to: "danoladoja@gmail.com",
+      subject: `AfriEnergy Test — ${new Date().toISOString()}`,
+      html: `<h2>AfriEnergy Tracker — Test Email</h2><p>Sent at: ${new Date().toISOString()}</p><p>If you see this, Resend is working correctly.</p>`,
+    };
+
+    steps.push({ step: "sending", from: sendPayload.from, to: sendPayload.to, subject: sendPayload.subject });
+    console.log("[TEST-EMAIL] Calling resend.emails.send() to", sendPayload.to, "...");
+
+    const result = await resend.emails.send(sendPayload);
+
+    console.log("[TEST-EMAIL] Resend response:", JSON.stringify(result));
+    steps.push({ step: "send_complete", result });
+    diagnostics.success = true;
+    diagnostics.resendResponse = result;
+    res.json(diagnostics);
+  } catch (err: any) {
+    console.error("[TEST-EMAIL] Error:", err);
+    steps.push({ step: "error", message: err?.message, name: err?.name, statusCode: err?.statusCode, code: err?.code });
+    diagnostics.success = false;
+    diagnostics.error = err?.message || String(err);
+    try { diagnostics.fullError = JSON.stringify(err, Object.getOwnPropertyNames(err)); } catch { diagnostics.fullError = String(err); }
+    res.json(diagnostics);
+  }
+});
+
 // Mount API routes
 app.use("/api", router);
 
