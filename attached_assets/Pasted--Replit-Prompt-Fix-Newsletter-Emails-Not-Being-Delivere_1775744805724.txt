@@ -1,0 +1,300 @@
+# Replit Prompt — Fix: Newsletter Emails Not Being Delivered
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** CRITICAL — newsletters are marked "sent" but no emails ever arrive
+
+---
+
+## ⚠️ KNOWN BUG — READ THIS FIRST
+
+This is a **confirmed, previously diagnosed** bug. The Resend batch email API (`POST /emails/batch`) returns **403 Forbidden** on the current Resend plan. The code MUST use individual `POST /emails` calls instead.
+
+**Evidence from production:**
+- Newsletter ID 5: `generatedAt: 09:26:04.881Z`, `sentAt: 09:26:05.346Z` — only **465ms** between generation and "send." Sending 13 individual emails would take several seconds. This proves the code is NOT sending individually.
+- Newsletter ID 3: same pattern — **514ms** gap.
+- The Resend dashboard Emails page shows **zero delivered emails** — no newsletter emails ever reached the Resend API successfully.
+- The newsletter status in the database says `"sent"` with `recipientCount: 13`, but **zero emails were actually delivered**. The status update is happening regardless of whether the send succeeded.
+
+---
+
+## ROOT CAUSE — Two Bugs
+
+### Bug 1: Code Uses `resend.emails.batch.send()` Which Returns 403
+
+The email dispatch code (likely in `artifacts/api-server/src/services/email-dispatch.ts` or inline in `artifacts/api-server/src/routes/newsletter.ts`) uses the Resend batch API:
+
+```javascript
+// BROKEN — returns 403 Forbidden on current Resend plan
+await resend.emails.batch.send(emailsArray);
+```
+
+The Resend batch endpoint (`POST /emails/batch`) requires a higher-tier plan. On the current plan, it returns 403. The individual endpoint (`POST /emails`) works fine and returns 200.
+
+### Bug 2: Newsletter Status Updated to "sent" Even When Send Fails
+
+The code updates the newsletter status to `"sent"` and sets `recipientCount` to the total subscriber count BEFORE or REGARDLESS of whether emails were actually delivered. This means:
+- The admin UI shows the newsletter as "sent" ✓
+- The recipientCount shows 13 ✓
+- But zero emails were actually sent ✗
+
+---
+
+## THE FIX
+
+### Step 1: Find the Email Send Code
+
+Search the codebase for ALL of these patterns:
+```
+resend.emails.batch
+batch.send
+emails.batch
+```
+
+The code will be in one of these files:
+- `artifacts/api-server/src/services/email-dispatch.ts`
+- `artifacts/api-server/src/routes/newsletter.ts`
+- Or any file that imports `resend` and calls a send method
+
+### Step 2: Replace Batch Send with Individual Sends
+
+**Find code like this:**
+```javascript
+// BROKEN — batch returns 403
+const emails = subscribers.map(subscriber => ({
+  from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+  to: subscriber.email,
+  subject: newsletter.title,
+  html: newsletter.contentHtml,
+}));
+await resend.emails.batch.send(emails);
+```
+
+**Replace with individual sends:**
+```javascript
+// WORKING — individual sends return 200
+let sentCount = 0;
+const errors: string[] = [];
+
+for (const subscriber of subscribers) {
+  try {
+    await resend.emails.send({
+      from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+      to: subscriber.email,
+      subject: newsletter.title,
+      html: newsletter.contentHtml,
+    });
+    sentCount++;
+  } catch (err: any) {
+    console.error(`Failed to send to ${subscriber.email}:`, err?.message || err);
+    errors.push(subscriber.email);
+  }
+}
+
+console.log(`Newsletter send complete: ${sentCount}/${subscribers.length} sent, ${errors.length} failed`);
+```
+
+**CRITICAL:** Use `resend.emails.send()` (singular), NOT `resend.emails.batch.send()`. The batch endpoint returns 403 on the current Resend plan.
+
+### Step 3: Fix the Status Update Logic
+
+The newsletter status must ONLY be updated to "sent" AFTER the emails are actually sent, and `recipientCount` must reflect the ACTUAL number of successful sends, not the total subscriber count.
+
+**Find code like this:**
+```javascript
+// BROKEN — updates status before/regardless of send success
+await db.update(newslettersTable)
+  .set({
+    status: 'sent',
+    sentAt: new Date(),
+    recipientCount: subscribers.length  // <-- uses total, not actual
+  })
+  .where(eq(newslettersTable.id, newsletterId));
+```
+
+**Replace with:**
+```javascript
+// FIXED — only updates after send, uses actual count
+if (sentCount > 0) {
+  await db.update(newslettersTable)
+    .set({
+      status: 'sent',
+      sentAt: new Date(),
+      recipientCount: sentCount  // <-- actual successful sends
+    })
+    .where(eq(newslettersTable.id, newsletterId));
+} else {
+  // All sends failed — keep as draft so admin can retry
+  console.error('All newsletter sends failed. Newsletter remains as draft.');
+  // Optionally update with error info
+  await db.update(newslettersTable)
+    .set({
+      status: 'draft',  // keep as draft for retry
+    })
+    .where(eq(newslettersTable.id, newsletterId));
+}
+```
+
+### Step 4: Also Check the Auto-Send in Generation Flow
+
+The timing evidence (sentAt is <500ms after generatedAt) suggests the "send" is happening INSIDE the generation flow — i.e., the newsletter is generated AND sent in the same request. Look for patterns like:
+
+```javascript
+// In the generate route handler
+const newsletter = await generateNewsletter();
+await db.insert(newslettersTable).values(newsletter);
+
+// Auto-send immediately after generation — THIS is where the broken batch send likely lives
+await sendNewsletter(newsletter.id);
+```
+
+If auto-send exists in the generate flow, the same fix applies: replace `batch.send` with individual `send` calls, and only update status after confirmed delivery.
+
+### Step 5: Reset the "Sent" Newsletters That Were Never Actually Sent
+
+Since newsletters ID 3 and ID 5 are marked as "sent" but were never actually delivered, reset them so they can be re-sent:
+
+```sql
+UPDATE newsletters
+SET status = 'draft', sent_at = NULL, recipient_count = NULL
+WHERE id IN (3, 5) AND status = 'sent';
+```
+
+This allows the admin to re-send these newsletters after the code fix is deployed.
+
+---
+
+## COMPLETE EXAMPLE: Fixed Send Function
+
+Here's the complete send function to replace whatever currently exists:
+
+```typescript
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function sendNewsletter(
+  newsletterId: number,
+  db: any,
+  newslettersTable: any,
+  subscribersTable: any
+) {
+  // 1. Get the newsletter
+  const [newsletter] = await db.select()
+    .from(newslettersTable)
+    .where(eq(newslettersTable.id, newsletterId))
+    .limit(1);
+
+  if (!newsletter) {
+    throw new Error(`Newsletter ${newsletterId} not found`);
+  }
+
+  if (newsletter.status === 'sent') {
+    throw new Error(`Newsletter ${newsletterId} already sent`);
+  }
+
+  // 2. Get active subscribers
+  const subscribers = await db.select()
+    .from(subscribersTable)
+    .where(eq(subscribersTable.active, true));
+
+  if (subscribers.length === 0) {
+    throw new Error('No active subscribers found');
+  }
+
+  // 3. Send INDIVIDUALLY — do NOT use batch
+  let sentCount = 0;
+  const failedEmails: string[] = [];
+
+  for (const subscriber of subscribers) {
+    try {
+      const result = await resend.emails.send({
+        from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+        to: subscriber.email,
+        subject: newsletter.title,
+        html: newsletter.contentHtml,
+      });
+      console.log(`✓ Sent to ${subscriber.email} — ID: ${result.data?.id}`);
+      sentCount++;
+    } catch (err: any) {
+      console.error(`✗ Failed to send to ${subscriber.email}:`, err?.message || err);
+      failedEmails.push(subscriber.email);
+    }
+  }
+
+  // 4. Update status ONLY based on actual results
+  if (sentCount > 0) {
+    await db.update(newslettersTable)
+      .set({
+        status: 'sent',
+        sentAt: new Date(),
+        recipientCount: sentCount,
+      })
+      .where(eq(newslettersTable.id, newsletterId));
+
+    console.log(`Newsletter ${newsletterId} sent to ${sentCount}/${subscribers.length} subscribers`);
+    if (failedEmails.length > 0) {
+      console.warn(`Failed recipients: ${failedEmails.join(', ')}`);
+    }
+  } else {
+    console.error(`Newsletter ${newsletterId} FAILED — 0/${subscribers.length} sent`);
+    // Keep as draft for retry
+  }
+
+  return { sentCount, totalSubscribers: subscribers.length, failedEmails };
+}
+```
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The following features work correctly and must not be broken:
+- Chat tab and Quick Insight cards on `/insights`
+- Data provenance and source attribution
+- Subscriber newsletter view on `/insights`
+- Map, Studio, Landing pages
+- Admin scraper/review workflow
+- `GET /api/newsletters` and all newsletter read endpoints
+- Subscriber signup (`POST /api/newsletter/subscribe`)
+
+Only modify:
+1. The email dispatch/send function (batch → individual)
+2. The newsletter status update logic (actual count, not total count)
+3. Reset newsletters ID 3 and 5 to draft status
+
+---
+
+## Testing Checklist
+
+### Before deploying:
+1. Search the entire codebase for `batch.send` or `emails.batch` — there should be ZERO instances after the fix
+2. Verify the send function uses `resend.emails.send()` (singular)
+3. Verify the status update uses the actual `sentCount`, not `subscribers.length`
+
+### After deploying:
+4. Verify newsletters ID 3 and 5 are back to "draft" status
+5. Go to the admin panel and trigger a send for one of the draft newsletters
+6. Check Railway logs — you should see individual `✓ Sent to <email>` lines for each subscriber
+7. Check the Resend dashboard (resend.com/emails) — you should see individual email entries with status "delivered"
+8. Check your inbox (danoladoja@gmail.com) — the newsletter email should arrive within 1-2 minutes
+9. Verify the newsletter status in the database is now "sent" with the correct `recipientCount`
+
+### If emails still don't arrive:
+- Check Railway logs for error messages on the send calls
+- Check Resend dashboard → Logs for any API errors
+- Verify `RESEND_API_KEY` environment variable is set correctly in Railway
+- Verify the sending domain `afrienergytracker.io` is verified in Resend → Domains
+- Try sending a test email directly: `await resend.emails.send({ from: 'noreply@afrienergytracker.io', to: 'danoladoja@gmail.com', subject: 'Test', html: '<p>Test</p>' })`
+
+---
+
+## Summary
+
+| What | Why | Fix |
+|---|---|---|
+| `resend.emails.batch.send()` → 403 | Batch API not available on current Resend plan | Replace with individual `resend.emails.send()` in a loop |
+| Newsletter marked "sent" with 0 actual deliveries | Status updated regardless of send success | Only update to "sent" after confirming `sentCount > 0` |
+| `recipientCount: 13` but 0 emails delivered | Uses `subscribers.length` not actual sent count | Use `sentCount` from the send loop |
+| Newsletters ID 3 & 5 stuck as "sent" | Were never actually delivered | Reset to "draft" via SQL so admin can re-send |

@@ -294,45 +294,30 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  // Fetch newsletter — try to include content_html (best-effort; may not exist on older DBs)
-  let newsletter: any;
-  try {
-    const [row] = await db
-      .select({
-        id: newslettersTable.id,
-        editionNumber: newslettersTable.editionNumber,
-        title: newslettersTable.title,
-        content: newslettersTable.content,
-        contentHtml: newslettersTable.contentHtml,
-        executiveSummary: newslettersTable.executiveSummary,
-        spotlightSector: newslettersTable.spotlightSector,
-        spotlightCountry: newslettersTable.spotlightCountry,
-        status: newslettersTable.status,
-      })
-      .from(newslettersTable)
-      .where(eq(newslettersTable.id, newsletterId))
-      .limit(1);
-    newsletter = row;
-  } catch {
-    // Fall back to safe columns if content_html column doesn't exist yet
-    const [row] = await db
-      .select({
-        id: newslettersTable.id,
-        editionNumber: newslettersTable.editionNumber,
-        title: newslettersTable.title,
-        content: newslettersTable.content,
-        executiveSummary: newslettersTable.executiveSummary,
-        spotlightSector: newslettersTable.spotlightSector,
-        spotlightCountry: newslettersTable.spotlightCountry,
-        status: newslettersTable.status,
-      })
-      .from(newslettersTable)
-      .where(eq(newslettersTable.id, newsletterId))
-      .limit(1);
-    newsletter = row;
-  }
+  // Fetch newsletter
+  const [newsletter] = await db
+    .select({
+      id: newslettersTable.id,
+      editionNumber: newslettersTable.editionNumber,
+      title: newslettersTable.title,
+      content: newslettersTable.content,
+      contentHtml: newslettersTable.contentHtml,
+      executiveSummary: newslettersTable.executiveSummary,
+      spotlightSector: newslettersTable.spotlightSector,
+      spotlightCountry: newslettersTable.spotlightCountry,
+      status: newslettersTable.status,
+      recipientCount: newslettersTable.recipientCount,
+      type: newslettersTable.type,
+    })
+    .from(newslettersTable)
+    .where(eq(newslettersTable.id, newsletterId))
+    .limit(1);
 
   if (!newsletter) throw new Error(`Newsletter ${newsletterId} not found`);
+  if (newsletter.status === "sent") {
+    console.log(`[EmailDispatch] Newsletter #${newsletterId} already sent — skipping`);
+    return newsletter.recipientCount ?? 0;
+  }
 
   // Get subscribed users
   const subscribers = await db
@@ -341,11 +326,11 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
     .where(eq(userEmailsTable.newsletterOptIn, true));
 
   if (subscribers.length === 0) {
-    console.log("[EmailDispatch] No subscribers to send to");
+    console.log("[EmailDispatch] No opted-in subscribers — skipping dispatch");
     return 0;
   }
 
-  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
+  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief");
   const htmlTemplate = isBrief
     ? buildBriefEmailHtml({
         title: newsletter.title,
@@ -362,6 +347,8 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
       });
 
   const fromAddress = isBrief ? FROM_BRIEF : FROM_INSIGHTS;
+  console.log(`[EmailDispatch] Sending edition #${newsletter.editionNumber} ("${newsletter.type ?? "insights"}") to ${subscribers.length} subscriber(s)…`);
+
   let sent = 0;
   const failures: { email: string; error: string }[] = [];
 
@@ -371,42 +358,45 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
         "{{UNSUBSCRIBE_URL}}",
         `https://afrienergytracker.io/api/newsletter/unsubscribe?token=${sub.unsubscribeToken ?? ""}`
       );
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: fromAddress,
         to: sub.email,
         subject: newsletter.title,
         html: personalizedHtml,
       });
+      console.log(`[EmailDispatch] ✓ Sent to ${sub.email} — Resend ID: ${(result as any)?.data?.id ?? "n/a"}`);
       sent++;
     } catch (err) {
       const msg = (err as Error).message ?? "Unknown error";
-      console.error(`[EmailDispatch] Failed to send to ${sub.email}:`, msg);
+      console.error(`[EmailDispatch] ✗ Failed to send to ${sub.email}: ${msg}`);
       failures.push({ email: sub.email, error: msg });
     }
-    // 150ms between sends to stay well within Resend rate limits
-    await new Promise(r => setTimeout(r, 150));
+    // 200ms between sends — stays within Resend rate limits, individual endpoint only
+    await new Promise(r => setTimeout(r, 200));
   }
 
   if (failures.length > 0) {
-    console.error(`[EmailDispatch] ${failures.length} delivery failure(s):`, failures.map(f => f.email).join(", "));
+    console.error(`[EmailDispatch] ${failures.length} failure(s): ${failures.map(f => f.email).join(", ")}`);
   }
 
-  // Only mark as "sent" if at least one email was delivered
-  const finalStatus = sent > 0 ? "sent" : "failed";
-  await db
-    .update(newslettersTable)
-    .set({ sentAt: sent > 0 ? new Date() : null, recipientCount: sent, status: finalStatus })
-    .where(eq(newslettersTable.id, newsletterId));
-
-  // Update last_newsletter_sent_at for successfully reached subscribers
+  // Only mark as "sent" when at least one email was successfully delivered.
+  // recipientCount = actual successful sends, NOT total subscriber count.
   if (sent > 0) {
+    await db
+      .update(newslettersTable)
+      .set({ sentAt: new Date(), recipientCount: sent, status: "sent" })
+      .where(eq(newslettersTable.id, newsletterId));
+
     await db
       .update(userEmailsTable)
       .set({ lastNewsletterSentAt: new Date() })
       .where(eq(userEmailsTable.newsletterOptIn, true));
+  } else {
+    // Zero delivers — keep as draft so admin can investigate and retry
+    console.error(`[EmailDispatch] ALL sends failed for newsletter #${newsletterId} — status remains draft`);
   }
 
-  console.log(`[EmailDispatch] Edition #${newsletter.editionNumber}: ${sent} sent, ${failures.length} failed, status="${finalStatus}"`);
+  console.log(`[EmailDispatch] Edition #${newsletter.editionNumber}: ${sent}/${subscribers.length} delivered, ${failures.length} failed, status="${sent > 0 ? "sent" : "draft"}"`);
   return sent;
 }
 
