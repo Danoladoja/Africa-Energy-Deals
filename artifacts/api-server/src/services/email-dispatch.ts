@@ -5,13 +5,6 @@ import { eq } from "drizzle-orm";
 const FROM_INSIGHTS = "AfriEnergy Insights <insights@send.afrienergytracker.io>";
 const FROM_BRIEF = "Africa Energy Brief <brief@send.afrienergytracker.io>";
 
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
-}
 
 function markdownToEmailHtml(md: string): string {
   let html = md;
@@ -334,41 +327,51 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
       });
 
   const fromAddress = isBrief ? FROM_BRIEF : FROM_INSIGHTS;
-  const batches = chunkArray(subscribers, 100);
   let sent = 0;
+  const failures: { email: string; error: string }[] = [];
 
-  for (const batch of batches) {
+  for (const sub of subscribers) {
     try {
-      const emails = batch.map(sub => ({
+      const personalizedHtml = htmlTemplate.replace(
+        "{{UNSUBSCRIBE_URL}}",
+        `https://afrienergytracker.io/api/newsletter/unsubscribe?token=${sub.unsubscribeToken ?? ""}`
+      );
+      await resend.emails.send({
         from: fromAddress,
         to: sub.email,
         subject: newsletter.title,
-        html: htmlTemplate.replace(
-          "{{UNSUBSCRIBE_URL}}",
-          `https://afrienergytracker.io/api/newsletter/unsubscribe?token=${sub.unsubscribeToken ?? ""}`
-        ),
-      }));
-
-      await resend.batch.send(emails);
-      sent += batch.length;
+        html: personalizedHtml,
+      });
+      sent++;
     } catch (err) {
-      console.error("[EmailDispatch] Batch send error:", (err as Error).message);
+      const msg = (err as Error).message ?? "Unknown error";
+      console.error(`[EmailDispatch] Failed to send to ${sub.email}:`, msg);
+      failures.push({ email: sub.email, error: msg });
     }
+    // 150ms between sends to stay well within Resend rate limits
+    await new Promise(r => setTimeout(r, 150));
   }
 
-  // Update newsletter as sent
+  if (failures.length > 0) {
+    console.error(`[EmailDispatch] ${failures.length} delivery failure(s):`, failures.map(f => f.email).join(", "));
+  }
+
+  // Only mark as "sent" if at least one email was delivered
+  const finalStatus = sent > 0 ? "sent" : "failed";
   await db
     .update(newslettersTable)
-    .set({ sentAt: new Date(), recipientCount: sent, status: "sent" })
+    .set({ sentAt: sent > 0 ? new Date() : null, recipientCount: sent, status: finalStatus })
     .where(eq(newslettersTable.id, newsletterId));
 
-  // Update last_newsletter_sent_at for all recipients
-  await db
-    .update(userEmailsTable)
-    .set({ lastNewsletterSentAt: new Date() })
-    .where(eq(userEmailsTable.newsletterOptIn, true));
+  // Update last_newsletter_sent_at for successfully reached subscribers
+  if (sent > 0) {
+    await db
+      .update(userEmailsTable)
+      .set({ lastNewsletterSentAt: new Date() })
+      .where(eq(userEmailsTable.newsletterOptIn, true));
+  }
 
-  console.log(`[EmailDispatch] Sent edition #${newsletter.editionNumber} to ${sent} subscribers`);
+  console.log(`[EmailDispatch] Edition #${newsletter.editionNumber}: ${sent} sent, ${failures.length} failed, status="${finalStatus}"`);
   return sent;
 }
 

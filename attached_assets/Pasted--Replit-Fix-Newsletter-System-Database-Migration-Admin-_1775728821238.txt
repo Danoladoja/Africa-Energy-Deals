@@ -1,0 +1,273 @@
+# Replit Fix — Newsletter System Database Migration & Admin UI
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** CRITICAL — the entire newsletter system is broken
+
+---
+
+## DIAGNOSIS — TWO CRITICAL BUGS
+
+### Bug A: Email dispatch uses batch endpoint that returns 403
+
+The Resend API Logs confirm:
+- `POST /emails/batch` → **403 Forbidden** (every newsletter send attempt)
+- `POST /emails` → **200 OK** (all magic-link sign-in emails work fine)
+
+The newsletter email dispatch code uses `resend.emails.batch.send()` (which calls `/emails/batch`) to send to all subscribers at once. **Your Resend plan does not include batch sending** — it returns 403. The code then **swallows the error** and marks the newsletter as "sent" with recipientCount: 13, even though zero emails were delivered.
+
+**Proof from Resend Logs page:** The only successfully delivered emails in the last 15 days are "Sign in to AfriEnergy Tracker" magic links. Zero newsletter emails appear in the Emails tab.
+
+### Bug B: (Now fixed) Database migration was missing
+
+The `type` column was added to code but not migrated in PostgreSQL. This has been fixed — newsletters now save correctly. Editions 3 and 5 exist in the DB with status "sent", but no emails were actually delivered due to Bug A.
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance badge, conversation history, all other pages, and the newsletter generation logic (which correctly generates content via Claude) are working. The magic-link sign-in emails (which use `resend.emails.send()`) also work perfectly. These fixes target ONLY the newsletter email dispatch and admin UI.
+
+---
+
+## FIX 1: Replace Batch Email Sending with Individual Sends (CRITICAL — #1 PRIORITY)
+
+**Problem:** The email dispatch code uses `resend.emails.batch.send()` (Resend's `/emails/batch` endpoint) to send newsletters to all subscribers. This endpoint returns **403 Forbidden** on the current Resend plan. The code then swallows the error and falsely marks the newsletter as "sent".
+
+**File:** `artifacts/api-server/src/services/email-dispatch.ts`
+
+**What to do:**
+
+**A. Replace batch send with a loop of individual sends:**
+
+Find the function that sends the newsletter email (likely `sendNewsletter()` or `dispatchNewsletter()`). It currently does something like:
+
+```javascript
+// BROKEN — returns 403
+const result = await resend.emails.batch.send(
+  subscribers.map(sub => ({
+    from: 'noreply@afrienergytracker.io',
+    to: sub.email,
+    subject: newsletter.title,
+    html: newsletter.contentHtml,
+  }))
+);
+```
+
+Replace it with individual sends:
+
+```javascript
+// WORKING — uses /emails endpoint which returns 200
+const results = [];
+const errors = [];
+
+for (const subscriber of subscribers) {
+  try {
+    const result = await resend.emails.send({
+      from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+      to: subscriber.email,
+      subject: newsletter.title,
+      html: newsletter.contentHtml,
+    });
+    results.push({ email: subscriber.email, id: result.id, status: 'sent' });
+  } catch (error) {
+    console.error(`Failed to send to ${subscriber.email}:`, error);
+    errors.push({ email: subscriber.email, error: error.message });
+  }
+}
+
+console.log(`Newsletter dispatch: ${results.length} sent, ${errors.length} failed`);
+```
+
+**B. Fix the error handling — do NOT mark as "sent" unless emails actually delivered:**
+
+Find where the code updates the newsletter status to "sent" and recipientCount. Currently it probably does:
+
+```javascript
+// BAD — marks sent regardless of Resend response
+await db.query('UPDATE newsletters SET status = $1, sent_at = NOW(), recipient_count = $2 WHERE id = $3',
+  ['sent', subscribers.length, newsletterId]);
+```
+
+Change it to only mark sent if at least some emails succeeded:
+
+```javascript
+const successCount = results.length;
+const status = successCount > 0 ? 'sent' : 'failed';
+
+await db.query(
+  'UPDATE newsletters SET status = $1, sent_at = $2, recipient_count = $3 WHERE id = $4',
+  [status, successCount > 0 ? new Date() : null, successCount, newsletterId]
+);
+
+if (errors.length > 0) {
+  console.error(`Newsletter ${newsletterId}: ${errors.length} delivery failures:`, errors);
+}
+```
+
+**C. Add a small delay between sends to avoid rate limiting:**
+
+```javascript
+// Add 100ms delay between sends to avoid hitting Resend rate limits
+await new Promise(resolve => setTimeout(resolve, 100));
+```
+
+**Verification:** After this fix:
+1. Generate & Send a newsletter from admin
+2. Check Resend Emails page — you should see individual newsletter emails appearing
+3. Check your inbox — the newsletter should arrive
+
+---
+
+## FIX 2: Add Newsletter Type Selector to Admin UI
+
+**Problem:** The admin Newsletter tab has only "Preview Edition" and "Generate & Send" buttons with no way to choose between the monthly "AfriEnergy Insights" and the biweekly "Africa Energy Brief".
+
+**File:** The admin panel component that renders the Newsletter tab. This is likely in `artifacts/energy-tracker/src/pages/admin-scraper.tsx` or similar admin page file.
+
+**What to do:**
+
+**A. Add a type selector above the generate buttons:**
+
+Replace the current single "Generate Newsletter" section with a two-card layout:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Newsletter & Insights                                        │
+│  AI-powered publications — monthly reports & biweekly briefs  │
+│                                                                │
+│  ┌──────────────────────┐  ┌──────────────────────┐          │
+│  │  AfriEnergy Insights  │  │  Africa Energy Brief  │          │
+│  │  Monthly Deep-Dive    │  │  Biweekly Quick Update│          │
+│  │  2,500–3,500 words    │  │  600–900 words        │          │
+│  │  1st Monday/month     │  │  Every other Monday   │          │
+│  │                        │  │                        │          │
+│  │  [Preview] [Generate]  │  │  [Preview] [Generate]  │          │
+│  └──────────────────────┘  └──────────────────────┘          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Each card should have its own "Preview" and "Generate & Send" buttons.
+
+**B. Pass the `type` parameter in the API call:**
+
+When the admin clicks "Preview" or "Generate & Send" on the **Insights** card, POST:
+```json
+{ "type": "insights" }
+```
+
+When clicking on the **Brief** card, POST:
+```json
+{ "type": "brief" }
+```
+
+**C. Verify the backend accepts `type`:**
+
+Check `artifacts/api-server/src/routes/newsletter.ts` — the `POST /api/admin/newsletter/preview` and `POST /api/admin/newsletter/generate` handlers should already read `req.body.type` (since the overhaul added this). If they don't, add:
+
+```javascript
+const type = req.body.type || 'insights'; // default to insights
+```
+
+And pass it through to the generator function.
+
+---
+
+## FIX 3: Update Admin Copy and Stats
+
+**Problem:** The admin Newsletter section still says "AI-generated weekly briefings" and "Generate Newsletter". These don't reflect the new two-product system.
+
+**File:** Same admin page file as Fix 2.
+
+**What to do:**
+
+1. Change the subtitle from `"AI-generated weekly briefings — generation, history, subscribers"` to `"AI-powered publications — monthly reports & biweekly briefs"`
+
+2. Change the section heading from `"Generate Newsletter"` to `"Generate Publication"` (or remove it entirely if using the two-card layout from Fix 2)
+
+3. In the Editions tab/list, add a type badge to each newsletter entry:
+   - `insights` → amber badge: "Monthly Insights"
+   - `brief` → blue badge: "Biweekly Brief"
+
+4. The "TOTAL EDITIONS" stat card at the top should still count all editions. Optionally add separate counts: "Monthly: X | Briefs: Y"
+
+---
+
+## FIX 4: Fix the Newsletter List Query to Handle Both Types
+
+**Problem:** After the migration adds the `type` column, the `GET /api/newsletters` endpoint needs to support filtering by type.
+
+**File:** `artifacts/api-server/src/routes/newsletter.ts`
+
+**What to do:**
+
+1. The `GET /api/newsletters` route should accept an optional `?type=insights` or `?type=brief` query param to filter
+2. Without a type param, return all newsletters (both types), ordered by `created_at DESC`
+3. Ensure the SELECT query includes the `type` column in results
+4. In the response, include the `type` field so the frontend can display badges
+
+**Example:**
+```javascript
+// In the GET /api/newsletters handler
+const type = req.query.type; // optional filter
+let query = 'SELECT * FROM newsletters';
+const params = [];
+
+if (type && ['insights', 'brief'].includes(type)) {
+  query += ' WHERE type = $1';
+  params.push(type);
+}
+query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+params.push(limit);
+```
+
+---
+
+## FIX 5: Ensure Error States Show in the Admin UI
+
+**Problem:** When a newsletter generation job fails (as happened with the `type` column error), the admin UI doesn't show the error. The button just stays in loading state or resets silently.
+
+**File:** Same admin page component.
+
+**What to do:**
+
+1. When polling `GET /api/admin/newsletter/job/:jobId` returns `{ "status": "error", "error": "..." }`, display the error message prominently in the UI
+2. Show a red alert/toast: "Generation failed: [error message]"
+3. Re-enable the generate buttons so the admin can retry
+4. Show the error message truncated to ~200 chars with a "Show full error" toggle
+
+---
+
+## After All Changes — Testing Checklist
+
+1. **First:** Fix the email dispatch (Fix 1) — replace batch with individual sends
+2. Run `cd artifacts/energy-tracker && pnpm run build` — fix any TypeScript errors
+3. **Test email delivery:** Generate & Send a brief from admin, then check:
+   - Resend Emails page shows individual newsletter emails (not just magic links)
+   - Resend Logs page shows `POST /emails → 200` for each subscriber (NOT `/emails/batch → 403`)
+   - The newsletter actually arrives in your inbox
+4. Test admin Newsletter tab shows the two-card type selector (Fix 2)
+5. Test both "Insights" and "Brief" generation flows work
+6. Verify editions list displays with type badges after successful generation
+7. Commit and push to master
+
+---
+
+## Summary of Root Causes
+
+### Critical: Email delivery completely broken
+- The email dispatch code uses `resend.emails.batch.send()` → calls `/emails/batch`
+- Resend free/starter plan returns **403 Forbidden** for batch endpoint
+- The code **swallows the 403 error** and marks newsletters as "sent" anyway
+- **Result:** Zero newsletter emails have ever been delivered. All "sent" newsletters in the DB are false positives.
+- **Fix:** Switch to `resend.emails.send()` in a loop (the same endpoint that works for magic-link emails)
+
+### Previously fixed: Database migration was missing
+- The `type` column was added to code but not migrated — now resolved
+- Newsletters can now be generated and saved correctly
+
+### UI gaps: Admin panel not updated for two-product system
+- No type selector for Insights vs Brief
+- Copy still says "weekly briefings"
+- No error states shown when generation/dispatch fails
