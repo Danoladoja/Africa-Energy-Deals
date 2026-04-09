@@ -46,7 +46,10 @@ export async function runStartupMigrations(): Promise<void> {
   await runMigration("energy_projects.grant_component", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS grant_component DOUBLE PRECISION`);
   await runMigration("energy_projects.financing_type", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS financing_type TEXT`);
   await runMigration("energy_projects.financing_sub_types", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS financing_sub_types TEXT`);
+  await runMigration("energy_projects.concessional_terms", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS concessional_terms TEXT`);
   await runMigration("energy_projects.ppa_term_years", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS ppa_term_years INTEGER`);
+  await runMigration("energy_projects.ppa_tariff_usd_kwh", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS ppa_tariff_usd_kwh DOUBLE PRECISION`);
+  await runMigration("energy_projects.guarantor", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS guarantor TEXT`);
   await runMigration("energy_projects.climate_finance_tag", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS climate_finance_tag TEXT`);
   // Auto-discovery / review workflow columns
   await runMigration("energy_projects.confidence_score", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS confidence_score DOUBLE PRECISION`);
