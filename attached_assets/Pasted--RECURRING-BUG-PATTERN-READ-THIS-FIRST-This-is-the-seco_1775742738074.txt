@@ -1,0 +1,60 @@
+## ⚠️ RECURRING BUG PATTERN — READ THIS FIRST
+
+This is the **second time** this exact bug has occurred. Previously the `type` column was added to the Drizzle schema for the newsletters table but never migrated to PostgreSQL, crashing newsletter generation. Now the same thing has happened with `news_url_2` on the projects table.
+
+**ROOT CAUSE:** Adding a column to the Drizzle ORM schema file does NOT automatically create it in the PostgreSQL database. The schema file is just TypeScript code — the actual database requires an explicit migration (ALTER TABLE or drizzle-kit push).
+
+**MANDATORY RULE FOR ALL FUTURE SCHEMA CHANGES:**
+Every time you add, rename, or modify a column in any Drizzle schema file, you MUST immediately:
+1. Run `npx drizzle-kit push` to sync the schema to PostgreSQL, OR
+2. Run the equivalent `ALTER TABLE` SQL directly against the Railway database
+3. **Verify** the column exists with: `SELECT column_name FROM information_schema.columns WHERE table_name = '<table>' AND column_name = '<new_column>';`
+
+Never assume a schema change is deployed just because the code compiled successfully.
+
+---
+
+## THE BUG
+
+Newsletter generation crashes with:
+
+```
+Failed query: select "id", "project_name", "country", "region", "technology", "deal_size_usd_mn", "investors", "status", "description", "latitude", "longitude", "capacity_mw", "announced_year", "closed_year", "source_url", "news_url", "news_url_2", ...
+```
+
+The Drizzle schema for the projects table now includes `news_url_2`, so every `SELECT` query built by Drizzle references it. But the column does not exist in PostgreSQL, so the query fails.
+
+---
+
+## THE FIX
+
+Run this SQL against the Railway PostgreSQL database:
+
+```sql
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS news_url_2 TEXT;
+```
+
+Then verify:
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'projects' AND column_name = 'news_url_2';
+```
+
+This should return exactly 1 row. If it does, the fix is complete.
+
+Alternatively, run `npx drizzle-kit push` from the project root to sync all schema changes at once.
+
+---
+
+## AFTER THE FIX
+
+1. Go to the admin newsletter page and click "Generate Brief" — it should now succeed
+2. Verify the generated newsletter appears in the list with status "draft"
+3. Check that all other pages still work (landing, map, studio, insights, admin scraper)
+
+---
+
+## PREVENTION
+
+Add a post-deployment check or CI step that runs `npx drizzle-kit push` automatically on every deploy. This ensures schema changes in code are always synced to the database. Without this, every new column added to a Drizzle schema will crash the app on the next deploy.
