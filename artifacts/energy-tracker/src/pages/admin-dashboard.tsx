@@ -47,7 +47,7 @@ interface SourceStat {
 }
 interface Project { id: number; projectName: string; country: string; technology: string; dealSizeUsdMn: number | null; capacityMw: number | null; status: string; description: string | null; sourceUrl: string | null; newsUrl: string | null; reviewStatus: string; discoveredAt: string | null; confidenceScore: number | null; extractionSource: string | null; developer: string | null; financiers: string | null }
 interface RunProgress { stage: string; message: string; processed?: number; discovered?: number; updated?: number; flagged?: number }
-interface Newsletter { id: number; editionNumber: number; title: string; executiveSummary: string | null; spotlightSector: string | null; spotlightCountry: string | null; projectsAnalyzed: number | null; totalInvestmentCovered: string | null; generatedAt: string | null; sentAt: string | null; status: string; recipientCount: number | null }
+interface Newsletter { id: number; editionNumber: number; title: string; executiveSummary: string | null; spotlightSector: string | null; spotlightCountry: string | null; projectsAnalyzed: number | null; totalInvestmentCovered: string | null; generatedAt: string | null; sentAt: string | null; status: string; recipientCount: number | null; type?: string }
 interface Subscriber { id: number; email: string; role: string; newsletterOptIn: boolean; newsletterFrequency: string | null; createdAt: string; lastNewsletterSentAt: string | null }
 
 type AdminSection = "overview" | "pipeline" | "queue" | "newsletter";
@@ -559,24 +559,43 @@ function QueueSection({ pendingItems, pendingCount, setPendingItems, setPendingC
 }
 
 // ── Newsletter Section ─────────────────────────────────────────────────────────
+type PubType = "insights" | "brief";
+type GenMode = "preview" | "send";
+type ActiveGen = `${PubType}-${GenMode}` | null;
+
+function NlTypeBadge({ type }: { type?: string }) {
+  if (type === "brief") {
+    return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold shrink-0">Biweekly Brief</span>;
+  }
+  return <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold shrink-0">Monthly Insights</span>;
+}
+
 function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, loadSubscribers }: {
   newsletters: Newsletter[];
   subscriberStats: { total: number; optedIn: number; optedOut: number; subscribers: Subscriber[] } | null;
   loadNewsletters: () => Promise<void>;
   loadSubscribers: () => Promise<void>;
 }) {
-  const [generating, setGenerating] = useState<"preview" | "send" | null>(null);
-  const [genResult, setGenResult] = useState<{ title: string; status: string; recipientCount?: number } | null>(null);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<ActiveGen>(null);
+  const [genResult, setGenResult] = useState<{ title: string; status: string; recipientCount?: number; pubType: PubType } | null>(null);
+  const [genError, setGenError] = useState<{ message: string; pubType: PubType } | null>(null);
+  const [showFullError, setShowFullError] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [expandedContent, setExpandedContent] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<"editions" | "subscribers">("editions");
 
-  async function triggerGenerate(mode: "preview" | "send") {
-    setGenerating(mode); setGenResult(null); setGenError(null);
+  async function triggerGenerate(pubType: PubType, mode: GenMode) {
+    const key: ActiveGen = `${pubType}-${mode}`;
+    setGenerating(key); setGenResult(null); setGenError(null); setShowFullError(false);
     try {
-      const endpoint = mode === "preview" ? "/admin/newsletter/preview" : "/admin/newsletter/generate";
-      // Start the async job — server responds immediately with a jobId
+      // Insights uses /preview or /generate; Brief uses /preview-brief or /generate-brief
+      const endpointMap: Record<string, string> = {
+        "insights-preview": "/admin/newsletter/preview",
+        "insights-send":    "/admin/newsletter/generate",
+        "brief-preview":    "/admin/newsletter/preview-brief",
+        "brief-send":       "/admin/newsletter/generate-brief",
+      };
+      const endpoint = endpointMap[key];
       const startRes = await fetch(`${API}${endpoint}`, { method: "POST", headers: authHeaders() });
       if (!startRes.ok) {
         const err = await startRes.json().catch(() => ({ error: "Unknown error" }));
@@ -597,14 +616,13 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
         const poll = await pollRes.json();
         if (poll.status === "running") continue;
         if (poll.status === "error") throw new Error(poll.error ?? "Generation failed");
-        // Done
-        setGenResult({ title: poll.title, status: poll.status, recipientCount: poll.recipientCount });
+        setGenResult({ title: poll.title, status: poll.status, recipientCount: poll.recipientCount, pubType });
         await loadNewsletters();
         return;
       }
       throw new Error("Generation timed out after 10 minutes — please try again");
     } catch (err: any) {
-      setGenError(err.message ?? "Failed to generate newsletter");
+      setGenError({ message: err.message ?? "Failed to generate", pubType });
     } finally {
       setGenerating(null);
     }
@@ -621,13 +639,36 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
   }
 
   const sentCount = newsletters.filter(n => n.status === "sent").length;
+  const insightsCount = newsletters.filter(n => !n.type || n.type === "insights").length;
+  const briefCount = newsletters.filter(n => n.type === "brief").length;
+
+  const pubCards: { type: PubType; label: string; subtitle: string; detail: string; cadence: string; border: string; badgeCls: string }[] = [
+    {
+      type: "insights",
+      label: "AfriEnergy Insights",
+      subtitle: "Monthly Deep-Dive",
+      detail: "2,500–3,500 words + charts",
+      cadence: "Published 1st Monday of each month",
+      border: "border-primary/30",
+      badgeCls: "bg-primary/10 text-primary",
+    },
+    {
+      type: "brief",
+      label: "Africa Energy Brief",
+      subtitle: "Biweekly Quick Update",
+      detail: "600–900 words · 3–5 min read",
+      cadence: "Published every other Monday",
+      border: "border-blue-500/30",
+      badgeCls: "bg-blue-500/10 text-blue-400",
+    },
+  ];
 
   return (
     <div className="p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Newsletter & Insights</h1>
-          <p className="text-sm text-muted-foreground mt-1">AI-generated weekly briefings — generation, history, subscribers</p>
+          <p className="text-sm text-muted-foreground mt-1">AI-powered publications — monthly reports & biweekly briefs</p>
         </div>
         <button onClick={() => { loadNewsletters(); loadSubscribers(); }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm">
           <RefreshCw className="w-4 h-4" /> Refresh
@@ -637,62 +678,91 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Total Editions", value: newsletters.length,                              icon: <Newspaper className="w-4 h-4" />, color: "text-primary" },
-          { label: "Sent",           value: sentCount,                                       icon: <Send className="w-4 h-4" />,     color: "text-green-400" },
-          { label: "Subscribers",    value: subscriberStats?.optedIn ?? "—",                 icon: <Users className="w-4 h-4" />,    color: "text-cyan-400" },
-          { label: "Total Users",    value: subscriberStats?.total ?? "—",                   icon: <Mail className="w-4 h-4" />,     color: "text-blue-400" },
+          { label: "Total Editions", value: newsletters.length, icon: <Newspaper className="w-4 h-4" />, color: "text-primary" },
+          { label: "Sent",           value: sentCount,          icon: <Send className="w-4 h-4" />,     color: "text-green-400" },
+          { label: "Subscribers",    value: subscriberStats?.optedIn ?? "—", icon: <Users className="w-4 h-4" />, color: "text-cyan-400" },
+          { label: "Total Users",    value: subscriberStats?.total ?? "—",   icon: <Mail className="w-4 h-4" />, color: "text-blue-400" },
         ].map(({ label, value, icon, color }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4">
             <div className={`flex items-center gap-2 ${color} mb-2`}>{icon}<span className="text-xs font-medium uppercase tracking-wider">{label}</span></div>
             <div className="text-2xl font-bold text-foreground">{typeof value === "number" ? value.toLocaleString() : value}</div>
+            {label === "Total Editions" && (insightsCount > 0 || briefCount > 0) && (
+              <div className="text-[10px] text-muted-foreground mt-1">{insightsCount} monthly · {briefCount} briefs</div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Generation controls */}
-      <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary" />
-          <h2 className="font-semibold text-foreground">Generate Newsletter</h2>
-          <span className="text-xs text-muted-foreground ml-1">Powered by Claude — uses last 7 days of data</span>
-        </div>
-        <div className="px-6 py-5">
-          <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-            <strong className="text-foreground">Preview</strong> generates an edition without sending to subscribers — useful for reviewing content.{" "}
-            <strong className="text-foreground">Generate & Send</strong> creates and immediately dispatches to all opted-in subscribers.
-          </p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => triggerGenerate("preview")}
-              disabled={!!generating}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating === "preview" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-              {generating === "preview" ? "Generating… (may take 2–3 min)" : "Preview Edition"}
-            </button>
-            <button
-              onClick={() => triggerGenerate("send")}
-              disabled={!!generating}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating === "send" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {generating === "send" ? "Sending…" : "Generate & Send"}
-            </button>
-          </div>
-          {genResult && (
-            <div className="mt-4 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-              <p className="text-sm font-medium text-green-400 mb-1">
-                {genResult.status === "sent" ? `✓ Sent to ${genResult.recipientCount ?? 0} subscribers` : "✓ Preview generated"}
-              </p>
-              <p className="text-xs text-muted-foreground">{genResult.title}</p>
+      {/* Two-card generation controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {pubCards.map(card => {
+          const isAnyGenerating = !!generating;
+          const isPreviewRunning = generating === `${card.type}-preview`;
+          const isSendRunning = generating === `${card.type}-send`;
+          const cardResult = genResult?.pubType === card.type ? genResult : null;
+          const cardError = genError?.pubType === card.type ? genError : null;
+
+          return (
+            <div key={card.type} className={`bg-card border ${card.border} rounded-xl overflow-hidden`}>
+              <div className="px-5 py-4 border-b border-border/60">
+                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold mb-2.5 ${card.badgeCls}`}>
+                  <Zap className="w-3 h-3" /> {card.subtitle}
+                </div>
+                <h2 className="font-bold text-foreground text-sm">{card.label}</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{card.detail}</p>
+                <p className="text-[11px] text-muted-foreground/70 mt-0.5">{card.cadence}</p>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <strong className="text-foreground">Preview</strong> saves without emailing.{" "}
+                  <strong className="text-foreground">Generate & Send</strong> dispatches to all opted-in subscribers.
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => triggerGenerate(card.type, "preview")}
+                    disabled={isAnyGenerating}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPreviewRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    {isPreviewRunning ? "Generating…" : "Preview"}
+                  </button>
+                  <button
+                    onClick={() => triggerGenerate(card.type, "send")}
+                    disabled={isAnyGenerating}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSendRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    {isSendRunning ? "Sending…" : "Generate & Send"}
+                  </button>
+                </div>
+                {(isPreviewRunning || isSendRunning) && (
+                  <p className="text-[11px] text-muted-foreground animate-pulse">AI is generating content — this takes 2–3 minutes…</p>
+                )}
+                {cardResult && (
+                  <div className="p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+                    <p className="text-xs font-medium text-green-400 mb-0.5">
+                      {cardResult.status === "sent" ? `✓ Sent to ${cardResult.recipientCount ?? 0} subscribers` : "✓ Preview generated — saved to Editions"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{cardResult.title}</p>
+                  </div>
+                )}
+                {cardError && (
+                  <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
+                    <p className="text-xs font-semibold text-red-400 mb-1">✗ Generation failed</p>
+                    <p className="text-[11px] text-red-400/80 break-words">
+                      {showFullError ? cardError.message : cardError.message.slice(0, 200)}{cardError.message.length > 200 && !showFullError && "…"}
+                    </p>
+                    {cardError.message.length > 200 && (
+                      <button onClick={() => setShowFullError(v => !v)} className="text-[10px] text-muted-foreground hover:text-foreground mt-1 underline">
+                        {showFullError ? "Show less" : "Show full error"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          {genError && (
-            <div className="mt-4 p-3 rounded-xl bg-red-500/5 border border-red-500/20">
-              <p className="text-sm text-red-400">✗ {genError}</p>
-            </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
       {/* Tabs: Editions / Subscribers */}
@@ -709,7 +779,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
           {newsletters.length === 0 ? (
             <div className="text-center py-16 bg-card border border-border rounded-xl">
               <Newspaper className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">No newsletters yet. Use the controls above to generate the first edition.</p>
+              <p className="text-sm text-muted-foreground">No publications yet. Use the cards above to generate the first edition.</p>
             </div>
           ) : newsletters.map(nl => (
             <div key={nl.id} className="bg-card border border-border rounded-xl overflow-hidden">
@@ -718,6 +788,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <p className="text-sm font-medium text-foreground truncate">{nl.title}</p>
+                    <NlTypeBadge type={nl.type} />
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${nl.status === "sent" ? "bg-green-500/10 text-green-400" : nl.status === "failed" ? "bg-red-500/10 text-red-400" : "bg-muted text-muted-foreground"}`}>{nl.status}</span>
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
@@ -761,7 +832,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                   <div key={sub.id} className="px-6 py-3 grid grid-cols-4 gap-4 text-xs items-center">
                     <span className="text-foreground font-mono truncate">{sub.email}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium w-fit ${sub.role === "admin-reviewer" ? "bg-purple-500/10 text-purple-400" : sub.role === "reviewer" ? "bg-blue-500/10 text-blue-400" : "bg-muted text-muted-foreground"}`}>{sub.role}</span>
-                    <span className={sub.newsletterOptIn ? "text-green-400" : "text-muted-foreground"}>{sub.newsletterOptIn ? `✓ ${sub.newsletterFrequency ?? "weekly"}` : "Unsubscribed"}</span>
+                    <span className={sub.newsletterOptIn ? "text-green-400" : "text-muted-foreground"}>{sub.newsletterOptIn ? "✓ Subscribed" : "Unsubscribed"}</span>
                     <span className="text-muted-foreground">{fmtDate(sub.createdAt)}</span>
                   </div>
                 ))}

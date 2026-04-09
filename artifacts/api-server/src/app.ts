@@ -5,8 +5,13 @@ import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
 import router from "./routes";
-import { db, projectsTable } from "@workspace/db";
+import { db, pool, projectsTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
+
+// Run idempotent startup migrations
+pool.query(`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'insights'`).catch((err: Error) => {
+  console.error("[Migration] newsletters.type:", err.message);
+});
 
 const require = createRequire(import.meta.url);
 const swaggerUi = require("swagger-ui-express") as typeof import("swagger-ui-express");

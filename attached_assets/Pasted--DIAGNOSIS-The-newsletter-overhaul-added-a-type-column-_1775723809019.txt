@@ -1,0 +1,220 @@
+## DIAGNOSIS
+
+The newsletter overhaul added a `type` column to the newsletter code (INSERT and SELECT queries) but **never ran the database migration** on the PostgreSQL database. This causes:
+
+1. **`GET /api/newsletters` → 500** — the SELECT query references a `type` column that doesn't exist
+2. **`GET /api/newsletters/latest` → 500** — same issue
+3. **`POST /api/admin/newsletter/preview` → job starts, AI generates content, then CRASHES on INSERT** because the `type` column doesn't exist in the actual table
+4. **Admin shows "Editions (0)"** — because the list query fails silently
+5. **Admin has no way to choose between "Insights" (monthly) and "Brief" (biweekly)** — only a single generic "Preview Edition" / "Generate & Send" exists
+
+### Proof — Actual Error from Job Status
+
+```
+Failed query:
+    INSERT INTO newsletters
+      (edition_number, title, content, executive_summary,
+       spotlight_sector, spotlight_country,
+       projects_analyzed, total_investment_covered, status, type)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9)
+    RETURNING id
+```
+
+The query includes `type` in the column list, but the PostgreSQL `newsletters` table has no such column.
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance badge, conversation history, all other pages, and the newsletter generation logic (which correctly generates content via Claude) are working. These fixes are strictly:
+1. A database migration
+2. Admin UI additions
+3. Copy updates
+
+---
+
+## FIX 1: Run the Database Migration (CRITICAL — Do This First)
+
+**Problem:** The `type` column exists in the Drizzle schema code but not in the actual PostgreSQL table.
+
+**What to do:**
+
+Add a migration that runs on server startup (or use `drizzle-kit push` if the project uses it). The safest approach is to add a raw SQL migration that runs before any newsletter queries.
+
+**Option A — Use Drizzle Kit:**
+```bash
+npx drizzle-kit push
+```
+This will sync the schema to the database.
+
+**Option B — Manual migration in server startup:**
+
+In the server startup file (e.g., `artifacts/api-server/src/app.ts` or wherever the DB connection is initialized), add:
+
+```sql
+ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'insights';
+```
+
+Run this migration BEFORE any route handlers fire. Use `pool.query()` or `db.execute()` to run it.
+
+**Option C — Create a migration file:**
+
+If the project uses a migrations folder, add a new migration:
+
+```sql
+-- Add type column for newsletter/brief distinction
+ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'insights';
+
+-- Backfill existing newsletters as 'insights' type
+UPDATE newsletters SET type = 'insights' WHERE type IS NULL;
+```
+
+**Verification:** After migration, `GET /api/newsletters` should return 200 (not 500).
+
+---
+
+## FIX 2: Add Newsletter Type Selector to Admin UI
+
+**Problem:** The admin Newsletter tab has only "Preview Edition" and "Generate & Send" buttons with no way to choose between the monthly "AfriEnergy Insights" and the biweekly "Africa Energy Brief".
+
+**File:** The admin panel component that renders the Newsletter tab. This is likely in `artifacts/energy-tracker/src/pages/admin-scraper.tsx` or similar admin page file.
+
+**What to do:**
+
+**A. Add a type selector above the generate buttons:**
+
+Replace the current single "Generate Newsletter" section with a two-card layout:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Newsletter & Insights                                        │
+│  AI-powered publications — monthly reports & biweekly briefs  │
+│                                                                │
+│  ┌──────────────────────┐  ┌──────────────────────┐          │
+│  │  AfriEnergy Insights  │  │  Africa Energy Brief  │          │
+│  │  Monthly Deep-Dive    │  │  Biweekly Quick Update│          │
+│  │  2,500–3,500 words    │  │  600–900 words        │          │
+│  │  1st Monday/month     │  │  Every other Monday   │          │
+│  │                        │  │                        │          │
+│  │  [Preview] [Generate]  │  │  [Preview] [Generate]  │          │
+│  └──────────────────────┘  └──────────────────────┘          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Each card should have its own "Preview" and "Generate & Send" buttons.
+
+**B. Pass the `type` parameter in the API call:**
+
+When the admin clicks "Preview" or "Generate & Send" on the **Insights** card, POST:
+```json
+{ "type": "insights" }
+```
+
+When clicking on the **Brief** card, POST:
+```json
+{ "type": "brief" }
+```
+
+**C. Verify the backend accepts `type`:**
+
+Check `artifacts/api-server/src/routes/newsletter.ts` — the `POST /api/admin/newsletter/preview` and `POST /api/admin/newsletter/generate` handlers should already read `req.body.type` (since the overhaul added this). If they don't, add:
+
+```javascript
+const type = req.body.type || 'insights'; // default to insights
+```
+
+And pass it through to the generator function.
+
+---
+
+## FIX 3: Update Admin Copy and Stats
+
+**Problem:** The admin Newsletter section still says "AI-generated weekly briefings" and "Generate Newsletter". These don't reflect the new two-product system.
+
+**File:** Same admin page file as Fix 2.
+
+**What to do:**
+
+1. Change the subtitle from `"AI-generated weekly briefings — generation, history, subscribers"` to `"AI-powered publications — monthly reports & biweekly briefs"`
+
+2. Change the section heading from `"Generate Newsletter"` to `"Generate Publication"` (or remove it entirely if using the two-card layout from Fix 2)
+
+3. In the Editions tab/list, add a type badge to each newsletter entry:
+   - `insights` → amber badge: "Monthly Insights"
+   - `brief` → blue badge: "Biweekly Brief"
+
+4. The "TOTAL EDITIONS" stat card at the top should still count all editions. Optionally add separate counts: "Monthly: X | Briefs: Y"
+
+---
+
+## FIX 4: Fix the Newsletter List Query to Handle Both Types
+
+**Problem:** After the migration adds the `type` column, the `GET /api/newsletters` endpoint needs to support filtering by type.
+
+**File:** `artifacts/api-server/src/routes/newsletter.ts`
+
+**What to do:**
+
+1. The `GET /api/newsletters` route should accept an optional `?type=insights` or `?type=brief` query param to filter
+2. Without a type param, return all newsletters (both types), ordered by `created_at DESC`
+3. Ensure the SELECT query includes the `type` column in results
+4. In the response, include the `type` field so the frontend can display badges
+
+**Example:**
+```javascript
+// In the GET /api/newsletters handler
+const type = req.query.type; // optional filter
+let query = 'SELECT * FROM newsletters';
+const params = [];
+
+if (type && ['insights', 'brief'].includes(type)) {
+  query += ' WHERE type = $1';
+  params.push(type);
+}
+query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+params.push(limit);
+```
+
+---
+
+## FIX 5: Ensure Error States Show in the Admin UI
+
+**Problem:** When a newsletter generation job fails (as happened with the `type` column error), the admin UI doesn't show the error. The button just stays in loading state or resets silently.
+
+**File:** Same admin page component.
+
+**What to do:**
+
+1. When polling `GET /api/admin/newsletter/job/:jobId` returns `{ "status": "error", "error": "..." }`, display the error message prominently in the UI
+2. Show a red alert/toast: "Generation failed: [error message]"
+3. Re-enable the generate buttons so the admin can retry
+4. Show the error message truncated to ~200 chars with a "Show full error" toggle
+
+---
+
+## After All Changes
+
+1. **First:** Run the database migration (Fix 1) — this unblocks everything else
+2. Run `cd artifacts/energy-tracker && pnpm run build` — fix any TypeScript errors
+3. Test `GET /api/newsletters` returns 200 (not 500)
+4. Test `POST /api/admin/newsletter/preview` with `{ "type": "insights" }` — job should complete and save to DB
+5. Test `POST /api/admin/newsletter/preview` with `{ "type": "brief" }` — should generate a shorter brief
+6. Verify the admin Newsletter tab shows the two-card type selector
+7. Verify editions list displays with type badges after successful generation
+8. Commit and push to master
+
+---
+
+## Summary of Root Cause
+
+The newsletter overhaul correctly updated:
+- ✅ The Drizzle schema (added `type` column)
+- ✅ The INSERT queries (include `type`)
+- ✅ The SELECT queries (reference `type`)
+- ✅ The generator logic (support for insights vs brief)
+
+But it **missed**:
+- ❌ Actually running the database migration (`ALTER TABLE ... ADD COLUMN`)
+- ❌ Adding a type selector to the admin UI
+- ❌ Updating the admin copy from "weekly" to "monthly/biweekly"
+- ❌ Showing generation errors in the admin UI
