@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, newslettersTable, userEmailsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { generateNewsletter, generateBrief, saveNewsletter, reviseNewsletter, markdownToHtml } from "../services/newsletter-generator.js";
-import { dispatchNewsletter, dispatchBrief, buildFullEmailHtml } from "../services/email-dispatch.js";
+import { dispatchNewsletter, dispatchBrief, buildFullEmailHtml, dispatchTestEmails } from "../services/email-dispatch.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 function parseNewsletterSections(markdown: string): Array<{ heading: string; body: string; index: number }> {
@@ -482,8 +482,7 @@ router.post("/admin/newsletter/:id/send", adminAuthMiddleware, async (req: Reque
   try {
     console.log("=== NEWSLETTER SEND START ===");
     console.log("Newsletter ID:", id);
-    console.log("RESEND_API_KEY set:", !!process.env.RESEND_API_KEY);
-    console.log("RESEND_API_KEY prefix:", process.env.RESEND_API_KEY?.substring(0, 8));
+    console.log("BREVO_API_KEY set:", !!process.env.BREVO_API_KEY);
 
     const [nl] = await db
       .select({ status: newslettersTable.status })
@@ -499,6 +498,30 @@ router.post("/admin/newsletter/:id/send", adminAuthMiddleware, async (req: Reque
   } catch (err: any) {
     console.error("[Newsletter] Send error:", err);
     res.status(500).json({ error: "Send failed: " + (err.message ?? "Unknown error") });
+  }
+});
+
+// POST /api/admin/newsletter/:id/test-send — send test emails without touching DB status
+router.post("/admin/newsletter/:id/test-send", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
+
+  const { emails } = req.body as { emails?: unknown };
+  if (!Array.isArray(emails) || emails.length === 0 || emails.length > 3) {
+    res.status(400).json({ error: "Provide 1–3 email addresses in the 'emails' array" }); return;
+  }
+  const valid = emails.filter((e): e is string => typeof e === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())).map(e => e.trim());
+  if (valid.length !== emails.length) {
+    res.status(400).json({ error: "One or more email addresses are invalid" }); return;
+  }
+
+  try {
+    console.log(`[TestSend] Newsletter #${id} → ${valid.join(", ")}`);
+    const result = await dispatchTestEmails(id, valid);
+    res.json({ success: result.sent > 0, sent: result.sent, failed: result.failed });
+  } catch (err: any) {
+    console.error("[TestSend] Error:", err);
+    res.status(500).json({ error: "Test send failed: " + (err.message ?? "Unknown error") });
   }
 });
 

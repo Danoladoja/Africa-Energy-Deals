@@ -404,6 +404,73 @@ export async function dispatchBrief(newsletterId: number): Promise<number> {
   return dispatchNewsletter(newsletterId);
 }
 
+export async function dispatchTestEmails(
+  newsletterId: number,
+  testEmails: string[]
+): Promise<{ sent: number; failed: string[] }> {
+  if (!process.env.BREVO_API_KEY) {
+    throw new Error("BREVO_API_KEY not configured");
+  }
+  if (!testEmails.length) throw new Error("No test email addresses provided");
+
+  const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+
+  const [newsletter] = await db
+    .select({
+      id: newslettersTable.id,
+      editionNumber: newslettersTable.editionNumber,
+      title: newslettersTable.title,
+      content: newslettersTable.content,
+      contentHtml: newslettersTable.contentHtml,
+      type: newslettersTable.type,
+    })
+    .from(newslettersTable)
+    .where(eq(newslettersTable.id, newsletterId))
+    .limit(1);
+
+  if (!newsletter) throw new Error(`Newsletter ${newsletterId} not found`);
+
+  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief");
+  const sender = isBrief ? SENDER_BRIEF : SENDER_INSIGHTS;
+  const subject = `[TEST] ${newsletter.title}`;
+
+  // Build the full HTML template and replace the unsubscribe placeholder
+  // with the insights page (no real unsubscribe token needed for a test send)
+  const rawHtml = buildFullEmailHtml({
+    title: newsletter.title,
+    content: newsletter.content,
+    contentHtml: newsletter.contentHtml,
+    editionNumber: newsletter.editionNumber,
+    id: newsletter.id,
+    type: newsletter.type,
+  });
+  const testHtml = rawHtml.replace(/\{\{UNSUBSCRIBE_URL\}\}/g, "https://afrienergytracker.io/insights");
+
+  let sent = 0;
+  const failed: string[] = [];
+
+  for (const email of testEmails) {
+    try {
+      const result = await brevo.transactionalEmails.sendTransacEmail({
+        sender,
+        to: [{ email }],
+        subject,
+        htmlContent: testHtml,
+      });
+      console.log(`[TestDispatch] ✓ Sent to ${email} — messageId: ${(result as any)?.messageId ?? "n/a"}`);
+      sent++;
+    } catch (err) {
+      const msg = (err as Error).message ?? "Unknown error";
+      console.error(`[TestDispatch] ✗ Failed to send to ${email}: ${msg}`);
+      failed.push(email);
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  console.log(`[TestDispatch] Newsletter #${newsletterId}: ${sent}/${testEmails.length} test emails sent`);
+  return { sent, failed };
+}
+
 export function buildFullEmailHtml(newsletter: {
   title: string;
   content: string;

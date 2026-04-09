@@ -7,7 +7,7 @@ import {
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
-  ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle,
+  ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle, FlaskConical,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -627,6 +627,12 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
   const [sendConfirm, setSendConfirm] = useState(false);
   const [sendResult, setSendResult] = useState<{ sent: number; success: boolean } | null>(null);
 
+  // Test-send state
+  const [showTestSend, setShowTestSend] = useState(false);
+  const [testEmails, setTestEmails] = useState<string[]>([""]);
+  const [isTestSending, setIsTestSending] = useState(false);
+  const [testSendResult, setTestSendResult] = useState<{ sent: number; failed: string[] } | null>(null);
+
   async function openWorkspace(id: number) {
     const res = await fetch(`${API}/admin/newsletter/${id}/full`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Failed to load newsletter");
@@ -752,6 +758,27 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
     }
   }
 
+  async function sendTest() {
+    if (!activeDraft) return;
+    const valid = testEmails.map(e => e.trim()).filter(Boolean);
+    if (!valid.length) return;
+    setIsTestSending(true);
+    setTestSendResult(null);
+    try {
+      const res = await fetch(`${API}/admin/newsletter/${activeDraft.id}/test-send`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ emails: valid }),
+      });
+      const data = await res.json();
+      setTestSendResult({ sent: data.sent ?? 0, failed: data.failed ?? [] });
+    } catch {
+      setTestSendResult({ sent: 0, failed: valid });
+    } finally {
+      setIsTestSending(false);
+    }
+  }
+
   const drafts = newsletters.filter(n => n.status === "draft" || n.status === "preview");
   const sentCount = newsletters.filter(n => n.status === "sent").length;
   const insightsCount = newsletters.filter(n => !n.type || n.type === "insights").length;
@@ -799,6 +826,100 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
                     <button onClick={approveAndSend} disabled={isSending} className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                       {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       {isSending ? "Sending…" : "Send Now"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Test-send modal */}
+        {showTestSend && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+              {testSendResult ? (
+                <div className="text-center">
+                  {testSendResult.sent > 0 ? (
+                    <>
+                      <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-4" />
+                      <p className="text-lg font-bold text-foreground mb-1">Test sent!</p>
+                      <p className="text-sm text-muted-foreground mb-1">{testSendResult.sent} of {testEmails.filter(Boolean).length} delivered.</p>
+                      {testSendResult.failed.length > 0 && (
+                        <p className="text-xs text-red-400 mt-1">Failed: {testSendResult.failed.join(", ")}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-2">Newsletter status was not changed.</p>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-10 h-10 text-red-400 mx-auto mb-4" />
+                      <p className="text-lg font-bold text-foreground mb-1">Delivery failed</p>
+                      <p className="text-sm text-muted-foreground mb-1">0 test emails delivered.</p>
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setShowTestSend(false); setTestSendResult(null); setTestEmails([""]); }}
+                    className="mt-5 w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm font-medium hover:bg-muted/80 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-5">
+                    <FlaskConical className="w-5 h-5 text-amber-400 shrink-0" />
+                    <p className="text-base font-bold text-foreground">Send Test Email</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-5">
+                    Sends a <span className="text-amber-400 font-medium">[TEST]</span> copy to up to 3 addresses. Newsletter status will not change.
+                  </p>
+                  <div className="space-y-2 mb-4">
+                    {testEmails.map((email, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={e => {
+                            const updated = [...testEmails];
+                            updated[i] = e.target.value;
+                            setTestEmails(updated);
+                          }}
+                          placeholder={`Email address ${i + 1}`}
+                          className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                        />
+                        {testEmails.length > 1 && (
+                          <button
+                            onClick={() => setTestEmails(testEmails.filter((_, j) => j !== i))}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {testEmails.length < 3 && (
+                      <button
+                        onClick={() => setTestEmails([...testEmails, ""])}
+                        className="text-xs text-primary hover:underline mt-1"
+                      >
+                        + Add another email
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setShowTestSend(false); setTestEmails([""]); setTestSendResult(null); }}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={sendTest}
+                      disabled={isTestSending || !testEmails.some(e => e.trim())}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isTestSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
+                      {isTestSending ? "Sending…" : "Send Test"}
                     </button>
                   </div>
                 </>
@@ -1000,14 +1121,24 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
           >
             <RefreshCw className="w-4 h-4" /> Regenerate All
           </button>
-          <button
-            onClick={() => setSendConfirm(true)}
-            disabled={activeDraft.status === "sent"}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
-          >
-            <Send className="w-4 h-4" />
-            {activeDraft.status === "sent" ? "Already Sent" : "Approve & Send"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setShowTestSend(true); setTestSendResult(null); setTestEmails([""]); }}
+              disabled={isTestSending}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/40 text-amber-400 bg-amber-500/10 text-sm font-semibold hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+            >
+              <FlaskConical className="w-4 h-4" />
+              Send Test
+            </button>
+            <button
+              onClick={() => setSendConfirm(true)}
+              disabled={activeDraft.status === "sent"}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
+            >
+              <Send className="w-4 h-4" />
+              {activeDraft.status === "sent" ? "Already Sent" : "Approve & Send"}
+            </button>
+          </div>
         </div>
       </div>
     );
