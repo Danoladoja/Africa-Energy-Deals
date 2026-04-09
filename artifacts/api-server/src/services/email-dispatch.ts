@@ -2,8 +2,8 @@ import { BrevoClient } from "@getbrevo/brevo";
 import { db, userEmailsTable, newslettersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
-const SENDER_INSIGHTS = { name: "AfriEnergy Insights", email: "insights@send.afrienergytracker.io" };
-const SENDER_BRIEF    = { name: "AfriEnergy Brief",    email: "brief@send.afrienergytracker.io" };
+const SENDER_INSIGHTS = { name: "AfriEnergy Insights", email: "insights@afrienergytracker.io" };
+const SENDER_BRIEF    = { name: "AfriEnergy Brief",    email: "brief@afrienergytracker.io" };
 
 
 function markdownToEmailHtml(md: string): string {
