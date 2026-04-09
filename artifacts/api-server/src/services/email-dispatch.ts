@@ -12,16 +12,70 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return chunks;
 }
 
-function markdownToHtmlSimple(md: string): string {
-  return md
-    .replace(/^## (.+)$/gm, '<h2 style="color:#1a365d;font-size:20px;margin:32px 0 12px;padding-bottom:8px;border-bottom:2px solid #00e676;">$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 style="color:#2d3748;font-size:16px;margin:20px 0 8px;">$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;color:#4a5568;">$1</li>')
-    .replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g, '<ul style="padding-left:20px;margin:12px 0;">$&</ul>')
-    .replace(/\n\n/g, '</p><p style="color:#4a5568;line-height:1.7;margin:12px 0;">')
-    .replace(/^(?!<[h|u|l])/gm, '')
+function markdownToEmailHtml(md: string): string {
+  let html = md;
+
+  // Tables — convert markdown tables to styled HTML tables
+  html = html.replace(/(\|.+\|\n)(\|[-| :]+\|\n)((?:\|.+\|\n?)+)/g, (_match, header, _sep, body) => {
+    const headerCells = header.trim().split("|").filter(Boolean).map(c =>
+      `<th style="background:#0b0f1a;color:#00e676;font-size:12px;font-weight:700;padding:10px 14px;text-align:left;border:1px solid #1e293b;white-space:nowrap;">${c.trim()}</th>`
+    ).join("");
+    const bodyRows = body.trim().split("\n").map((row: string, i: number) => {
+      const cells = row.split("|").filter(Boolean).map(c =>
+        `<td style="padding:9px 14px;font-size:13px;color:#374151;border:1px solid #e5e7eb;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
+      ).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+    return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+<thead><tr>${headerCells}</tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>`;
+  });
+
+  // Blockquotes → styled callout boxes
+  html = html.replace(/^> (.+)$/gm,
+    '<div style="border-left:4px solid #00e676;background:#f0fdf4;padding:12px 16px;margin:16px 0;border-radius:0 8px 8px 0;color:#166534;font-size:14px;line-height:1.6;font-style:italic;">$1</div>'
+  );
+
+  // H2 → section headers with green underline
+  html = html.replace(/^## (.+)$/gm,
+    '<h2 style="color:#0b0f1a;font-size:20px;font-weight:800;margin:36px 0 12px;padding-bottom:8px;border-bottom:3px solid #00e676;font-family:Arial,sans-serif;">$1</h2>'
+  );
+
+  // H3 → sub-headers
+  html = html.replace(/^### (.+)$/gm,
+    '<h3 style="color:#1e293b;font-size:16px;font-weight:700;margin:24px 0 8px;font-family:Arial,sans-serif;">$1</h3>'
+  );
+
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0b0f1a;font-weight:700;">$1</strong>');
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, '<em style="color:#374151;">$1</em>');
+
+  // Bullet lists
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+  html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
+    '<ul style="padding-left:22px;margin:12px 0;list-style-type:disc;">$&</ul>'
+  );
+
+  // Numbered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+
+  // Horizontal rules
+  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />');
+
+  // Paragraphs — wrap standalone lines
+  html = html
+    .split("\n\n")
+    .map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith("<")) return trimmed;
+      return `<p style="color:#374151;font-size:15px;line-height:1.75;margin:0 0 16px;">${trimmed.replace(/\n/g, " ")}</p>`;
+    })
+    .join("\n");
+
+  return html;
 }
 
 function buildNewsletterEmailHtml(newsletter: {
@@ -30,7 +84,8 @@ function buildNewsletterEmailHtml(newsletter: {
   editionNumber: number;
   id: number;
 }): string {
-  const bodyContent = markdownToHtmlSimple(newsletter.content);
+  const bodyContent = markdownToEmailHtml(newsletter.content);
+  const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -39,61 +94,80 @@ function buildNewsletterEmailHtml(newsletter: {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
 </head>
-<body style="margin:0;padding:0;background:#f7fafc;font-family:Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;">
-<tr><td align="center" style="padding:24px 16px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
+<tr><td align="center" style="padding:32px 16px;">
 <table width="100%" style="max-width:680px;" cellpadding="0" cellspacing="0">
 
   <!-- Header -->
-  <tr><td style="background:#0b0f1a;border-radius:12px 12px 0 0;padding:32px 40px;">
-    <table width="100%">
+  <tr><td style="background:#0b0f1a;border-radius:16px 16px 0 0;padding:36px 44px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
-        <td>
-          <div style="color:#00e676;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">Africa Energy Pulse</div>
-          <div style="color:#ffffff;font-size:28px;font-weight:800;line-height:1.2;">AfriEnergy Insights</div>
-          <div style="color:#94a3b8;font-size:13px;margin-top:6px;">Edition #${newsletter.editionNumber} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
+        <td style="vertical-align:middle;">
+          <div style="color:#00e676;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:10px;font-family:Arial,sans-serif;">Africa Energy Pulse</div>
+          <div style="color:#ffffff;font-size:32px;font-weight:900;line-height:1.15;letter-spacing:-0.5px;font-family:Arial,sans-serif;">AfriEnergy<br><span style="color:#00e676;">Insights</span></div>
+          <div style="color:#64748b;font-size:13px;margin-top:10px;font-family:Arial,sans-serif;">Edition #${newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</div>
         </td>
-        <td align="right" style="vertical-align:top;">
-          <div style="background:#00e676;color:#0b0f1a;font-size:10px;font-weight:700;padding:6px 12px;border-radius:20px;letter-spacing:1px;white-space:nowrap;">AI-POWERED INTELLIGENCE</div>
+        <td align="right" style="vertical-align:top;padding-left:20px;">
+          <div style="background:#00e676;color:#0b0f1a;font-size:9px;font-weight:800;padding:7px 13px;border-radius:20px;letter-spacing:1.5px;white-space:nowrap;text-transform:uppercase;display:inline-block;">AI-Powered<br>Intelligence</div>
         </td>
       </tr>
     </table>
   </td></tr>
 
-  <!-- Content -->
-  <tr><td style="background:#ffffff;padding:40px;">
-    <p style="color:#4a5568;line-height:1.7;margin:0 0 24px;">
-      ${bodyContent}
-    </p>
+  <!-- Title bar -->
+  <tr><td style="background:#0f172a;padding:16px 44px 20px;border-bottom:1px solid #1e293b;">
+    <p style="color:#e2e8f0;font-size:18px;font-weight:700;margin:0;font-family:Arial,sans-serif;line-height:1.3;">${newsletter.title}</p>
   </td></tr>
 
-  <!-- Data disclaimer -->
-  <tr><td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 24px;margin:0 40px 24px;">
-    <p style="color:#166534;font-size:12px;margin:0;">
-      ⚠️ <strong>AI-Generated Analysis:</strong> This newsletter is generated by AI from the AfriEnergy Tracker database. While grounded in real tracked data, AI interpretation may contain errors. Always verify critical figures against source data.
-    </p>
+  <!-- Content body -->
+  <tr><td style="background:#ffffff;padding:40px 44px;">
+    ${bodyContent}
+  </td></tr>
+
+  <!-- AI disclaimer callout -->
+  <tr><td style="background:#fffbeb;border-left:none;padding:0;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="background:#fffbeb;border-top:1px solid #fef3c7;border-bottom:1px solid #fef3c7;padding:16px 44px;">
+      <table cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top;padding-right:12px;font-size:18px;">⚠️</td>
+          <td style="color:#92400e;font-size:12px;line-height:1.6;font-family:Arial,sans-serif;">
+            <strong>AI-Generated Analysis:</strong> This newsletter is produced by AI from the AfriEnergy Tracker database.
+            While grounded in real, tracked project data, AI interpretation may contain errors or omissions.
+            Always verify critical figures against primary source data before making investment or policy decisions.
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+    </table>
   </td></tr>
 
   <!-- Footer -->
-  <tr><td style="background:#1e293b;border-radius:0 0 12px 12px;padding:24px 40px;">
-    <table width="100%">
+  <tr><td style="background:#0f172a;border-radius:0 0 16px 16px;padding:28px 44px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
-        <td style="color:#94a3b8;font-size:12px;line-height:1.6;">
-          <p style="margin:0 0 8px;"><strong style="color:#e2e8f0;">AfriEnergy Tracker</strong> by Africa Energy Pulse</p>
-          <p style="margin:0;">You are receiving this because you signed up for AfriEnergy Insights.</p>
+        <td style="vertical-align:top;">
+          <p style="color:#e2e8f0;font-size:13px;font-weight:700;margin:0 0 4px;font-family:Arial,sans-serif;">AfriEnergy Tracker</p>
+          <p style="color:#64748b;font-size:12px;margin:0;font-family:Arial,sans-serif;">by Africa Energy Pulse</p>
+          <p style="color:#475569;font-size:12px;margin:12px 0 0;font-family:Arial,sans-serif;">You're receiving this because you subscribed to AfriEnergy Insights.</p>
         </td>
-        <td align="right" style="vertical-align:top;">
-          <a href="https://afrienergytracker.io/energy-tracker/insights" style="color:#00e676;font-size:12px;text-decoration:none;display:block;margin-bottom:8px;">View on web →</a>
-          <a href="{{UNSUBSCRIBE_URL}}" style="color:#64748b;font-size:11px;text-decoration:underline;">Unsubscribe</a>
+        <td align="right" style="vertical-align:top;padding-left:20px;white-space:nowrap;">
+          <a href="https://afrienergytracker.io/insights" style="color:#00e676;font-size:12px;text-decoration:none;display:block;margin-bottom:10px;font-family:Arial,sans-serif;font-weight:600;">View on web →</a>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:11px;text-decoration:underline;font-family:Arial,sans-serif;">Unsubscribe</a>
         </td>
       </tr>
     </table>
+    <p style="color:#334155;font-size:11px;margin:20px 0 0;border-top:1px solid #1e293b;padding-top:16px;font-family:Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse · AfriEnergy Tracker · <a href="https://afrienergytracker.io" style="color:#00e676;text-decoration:none;">afrienergytracker.io</a>
+    </p>
   </td></tr>
 
 </table>
 </td></tr>
 </table>
+
 </body>
 </html>`;
 }
@@ -106,9 +180,19 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  // Get the newsletter
+  // Get the newsletter (select only guaranteed columns — avoids failures on
+  // production DBs that may be missing optional columns added later)
   const [newsletter] = await db
-    .select()
+    .select({
+      id: newslettersTable.id,
+      editionNumber: newslettersTable.editionNumber,
+      title: newslettersTable.title,
+      content: newslettersTable.content,
+      executiveSummary: newslettersTable.executiveSummary,
+      spotlightSector: newslettersTable.spotlightSector,
+      spotlightCountry: newslettersTable.spotlightCountry,
+      status: newslettersTable.status,
+    })
     .from(newslettersTable)
     .where(eq(newslettersTable.id, newsletterId))
     .limit(1);

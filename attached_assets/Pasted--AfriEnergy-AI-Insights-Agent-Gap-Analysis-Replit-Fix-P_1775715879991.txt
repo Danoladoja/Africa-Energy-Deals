@@ -1,0 +1,672 @@
+# AfriEnergy AI Insights Agent — Gap Analysis & Replit Fix Prompt
+
+**Date:** April 9, 2026
+**Context:** Benchmarking the original Replit build prompt (`AI-Insights-Agent-Replit-Prompt.md`) against what is currently deployed on afrienergytracker.io
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+
+---
+
+## HOW TO USE THIS DOCUMENT
+
+Paste this entire document into Replit Agent. It contains:
+1. A gap-by-gap audit of what was specified vs. what's actually live
+2. Exact file paths and code locations for every fix
+3. Priority ordering (Critical → High → Medium → Low)
+4. The fixes are grouped so Replit can work through them sequentially
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+This is a FIX-AND-ENHANCE pass only. Every page that currently works (Home, Dashboard, Deal Tracker, Interactive Map, Countries, Investors, Vis Studio, Review Portal, API Docs, My Watches) must continue to look and work exactly as it does today. Only modify the files and features explicitly listed below.
+
+---
+
+## CRITICAL ISSUE: Insights Page Performance / Timeout
+
+**Observation:** The `/insights` page causes browser timeouts and fails to load. The page hangs indefinitely, suggesting either an infinite loop, a blocking API call that never resolves, or a rendering crash in the 739-line `insights.tsx` component.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to investigate and fix:**
+- Check for any `useEffect` or `useQuery` hooks that fire on mount and never resolve (e.g., fetching from an endpoint that errors silently)
+- Check if the page depends on an API endpoint (`/api/chat` or similar) that blocks rendering when it fails
+- Check for infinite re-render loops caused by state updates inside effects
+- Add error boundaries and loading states so the page renders even if API calls fail
+- The page should show the empty state (greeting + insight cards) immediately without waiting for any API call
+
+**Priority:** 🔴 CRITICAL — The entire Insights feature is unusable if the page doesn't load.
+
+---
+
+## GAP ANALYSIS: Specification vs. Reality
+
+### PART 1 — AI Chatbot (Sections 1–10 of original prompt)
+
+---
+
+#### GAP 1: Anti-Hallucination Layer 2 — Backend Data Fingerprint (NOT IMPLEMENTED)
+
+**Spec (Section "Anti-Hallucination Layer 2"):** After every Claude response, the backend must compute a `dataSummary` object from the ACTUAL database query (not from Claude's text) and attach it to the response:
+```
+{
+  projectsInQuery: number,
+  totalInvestmentInQuery: number,
+  countriesInQuery: number,
+  sectorsInQuery: number,
+  queryTimestamp: ISO string,
+  dataSource: 'afrienergytracker_postgresql'
+}
+```
+
+**Current state:** The chat endpoint returns streamed AI text but does NOT attach a `dataSummary` object computed from query results.
+
+**File to modify:** The backend chat endpoint (likely in `artifacts/api-server/src/routes/` — find the `POST /api/chat` handler)
+
+**What to do:**
+1. After querying the database for project data, compute the `dataSummary` from the actual query results
+2. Include it in the final SSE chunk: `{ "type": "done", "dataSummary": { ... } }`
+3. This is essential for the frontend data provenance badge (Gap 3 below)
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 2: Anti-Hallucination Layer 2 — Post-Generation Spot-Check (NOT IMPLEMENTED)
+
+**Spec (Section "Anti-Hallucination Layer 2, part C"):** After Claude generates a response, run a lightweight validation that extracts numbers mentioned in the response and compares them against the actual query results. Log warnings if they diverge.
+
+**Current state:** No post-generation validation exists.
+
+**File to modify:** Backend chat endpoint and `artifacts/api-server/src/services/newsletter-generator.ts`
+
+**What to do:**
+1. After receiving Claude's response text, extract mentioned project counts and dollar amounts using regex
+2. Compare against actual query result counts
+3. Log `[DATA INTEGRITY WARNING]` if they diverge by more than 2
+4. Optionally append a small disclaimer to the response if a discrepancy is detected
+
+**Priority:** 🟢 LOW (nice-to-have, not blocking)
+
+---
+
+#### GAP 3: Anti-Hallucination Layer 3 — Frontend Data Provenance Badge (NOT IMPLEMENTED or INCOMPLETE)
+
+**Spec (Section "Anti-Hallucination Layer 3"):** Every AI response in the chatbot must display a data provenance badge:
+```
+📊 Data Source: AfriEnergy Tracker PostgreSQL
+📋 Projects analyzed: 156 | 💰 $115.4B tracked
+🌍 40 countries | ⚡ 9 sectors
+🕐 Query: 2026-03-29T14:23:00Z
+⚠️ AI-generated analysis — verify critical data
+```
+
+**Current state:** From codebase analysis, assistant messages may have some form of data context badge but it's unclear if it's computed from the backend `dataSummary` (which doesn't exist yet — see Gap 1) or hardcoded/parsed from AI text.
+
+**File to modify:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to do:**
+1. After receiving the `dataSummary` from the backend (once Gap 1 is fixed), render the provenance badge below each assistant message
+2. Include the permanent disclaimer: "AI-generated analysis — verify critical data"
+3. Add a ⚠️ icon with tooltip: "This analysis is AI-generated from database records. While grounded in real data, AI interpretation may contain errors."
+4. The badge must NOT be dismissible
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 4: ⌘K Slide-Out Chatbot Panel (UNCLEAR / LIKELY INCOMPLETE)
+
+**Spec (Section 2B):** A `chat-slide-out.tsx` component that opens from the right when pressing ⌘K from any page. Contains a compact chatbot (just chat thread + input, no cards or history sidebar). Shares state with the /insights page via React context.
+
+**Expected files:**
+- `artifacts/energy-tracker/src/components/chat-slide-out.tsx` — NEW
+- `artifacts/energy-tracker/src/contexts/chat-context.tsx` — NEW
+- `artifacts/energy-tracker/src/hooks/use-chat.ts` — NEW
+
+**What to verify and fix:**
+1. Check if `chat-slide-out.tsx` exists. If not, create it.
+2. Check if `use-chat.ts` hook exists with shared state. If not, create it.
+3. Check if `chat-context.tsx` React context provider exists and wraps the app in `App.tsx`. If not, create it.
+4. Verify ⌘K (Mac) / Ctrl+K (Windows) opens the slide-out from any page
+5. Verify Escape closes it
+6. Verify "Open in full page" link navigates to `/insights`
+7. On mobile: should become a bottom sheet instead of slide-out
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 5: Old Ask AI Components Not Properly Refactored (LIKELY INCOMPLETE)
+
+**Spec (Section 3):** The old `ai-assistant.tsx` and `nlq-search-bar.tsx` should be refactored (not deleted) to point to the new chatbot system. Existing imports must not break.
+
+**Files:**
+- `artifacts/energy-tracker/src/components/ai-assistant.tsx`
+- `artifacts/energy-tracker/src/components/nlq-search-bar.tsx`
+
+**What to verify:**
+1. Check if these files still exist and whether they've been properly refactored
+2. If they still contain the old Ask AI logic, refactor them to import/use the new chat-slide-out component
+3. Ensure no broken imports throughout the codebase
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 6: Sidebar Navigation — "Insights" Item Positioning (VERIFY)
+
+**Spec (Section 4):** "Insights" should appear in the sidebar after "Dashboard" and before "Deal Tracker", with a Lightbulb icon and amber "AI" badge.
+
+**File:** `artifacts/energy-tracker/src/components/layout.tsx`
+
+**What to verify:**
+1. Is "Insights" in the correct position (after Dashboard, before Deal Tracker)?
+2. Does it have the Lightbulb icon from lucide-react?
+3. Does it have the amber "AI" badge with the specified styling?
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 7: Quick Insight Cards — Sector/Country Dropdowns (LIKELY MISSING)
+
+**Spec (Section 2A):** The "Sector Deep Dive" card should show a sector dropdown before sending. The "Country Analysis" card should show a country dropdown before sending. All 6 cards must be present with correct icons.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to verify and fix:**
+1. Are all 6 Quick Insight cards present? (Market Overview, Sector Deep Dive, Country Analysis, Investment Trends, Deal Pipeline, Risk Assessment)
+2. Do the Sector Deep Dive and Country Analysis cards show inline dropdowns before sending?
+3. Are the correct icons used? (TrendingUp, Zap, Globe, BarChart3, GitBranch, Shield)
+4. Do the suggested prompt pills ("Q1 2026 Market Pulse", "Where is the money going?", etc.) render below the cards?
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 8: Conversation History Sidebar (LIKELY INCOMPLETE)
+
+**Spec (Section 2A, right column):** A collapsible right sidebar (~30% width) with conversation history: list of past conversations with title, date, type badge. Click to reload, delete button, "New Conversation" button. Stored in localStorage.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to verify and fix:**
+1. Does the right sidebar exist with conversation history?
+2. Can users reload past conversations?
+3. Does the "New Conversation" button work?
+4. Does delete work?
+5. Is history persisted in localStorage?
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 9: Chat Message Actions — Copy & Export PDF (LIKELY MISSING)
+
+**Spec (Section 2A):** Each assistant message should have "Copy" and "Export PDF" action buttons at the bottom (small, subtle).
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to verify and fix:**
+1. Do Copy and Export PDF buttons appear at the bottom of each assistant message?
+2. Does Copy copy the markdown to clipboard?
+3. Does Export PDF generate a downloadable PDF of the conversation?
+
+**Priority:** 🟢 LOW
+
+---
+
+#### GAP 10: Mobile Responsiveness (LIKELY INCOMPLETE)
+
+**Spec (Section 7):** Specific mobile requirements: stack cards vertically, full-width chat, bottom sheet for ⌘K, hide history sidebar behind hamburger menu, chat input fixed to bottom.
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx` and `chat-slide-out.tsx`
+
+**What to verify and fix:**
+1. Test on mobile viewport (375px width)
+2. Ensure cards stack vertically
+3. Chat input should be fixed to bottom of viewport
+4. ⌘K should trigger bottom sheet on mobile
+
+**Priority:** 🟢 LOW
+
+---
+
+#### GAP 11: Error Handling States (LIKELY INCOMPLETE)
+
+**Spec (Section 8):** Specific error states required:
+- No API key → "AI Insights requires configuration"
+- API failure → "Response interrupted. Click to retry."
+- Empty filter results → helpful suggestion
+- Network unavailable → connection error
+- Rate limit: disable send button for 3 seconds
+- Max 50 messages → suggest new conversation
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx` and backend chat endpoint
+
+**What to verify and fix:**
+1. Test each error state
+2. Add missing error handling
+3. Add the rate limit (3-second disable after each send)
+4. Add the 50-message conversation length warning
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+### PART 2 — Newsletter System (Sections 11–17 of original prompt)
+
+---
+
+#### GAP 12: Web Intelligence Scraping — external_intelligence Table (NOT CREATED)
+
+**Spec (Section 11):** A `external_intelligence` database table should store scraped intelligence with fields: id, source, title, summary, url, publishDate, category, relevanceScore, scrapedAt, expiresAt.
+
+**Current state:** The `web-intelligence.ts` service exists and fetches from Energy Capital Power RSS. However:
+- The `external_intelligence` table likely does NOT exist in PostgreSQL (same pattern as the newsletters table that was missing)
+- There is no Drizzle schema file for it at `lib/db/src/schema/external-intelligence.ts`
+- Without the table, scraped intelligence is not cached and there's no 24-hour TTL
+
+**What to do:**
+1. Create the database table:
+```sql
+CREATE TABLE IF NOT EXISTS external_intelligence (
+  id SERIAL PRIMARY KEY,
+  source TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  url TEXT,
+  publish_date TIMESTAMP,
+  category TEXT,
+  relevance_score REAL,
+  scraped_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP
+);
+```
+2. Create the Drizzle schema file at `lib/db/src/schema/external-intelligence.ts`
+3. Update `web-intelligence.ts` to INSERT scraped items and check cache before re-scraping
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 13: Web Intelligence Sources — Only 1 of 15+ Sources Configured
+
+**Spec (Section 11):** The scraper should fetch from 15+ sources across 3 categories:
+- **DFI Reports:** IFC, AfDB, IRENA, World Bank, IEA
+- **Industry/Market:** BloombergNEF, IJ Global, African Energy Chamber, Global Energy Monitor, RMI
+- **News:** Reuters Africa, Energy Capital & Power, ESI Africa, PV Magazine, Climatescope
+
+**Current state:** `web-intelligence.ts` only fetches from Energy Capital Power RSS feed.
+
+**File:** `artifacts/api-server/src/services/web-intelligence.ts`
+
+**What to do:**
+1. Add RSS feeds for at minimum these sources:
+   - IRENA (irena.org/newsroom RSS)
+   - IEA (iea.org Africa section RSS)
+   - ESI Africa (esi-africa.com RSS)
+   - PV Magazine (pv-magazine.com RSS)
+   - African Energy Chamber (energychamber.org RSS)
+2. Add the configurable `IntelligenceSource` interface as specified in the prompt
+3. Add relevance scoring (use Claude to score 0-1 relevance to African energy)
+4. Return top 15-20 most relevant items
+5. Handle failures gracefully (if one source is down, others still work)
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 14: Newsletter Generator — Shallow Content & Missing Visual Structure
+
+**Spec (Section 12):** Newsletter should be 2,500-3,500 words with:
+- 9 clearly structured sections
+- Deep Sector Spotlight and Country in Focus (300+ words each with specific deal examples)
+- Rotating sector/country between editions
+- External intelligence section referencing actual scraped sources
+- All data integrity rules enforced
+
+**Current state:** The generated newsletter is "very shallow" and "lacks any visual appeal" (user's words). The Claude prompt in `newsletter-generator.ts` likely doesn't enforce:
+- Minimum word counts per section
+- Specific deal examples by name
+- Data table formatting within the newsletter
+- Rotating spotlight logic based on previous edition
+
+**File:** `artifacts/api-server/src/services/newsletter-generator.ts`
+
+**What to do:**
+1. **Replace the system prompt** with the full newsletter system prompt from the original Replit prompt (Section 12, "Newsletter System Prompt"). This prompt is much more detailed than what's currently deployed.
+2. **Add rotating spotlight logic:** Query the last newsletter's `spotlight_sector` and `spotlight_country`, then pick the next unused one.
+3. **Enrich the data context passed to Claude:** Include:
+   - Top 5 largest deals by investment size (project name, country, amount)
+   - Week-over-week change in project count and total investment
+   - Sector comparison data pre-formatted as a table
+   - Regional comparison data pre-formatted as a table
+   - External intelligence items with source attribution and dates
+   - Data quality note (how many projects have undisclosed deal sizes)
+4. **Enforce section depth:** Add explicit instructions to Claude: "The Sector Spotlight and Country in Focus must each be at least 300 words with specific project examples cited by name from the data."
+5. **Enforce word count:** "Write 2,500-3,500 words total. Do not skip sections."
+
+**Priority:** 🔴 CRITICAL
+
+---
+
+#### GAP 15: Newsletter HTML Template — No Visual Styling
+
+**Spec (Section 14, "Email Template"):** The newsletter email should have:
+- Dark header with AfriEnergy logo and "INSIGHTS" branding
+- Clean white/light body for readability
+- Each section with clear header
+- Key numbers highlighted in colored boxes
+- Footer with unsubscribe, "View on web", branding
+- Mobile responsive (single column)
+
+**Current state:** The `email-dispatch.ts` has basic HTML with AfriEnergy header/footer, but the newsletter content body gets minimal visual treatment. The Markdown → HTML conversion uses a basic library without custom CSS for tables, callouts, or metric cards.
+
+**Files:**
+- `artifacts/api-server/src/services/email-dispatch.ts` (~173 lines)
+- `artifacts/api-server/src/services/newsletter-generator.ts`
+
+**What to do:**
+1. **Add a professional inline CSS stylesheet** to the HTML email template in `email-dispatch.ts`:
+   - Table styling: borders, alternating row colors (light gray stripes), padding
+   - Blockquote callout styling: left border accent (AfriEnergy green), light background
+   - Typography hierarchy: h1/h2/h3 with proper sizes, colors, spacing
+   - Metric card boxes: inline-block divs with large bold numbers and labels
+   - AfriEnergy green accent color (#10B981 or similar) throughout
+   - ALL CSS must be inline (email clients strip `<style>` blocks)
+2. **Add a post-processing step** in the newsletter generation pipeline:
+   - After Claude generates markdown, parse each section
+   - Convert markdown tables → styled HTML tables with branded styling
+   - Convert blockquotes → styled callout boxes
+   - Add section anchor links for a mini table of contents at the top
+   - Inject metric card HTML for key stats (Total Investment, Project Count, etc.)
+3. **Add "View on web" link** in the email footer pointing to `/insights` newsletter tab
+
+**Priority:** 🔴 CRITICAL
+
+---
+
+#### GAP 16: Newsletter Subscription Columns — user_emails Table (LIKELY MISSING)
+
+**Spec (Section 13):** Four new columns needed on `user_emails` table:
+- `newsletter_opt_in` (boolean, default true)
+- `unsubscribe_token` (text, unique UUID)
+- `newsletter_frequency` (text, default 'weekly')
+- `last_newsletter_sent_at` (timestamp)
+
+**Current state:** From previous sessions, the `user_emails` table had columns missing and needed manual ALTER TABLE statements. These 4 newsletter columns were specified in the prompt but may not have been added.
+
+**What to do:**
+1. Check if these columns exist:
+```sql
+SELECT column_name FROM information_schema.columns WHERE table_name = 'user_emails';
+```
+2. If missing, add them:
+```sql
+ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS newsletter_opt_in BOOLEAN DEFAULT true;
+ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT UNIQUE;
+ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS newsletter_frequency TEXT DEFAULT 'weekly';
+ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS last_newsletter_sent_at TIMESTAMP;
+```
+3. Generate UUID tokens for existing users:
+```sql
+UPDATE user_emails SET unsubscribe_token = gen_random_uuid()::text WHERE unsubscribe_token IS NULL;
+```
+4. Update the Drizzle schema at `lib/db/src/schema/user-emails.ts` to include these columns
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 17: Email Gate Modal — Newsletter Checkbox (LIKELY MISSING)
+
+**Spec (Section 13):** The email gate modal should have a newsletter opt-in checkbox (checked by default):
+```
+☑ Subscribe to AfriEnergy Insights — our AI-powered weekly intelligence briefing
+```
+
+**File:** `artifacts/energy-tracker/src/components/email-gate-modal.tsx`
+
+**What to verify and fix:**
+1. Check if the checkbox exists in the email gate modal
+2. If not, add it (checked by default)
+3. Save the preference to `user_emails.newsletter_opt_in` on submit
+4. Generate a `unsubscribe_token` UUID for each new subscriber
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 18: Unsubscribe Endpoint (VERIFY)
+
+**Spec (Section 13):** `GET /api/newsletter/unsubscribe?token={unsubscribe_token}` — looks up user, sets `newsletter_opt_in = false`, returns simple HTML confirmation page.
+
+**File:** `artifacts/api-server/src/routes/newsletter.ts`
+
+**What to verify:** Check if the unsubscribe endpoint exists and works correctly with the `unsubscribe_token` column.
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 19: Newsletter Tab on Insights Page (LIKELY INCOMPLETE)
+
+**Spec (Section 16):** The Insights page should have a tab bar: `[💬 Chat] [📰 Newsletter]`. The Newsletter tab shows:
+- Latest edition as a hero card (title, date, Read/Download PDF/Share buttons)
+- Past editions list (scrollable, with section badges)
+- Subscribe CTA for non-subscribed users
+
+**File:** `artifacts/energy-tracker/src/pages/insights.tsx`
+
+**What to verify and fix:**
+1. Does the tab bar exist with Chat and Newsletter tabs?
+2. Does the Newsletter tab show the latest edition as a hero card?
+3. Can users browse past editions?
+4. Does "Download PDF" work?
+5. Is there a subscribe CTA for non-subscribed users?
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 20: Newsletter PDF Generation (LIKELY NOT IMPLEMENTED)
+
+**Spec (Section 12):** Each newsletter should generate a PDF version stored at a URL. The newsletters table has a `pdf_url` column.
+
+**Current state:** The `pdf_url` column exists in the schema but PDF generation is likely not implemented.
+
+**What to do:**
+1. After generating the newsletter HTML, use a library (e.g., `puppeteer` or `html-pdf`) to generate a PDF
+2. Store the PDF in a `/public/newsletters/` directory or as a blob
+3. Save the URL to the `newsletters.pdf_url` column
+4. Expose via `GET /api/newsletters/:id/pdf`
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 21: Scheduled Newsletter Generation — Cron Job (VERIFY)
+
+**Spec (Section 15):** A cron job (via `node-cron`) should run weekly (Monday 7:00 AM UTC) to:
+1. Scrape external intelligence
+2. Generate the newsletter
+3. Dispatch via email
+
+**File:** `artifacts/api-server/src/services/newsletter-scheduler.ts`
+
+**What to verify:**
+1. Does the scheduler exist and is it registered in the server startup?
+2. Does it use the correct cron schedule?
+3. Does it handle failures gracefully without crashing the server?
+4. Is there an admin manual trigger (`POST /api/admin/newsletter/generate`)?
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 22: Admin Manual Trigger Endpoints (VERIFY)
+
+**Spec (Section 15):**
+- `POST /api/admin/newsletter/generate` — generates AND sends
+- `POST /api/admin/newsletter/preview` — generates but doesn't send
+
+**File:** `artifacts/api-server/src/routes/newsletter.ts`
+
+**What to verify:** Both endpoints exist and function correctly. The preview endpoint was confirmed working in the previous session (after the `newsletters` table was created), but the generate+send endpoint needs verification.
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+### PART 3 — Previous Audit Fixes (Still Outstanding)
+
+These were identified in a prior audit and documented in `Replit-Fix-Prompt.md`. Check if they've been resolved:
+
+---
+
+#### GAP 23: Filter State Persistence via URL (FROM PRIOR AUDIT)
+
+**Problem:** Filters on `/deals` use React `useState` instead of URL search params. Users can't share filtered views or bookmark them.
+
+**File:** `artifacts/energy-tracker/src/pages/deal-tracker.tsx`
+
+**What to do:** Replace the 23 `useState` hooks with `useSearchParams` from react-router-dom. When filters change, update the URL. On load, read from URL params.
+
+**Priority:** 🟡 HIGH
+
+---
+
+#### GAP 24: Export Functionality Verification (FROM PRIOR AUDIT)
+
+**Problem:** Export dropdown (CSV, Excel, PDF) on Deal Tracker needs verification. Exports should cover ALL deals matching filters, not just the current page.
+
+**File:** `artifacts/energy-tracker/src/pages/deal-tracker.tsx`
+
+**Priority:** 🟢 MEDIUM
+
+---
+
+#### GAP 25: API Documentation Accuracy (FROM PRIOR AUDIT)
+
+**Problem:** API docs page may reference incorrect endpoint paths (`/api/deals` vs `/api/projects`).
+
+**File:** `artifacts/energy-tracker/src/pages/api-docs.tsx`
+
+**Priority:** 🟢 LOW
+
+---
+
+## PRIORITIZED ACTION PLAN
+
+### Phase 1 — CRITICAL (Do First)
+
+| # | Gap | File(s) | What |
+|---|-----|---------|------|
+| 0 | Page Timeout | `insights.tsx` | Fix the Insights page so it actually loads |
+| 14 | Newsletter Content | `newsletter-generator.ts` | Replace system prompt, enrich data context, enforce depth |
+| 15 | Newsletter HTML | `email-dispatch.ts`, `newsletter-generator.ts` | Add professional inline CSS, post-processing for visual appeal |
+
+### Phase 2 — HIGH PRIORITY
+
+| # | Gap | File(s) | What |
+|---|-----|---------|------|
+| 1 | Data Fingerprint | Backend chat endpoint | Compute and attach `dataSummary` to responses |
+| 3 | Provenance Badge | `insights.tsx` | Render data provenance badge on each AI message |
+| 4 | ⌘K Slide-Out | `chat-slide-out.tsx`, `chat-context.tsx`, `use-chat.ts` | Create/verify shared chat panel |
+| 5 | Old AI Refactor | `ai-assistant.tsx`, `nlq-search-bar.tsx` | Refactor to use new chatbot |
+| 12 | External Intel Table | Database + `web-intelligence.ts` | Create table, add caching |
+| 13 | More Sources | `web-intelligence.ts` | Add 5+ RSS sources beyond Energy Capital Power |
+| 16 | Subscription Columns | Database + `user-emails.ts` | Add newsletter_opt_in, unsubscribe_token, etc. |
+| 19 | Newsletter Tab | `insights.tsx` | Verify/complete the Newsletter tab UI |
+| 23 | Filter URL State | `deal-tracker.tsx` | Migrate filters to URL search params |
+
+### Phase 3 — MEDIUM PRIORITY
+
+| # | Gap | File(s) | What |
+|---|-----|---------|------|
+| 6 | Nav Positioning | `layout.tsx` | Verify Insights nav item position and badge |
+| 7 | Card Dropdowns | `insights.tsx` | Add sector/country dropdowns on insight cards |
+| 8 | History Sidebar | `insights.tsx` | Verify conversation history persistence |
+| 11 | Error States | `insights.tsx` + backend | Add all specified error handling |
+| 17 | Email Gate | `email-gate-modal.tsx` | Add newsletter checkbox |
+| 18 | Unsubscribe | `newsletter.ts` | Verify unsubscribe endpoint |
+| 20 | PDF Generation | New service | Implement newsletter PDF generation |
+| 21 | Cron Scheduler | `newsletter-scheduler.ts` | Verify scheduled generation works |
+| 22 | Admin Endpoints | `newsletter.ts` | Verify generate+send endpoint |
+| 24 | Export Verify | `deal-tracker.tsx` | Test and fix export functionality |
+
+### Phase 4 — LOW PRIORITY
+
+| # | Gap | File(s) | What |
+|---|-----|---------|------|
+| 2 | Spot-Check | Backend | Post-generation hallucination validation |
+| 9 | Copy/Export | `insights.tsx` | Message action buttons |
+| 10 | Mobile | `insights.tsx`, `chat-slide-out.tsx` | Mobile responsiveness |
+| 25 | API Docs | `api-docs.tsx` | Fix documentation accuracy |
+
+---
+
+## KEY FILE PATHS QUICK REFERENCE
+
+```
+Backend Services:
+  artifacts/api-server/src/services/newsletter-generator.ts   ← AI generation (FIX PROMPT)
+  artifacts/api-server/src/services/email-dispatch.ts          ← Email template (ADD CSS)
+  artifacts/api-server/src/services/web-intelligence.ts        ← Scraper (ADD SOURCES)
+  artifacts/api-server/src/services/newsletter-scheduler.ts    ← Scheduling (VERIFY)
+
+Backend Routes:
+  artifacts/api-server/src/routes/newsletter.ts                ← API endpoints (VERIFY)
+  artifacts/api-server/src/routes/admin.ts                     ← Admin auth
+
+Frontend:
+  artifacts/energy-tracker/src/pages/insights.tsx              ← FIX TIMEOUT + GAPS
+  artifacts/energy-tracker/src/pages/deal-tracker.tsx          ← URL FILTER STATE
+  artifacts/energy-tracker/src/components/layout.tsx           ← NAV POSITIONING
+  artifacts/energy-tracker/src/components/email-gate-modal.tsx ← NEWSLETTER CHECKBOX
+  artifacts/energy-tracker/src/components/chat-slide-out.tsx   ← CREATE/VERIFY
+  artifacts/energy-tracker/src/components/ai-assistant.tsx     ← REFACTOR
+  artifacts/energy-tracker/src/hooks/use-chat.ts               ← CREATE/VERIFY
+  artifacts/energy-tracker/src/contexts/chat-context.tsx       ← CREATE/VERIFY
+
+Database Schema:
+  lib/db/src/schema/newsletters.ts                             ← EXISTS
+  lib/db/src/schema/user-emails.ts                             ← ADD COLUMNS
+  lib/db/src/schema/external-intelligence.ts                   ← CREATE
+```
+
+---
+
+## ENVIRONMENT VARIABLES
+
+Ensure these are set in Railway:
+
+```
+# Required (should already exist):
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=postgresql://...
+ADMIN_PASSWORD=...
+RESEND_API_KEY=re_...
+
+# Optional:
+NEWSLETTER_FREQUENCY=weekly
+NEWSLETTER_SEND_DAY=1
+NEWSLETTER_SEND_HOUR=7
+```
+
+---
+
+## AFTER ALL CHANGES
+
+1. Run `cd artifacts/energy-tracker && pnpm run build` — fix any TypeScript errors
+2. Test `/insights` page loads without timeout
+3. Test newsletter preview generation from admin panel
+4. Test newsletter visual appearance (HTML email)
+5. Commit and push ALL changes to master (Railway auto-deploys)
+
+---
+
+*Generated from gap analysis on April 9, 2026. Benchmarked the original AI-Insights-Agent-Replit-Prompt.md against the live codebase and deployed application.*
