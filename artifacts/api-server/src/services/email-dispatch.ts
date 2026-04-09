@@ -3,7 +3,7 @@ import { db, userEmailsTable, newslettersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const FROM_INSIGHTS = "AfriEnergy Insights <insights@send.afrienergytracker.io>";
-const FROM_BRIEF = "Africa Energy Brief <brief@send.afrienergytracker.io>";
+const FROM_BRIEF = "AfriEnergy Brief <brief@send.afrienergytracker.io>";
 
 
 function markdownToEmailHtml(md: string): string {
@@ -25,7 +25,7 @@ function markdownToEmailHtml(md: string): string {
 
   // Blockquotes → key insight callout
   html = html.replace(/^> (.+)$/gm,
-    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:Georgia,\'Times New Roman\',serif;">$1</div>'
+    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:\'Manrope\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</div>'
   );
 
   // H2 → section header with green left accent bar
@@ -98,7 +98,7 @@ function buildNewsletterEmailHtml(newsletter: {
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#e8ecf0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#e8ecf0;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf0;">
 <tr><td class="outer-td" align="center" style="padding:32px 16px 48px;">
@@ -207,7 +207,7 @@ function buildBriefEmailHtml(newsletter: {
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#eaecef;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#eaecef;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaecef;">
 <tr><td class="brief-outer" align="center" style="padding:28px 16px 44px;">
@@ -226,7 +226,7 @@ function buildBriefEmailHtml(newsletter: {
         <td style="vertical-align:middle;">
           <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
           <p style="margin:0;font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-0.5px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">
-            <span style="color:#ffffff;">Africa Energy </span><span style="color:#10b981;">Brief</span>
+            <span style="color:#ffffff;">AfriEnergy </span><span style="color:#10b981;">Brief</span>
           </p>
           <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Biweekly Update &nbsp;·&nbsp; ${dateStr}</p>
         </td>
@@ -345,7 +345,7 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
     return 0;
   }
 
-  const isBrief = newsletter.title?.startsWith("Africa Energy Brief");
+  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
   const htmlTemplate = isBrief
     ? buildBriefEmailHtml({
         title: newsletter.title,
@@ -422,7 +422,7 @@ export function buildFullEmailHtml(newsletter: {
   id?: number;
   type?: string | null;
 }): string {
-  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("Africa Energy Brief");
+  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
   if (isBrief) {
     return buildBriefEmailHtml({
       title: newsletter.title,

@@ -580,7 +580,7 @@ interface RevisionEntry {
 
 function NlTypeBadge({ type }: { type?: string }) {
   if (type === "brief") {
-    return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold shrink-0">Biweekly Brief</span>;
+    return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold shrink-0">AfriEnergy Brief</span>;
   }
   return <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold shrink-0">Monthly Insights</span>;
 }
@@ -759,7 +759,7 @@ function NewsletterSection({ newsletters, subscriberStats, loadNewsletters, load
 
   const pubCards: { type: NlPubType; label: string; subtitle: string; detail: string; cadence: string; border: string; badgeCls: string }[] = [
     { type: "insights", label: "AfriEnergy Insights", subtitle: "Monthly Deep-Dive", detail: "2,500–3,500 words + charts", cadence: "1st Monday of each month", border: "border-primary/30", badgeCls: "bg-primary/10 text-primary" },
-    { type: "brief", label: "Africa Energy Brief", subtitle: "Biweekly Quick Update", detail: "600–900 words · 3–5 min read", cadence: "Every other Monday", border: "border-blue-500/30", badgeCls: "bg-blue-500/10 text-blue-400" },
+    { type: "brief", label: "AfriEnergy Brief", subtitle: "Biweekly Quick Update", detail: "600–900 words · 3–5 min read", cadence: "Every other Monday", border: "border-blue-500/30", badgeCls: "bg-blue-500/10 text-blue-400" },
   ];
 
   // ── WORKSPACE VIEW ──────────────────────────────────────────────────────────

@@ -543,7 +543,7 @@ function NewsletterTab() {
           {/* Branded reader header */}
           <div style={{ background: "#080d1a", padding: "14px 28px", display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ color: "#10b981", fontSize: "10px", fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" }}>
-              {isBrief ? "Africa Energy Brief" : "AfriEnergy Insights"}
+              {isBrief ? "AfriEnergy Brief" : "AfriEnergy Insights"}
             </span>
             <span style={{ color: "#1e293b", fontSize: "12px" }}>·</span>
             <span style={{ color: "#475569", fontSize: "11px" }}>
@@ -572,7 +572,7 @@ function NewsletterTab() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">
             <h3 className="text-sm font-bold text-foreground mb-1">Subscribe to AfriEnergy Insights</h3>
-            <p className="text-xs text-muted-foreground">Monthly deep-dive report (1st Monday) + biweekly Africa Energy Brief (every other Monday).</p>
+            <p className="text-xs text-muted-foreground">Monthly deep-dive report (1st Monday) + biweekly AfriEnergy Brief (every other Monday).</p>
           </div>
           {subscribeMsg ? (
             <p className="text-xs text-primary font-medium">{subscribeMsg}</p>
@@ -613,7 +613,7 @@ function NewsletterTab() {
             <Clock className="w-3.5 h-3.5 text-blue-500" />
           </div>
           <div>
-            <p className="text-xs font-bold text-foreground">Africa Energy Brief</p>
+            <p className="text-xs font-bold text-foreground">AfriEnergy Brief</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">Biweekly quick-read · Every other Monday · 600–900 words · 3–5 min read</p>
           </div>
         </div>
@@ -623,7 +623,7 @@ function NewsletterTab() {
         <div className="text-center py-16">
           <Newspaper className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-sm font-medium text-foreground mb-1">No publications yet</h3>
-          <p className="text-xs text-muted-foreground">AfriEnergy Insights publishes on the 1st Monday of each month. Africa Energy Brief publishes every other Monday. Admins can trigger either manually.</p>
+          <p className="text-xs text-muted-foreground">AfriEnergy Insights publishes on the 1st Monday of each month. AfriEnergy Brief publishes every other Monday. Admins can trigger either manually.</p>
         </div>
       ) : (
         <>

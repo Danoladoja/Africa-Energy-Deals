@@ -125,7 +125,7 @@ FORMATTING RULES:
 
 // ── Africa Energy Brief System Prompt ─────────────────────────────────────────
 
-const BRIEF_SYSTEM_PROMPT = `You are the AfriEnergy Intelligence Analyst producing the **Africa Energy Brief** — a biweekly quick-read update for energy professionals, investors, and policy advisors.
+const BRIEF_SYSTEM_PROMPT = `You are the AfriEnergy Intelligence Analyst producing the **AfriEnergy Brief** — a biweekly quick-read update for energy professionals, investors, and policy advisors.
 
 This is NOT the monthly deep-dive report. It's a fast intelligence flash — think "Bloomberg terminal alert" not "research paper."
 
@@ -233,7 +233,7 @@ export function markdownToHtml(md: string): string {
 
   // Blockquotes → key insight callout
   html = html.replace(/^> (.+)$/gm,
-    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:Georgia,serif;">$1</div>'
+    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:\'Manrope\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</div>'
   );
 
   // H2 → section header with green left accent bar
@@ -691,7 +691,7 @@ export async function generateBrief(periodDays = 14): Promise<GeneratedNewslette
   const executiveSummary = execMatch ? execMatch[1].trim().slice(0, 800) : content.slice(0, 400);
 
   const dateStr = editionDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const title = `Africa Energy Brief — ${dateStr}`;
+  const title = `AfriEnergy Brief — ${dateStr}`;
 
   return {
     editionNumber,
