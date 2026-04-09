@@ -238,12 +238,12 @@ export function markdownToHtml(md: string): string {
 
   // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0f172a;font-size:21px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.3px;line-height:1.3;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:22px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.4px;line-height:1.25;">$1</h2>'
   );
 
   // H3
   html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</h3>'
+    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
   );
 
   // Bold and italic

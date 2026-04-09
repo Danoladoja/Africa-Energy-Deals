@@ -30,12 +30,12 @@ function markdownToEmailHtml(md: string): string {
 
   // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0f172a;font-size:21px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.3px;line-height:1.3;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:22px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.4px;line-height:1.25;">$1</h2>'
   );
 
   // H3
   html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</h3>'
+    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
   );
 
   // Bold and italic
@@ -82,6 +82,7 @@ function buildNewsletterEmailHtml(newsletter: {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
     .outer-td { padding:16px 8px !important; }
@@ -107,7 +108,7 @@ function buildNewsletterEmailHtml(newsletter: {
       <tr>
         <td style="vertical-align:top;">
           <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; Monthly Intelligence</p>
-          <p style="margin:0;font-size:38px;font-weight:900;line-height:1.0;letter-spacing:-1.5px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+          <p style="margin:0;font-size:38px;font-weight:800;line-height:1.0;letter-spacing:-1.5px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">
             <span style="color:#ffffff;">AfriEnergy</span><br>
             <span style="color:#10b981;">Insights</span>
           </p>
@@ -191,6 +192,7 @@ function buildBriefEmailHtml(newsletter: {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:580px) {
     .brief-outer { padding:16px 8px !important; }
@@ -218,7 +220,7 @@ function buildBriefEmailHtml(newsletter: {
       <tr>
         <td style="vertical-align:middle;">
           <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
-          <p style="margin:0;font-size:26px;font-weight:900;line-height:1.1;letter-spacing:-0.5px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+          <p style="margin:0;font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-0.5px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">
             <span style="color:#ffffff;">Africa Energy </span><span style="color:#10b981;">Brief</span>
           </p>
           <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Biweekly Update &nbsp;·&nbsp; ${dateStr}</p>

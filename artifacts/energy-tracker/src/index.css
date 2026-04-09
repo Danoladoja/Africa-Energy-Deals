@@ -224,7 +224,14 @@
 .nl-reader-body {
   background: #f7f8fb;
   padding: 32px 36px;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Manrope', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.nl-reader-body h1,
+.nl-reader-body h2,
+.nl-reader-body h3,
+.nl-reader-body h4 {
+  font-family: 'Syne', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
 }
 
 .nl-reader-body img {
