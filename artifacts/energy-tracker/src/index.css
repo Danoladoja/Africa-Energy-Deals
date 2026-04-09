@@ -230,7 +230,9 @@
 .nl-reader-body h1,
 .nl-reader-body h2,
 .nl-reader-body h3,
-.nl-reader-body h4 {
+.nl-reader-body h4,
+.nl-reader-body h5,
+.nl-reader-body h6 {
   font-family: 'Syne', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
 }
 

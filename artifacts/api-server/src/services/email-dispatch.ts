@@ -38,6 +38,11 @@ function markdownToEmailHtml(md: string): string {
     '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
   );
 
+  // H4
+  html = html.replace(/^#### (.+)$/gm,
+    '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
+  );
+
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
@@ -82,7 +87,7 @@ function buildNewsletterEmailHtml(newsletter: {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
     .outer-td { padding:16px 8px !important; }
@@ -127,7 +132,7 @@ function buildNewsletterEmailHtml(newsletter: {
 
   <!-- TITLE BAND -->
   <tr><td class="title-td" style="background:#0d1526;padding:18px 44px;border-top:1px solid #1a2744;border-bottom:3px solid #10b981;">
-    <p style="margin:0;color:#f1f5f9;font-size:17px;font-weight:700;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.title}</p>
+    <p style="margin:0;color:#f1f5f9;font-size:17px;font-weight:700;line-height:1.4;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">${newsletter.title}</p>
   </td></tr>
 
   <!-- CONTENT BODY -->
@@ -192,7 +197,7 @@ function buildBriefEmailHtml(newsletter: {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:580px) {
     .brief-outer { padding:16px 8px !important; }
@@ -238,7 +243,7 @@ function buildBriefEmailHtml(newsletter: {
   <!-- GREEN RULE + TITLE -->
   <tr><td style="background:#10b981;height:2px;font-size:0;line-height:0;">&nbsp;</td></tr>
   <tr><td style="background:#0d1526;padding:14px 36px;border-bottom:1px solid #1a2744;">
-    <p style="margin:0;color:#e2e8f0;font-size:15px;font-weight:600;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.title}</p>
+    <p style="margin:0;color:#e2e8f0;font-size:15px;font-weight:700;line-height:1.4;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.1px;">${newsletter.title}</p>
   </td></tr>
 
   <!-- CONTENT -->

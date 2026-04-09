@@ -246,6 +246,11 @@ export function markdownToHtml(md: string): string {
     '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
   );
 
+  // H4
+  html = html.replace(/^#### (.+)$/gm,
+    '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
+  );
+
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
@@ -301,7 +306,7 @@ function injectChartsIntoHtml(html: string, charts: {
   // After Executive Summary: Top Deals Table
   if (charts.topDealsTable) {
     const tableBlock = `<div style="margin:20px 0;">
-      <h3 style="color:#065f46;font-size:15px;font-weight:700;margin:16px 0 10px;font-family:Arial,sans-serif;">📊 Top Deals by Investment Size</h3>
+      <h3 style="color:#065f46;font-size:15px;font-weight:700;margin:16px 0 10px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">📊 Top Deals by Investment Size</h3>
       ${charts.topDealsTable}
     </div>`;
     result = insertAfterSection(result, "EXECUTIVE SUMMARY", tableBlock);

@@ -38,22 +38,25 @@ function printAsPdf(title: string, markdownContent: string) {
 <head>
   <meta charset="UTF-8">
   <title>${title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     @media print { body { margin: 0; } }
-    body { font-family: Georgia, serif; font-size: 13px; line-height: 1.75; color: #111;
+    body { font-family: 'Manrope', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.75; color: #111;
            max-width: 800px; margin: 32px auto; padding: 0 24px; }
-    h1 { font-size: 22px; font-weight: 800; border-bottom: 3px solid #00a854; padding-bottom: 10px; margin-bottom: 24px; }
-    h2 { font-size: 17px; font-weight: 700; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; margin-top: 32px; }
+    h1, h2, h3, h4 { font-family: 'Syne', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    h1 { font-size: 22px; font-weight: 800; border-bottom: 3px solid #10b981; padding-bottom: 10px; margin-bottom: 24px; letter-spacing: -0.5px; }
+    h2 { font-size: 17px; font-weight: 700; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; margin-top: 32px; letter-spacing: -0.2px; }
     h3 { font-size: 14px; font-weight: 700; margin-top: 24px; }
-    h4 { font-size: 13px; font-weight: 600; margin-top: 18px; }
+    h4 { font-size: 13px; font-weight: 700; margin-top: 18px; }
     p  { margin: 0 0 14px; }
     ul, ol { padding-left: 24px; margin: 12px 0; }
     li { margin: 4px 0; }
-    blockquote { border-left: 4px solid #00a854; margin: 16px 0; padding: 8px 16px;
+    blockquote { border-left: 4px solid #10b981; margin: 16px 0; padding: 8px 16px;
                  background: #f0fdf4; color: #166534; font-style: italic; }
     hr { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
     strong { font-weight: 700; }
-    .meta { font-size: 11px; color: #6b7280; margin-bottom: 24px; }
+    .meta { font-size: 11px; color: #6b7280; margin-bottom: 24px; font-family: 'Manrope', sans-serif; }
     .disclaimer { font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb;
                   margin-top: 32px; padding-top: 12px; }
   </style>
