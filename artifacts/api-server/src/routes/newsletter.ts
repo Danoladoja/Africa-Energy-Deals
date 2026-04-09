@@ -3,7 +3,7 @@ import { db, newslettersTable, userEmailsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { generateNewsletter, generateBrief, saveNewsletter, reviseNewsletter, markdownToHtml } from "../services/newsletter-generator.js";
 import { dispatchNewsletter, dispatchBrief, buildFullEmailHtml } from "../services/email-dispatch.js";
-import { isValidAdminToken } from "../middleware/adminAuth.js";
+import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 function parseNewsletterSections(markdown: string): Array<{ heading: string; body: string; index: number }> {
   const sections: Array<{ heading: string; body: string; index: number }> = [];
@@ -22,17 +22,6 @@ function parseNewsletterSections(markdown: string): Array<{ heading: string; bod
   return sections;
 }
 
-function requireAdmin(req: Request, res: Response): boolean {
-  const bearer = req.headers.authorization?.startsWith("Bearer ")
-    ? req.headers.authorization.slice(7)
-    : null;
-  const headerPw = req.headers["x-admin-password"] as string | undefined;
-  if ((bearer && isValidAdminToken(bearer)) || (process.env.ADMIN_PASSWORD && headerPw === process.env.ADMIN_PASSWORD)) {
-    return true;
-  }
-  res.status(401).json({ error: "Unauthorized" });
-  return false;
-}
 
 const router: IRouter = Router();
 
@@ -234,8 +223,7 @@ function makeJobId(): string {
 }
 
 // GET /api/admin/newsletter/job/:jobId — poll generation status (admin only)
-router.get("/admin/newsletter/job/:jobId", (req: Request, res: Response): void => {
-  if (!requireAdmin(req, res)) return;
+router.get("/admin/newsletter/job/:jobId", adminAuthMiddleware, (req: Request, res: Response): void => {
   const job = jobs.get(req.params.jobId);
   if (!job) { res.status(404).json({ error: "Job not found" }); return; }
   if (job.status === "running") { res.json({ status: "running" }); return; }
@@ -244,8 +232,7 @@ router.get("/admin/newsletter/job/:jobId", (req: Request, res: Response): void =
 });
 
 // POST /api/admin/newsletter/preview — generate monthly Insights without sending (admin only, async)
-router.post("/admin/newsletter/preview", (req: Request, res: Response): void => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/preview", adminAuthMiddleware, (req: Request, res: Response): void => {
   pruneOldJobs();
   const jobId = makeJobId();
   jobs.set(jobId, { status: "running", startedAt: Date.now() });
@@ -269,8 +256,7 @@ router.post("/admin/newsletter/preview", (req: Request, res: Response): void => 
 });
 
 // POST /api/admin/newsletter/generate — generate monthly Insights and send (admin only, async)
-router.post("/admin/newsletter/generate", (req: Request, res: Response): void => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/generate", adminAuthMiddleware, (req: Request, res: Response): void => {
   pruneOldJobs();
   const jobId = makeJobId();
   jobs.set(jobId, { status: "running", startedAt: Date.now() });
@@ -295,8 +281,7 @@ router.post("/admin/newsletter/generate", (req: Request, res: Response): void =>
 });
 
 // POST /api/admin/newsletter/preview-brief — generate Africa Energy Brief without sending (admin only, async)
-router.post("/admin/newsletter/preview-brief", (req: Request, res: Response): void => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/preview-brief", adminAuthMiddleware, (req: Request, res: Response): void => {
   pruneOldJobs();
   const jobId = makeJobId();
   jobs.set(jobId, { status: "running", startedAt: Date.now() });
@@ -320,8 +305,7 @@ router.post("/admin/newsletter/preview-brief", (req: Request, res: Response): vo
 });
 
 // POST /api/admin/newsletter/generate-brief — generate and send Africa Energy Brief (admin only, async)
-router.post("/admin/newsletter/generate-brief", (req: Request, res: Response): void => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/generate-brief", adminAuthMiddleware, (req: Request, res: Response): void => {
   pruneOldJobs();
   const jobId = makeJobId();
   jobs.set(jobId, { status: "running", startedAt: Date.now() });
@@ -348,8 +332,7 @@ router.post("/admin/newsletter/generate-brief", (req: Request, res: Response): v
 // ─── Editorial Workflow Endpoints ────────────────────────────────────────────
 
 // GET /api/admin/newsletter/:id/full — full content + sections + preview HTML
-router.get("/admin/newsletter/:id/full", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.get("/admin/newsletter/:id/full", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
   try {
@@ -398,8 +381,7 @@ router.get("/admin/newsletter/:id/full", async (req: Request, res: Response): Pr
 });
 
 // PUT /api/admin/newsletter/:id/content — save manual edits
-router.put("/admin/newsletter/:id/content", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.put("/admin/newsletter/:id/content", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
   const { content, title } = req.body ?? {};
@@ -438,8 +420,7 @@ router.put("/admin/newsletter/:id/content", async (req: Request, res: Response):
 });
 
 // POST /api/admin/newsletter/:id/revise — AI-powered revision
-router.post("/admin/newsletter/:id/revise", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/:id/revise", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
   const { instruction, sectionIndex } = req.body ?? {};
@@ -494,8 +475,7 @@ router.post("/admin/newsletter/:id/revise", async (req: Request, res: Response):
 });
 
 // POST /api/admin/newsletter/:id/send — approve and dispatch a draft
-router.post("/admin/newsletter/:id/send", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/newsletter/:id/send", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid newsletter ID" }); return; }
 
@@ -518,8 +498,7 @@ router.post("/admin/newsletter/:id/send", async (req: Request, res: Response): P
 });
 
 // GET /api/admin/subscribers — subscriber stats (admin only)
-router.get("/admin/subscribers", async (req: Request, res: Response): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.get("/admin/subscribers", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })

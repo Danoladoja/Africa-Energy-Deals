@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { db, sessionsTable, userEmailsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { isValidAdminToken } from "./adminAuth.js";
+import { and, eq, ne } from "drizzle-orm";
+import { isValidAdminTokenAsync } from "./adminAuth.js";
 
 export interface ReviewerRequest extends Request {
   reviewerEmail?: string;
@@ -20,8 +20,8 @@ export async function reviewerAuthMiddleware(
   }
   const token = authHeader.slice(7);
 
-  // Allow admin tokens to access the review portal
-  if (isValidAdminToken(token)) {
+  // Allow admin tokens to access the review portal (DB-backed check survives restarts)
+  if (await isValidAdminTokenAsync(token)) {
     req.reviewerEmail = "admin";
     req.reviewerRole = "admin";
     next();
@@ -32,7 +32,7 @@ export async function reviewerAuthMiddleware(
     const [session] = await db
       .select()
       .from(sessionsTable)
-      .where(eq(sessionsTable.token, token))
+      .where(and(eq(sessionsTable.token, token), ne(sessionsTable.userEmail, "__admin__")))
       .limit(1);
 
     if (!session || session.expiresAt < new Date()) {

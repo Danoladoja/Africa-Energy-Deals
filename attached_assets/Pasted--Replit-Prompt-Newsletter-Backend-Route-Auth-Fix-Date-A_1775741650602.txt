@@ -1,0 +1,291 @@
+# Replit Prompt — Newsletter Backend Route & Auth Fix
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+**Priority:** CRITICAL — newsletter generate/send functionality is completely broken
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance, subscriber newsletter view on the `/insights` page, and all non-newsletter pages work correctly. The `GET /api/newsletters` endpoint and all newsletter read endpoints work fine. Only fix:
+1. Newsletter route registration and auth
+2. Newsletter admin management UI
+3. Frontend-to-backend API call wiring
+
+---
+
+## DIAGNOSIS — Three Interlocking Problems
+
+### Problem 1: Newsletter Admin Route Auth Is Broken
+
+I probed every plausible POST endpoint on the live server. Here are the results:
+
+**Working (200):**
+- `GET /api/newsletters` — returns all 7 newsletters
+- `GET /api/newsletters/:id` — returns individual newsletter
+- `GET /api/newsletters/latest` — returns latest edition
+- `GET /api/newsletter/subscribers` — returns subscriber list
+
+**Auth failure (401):**
+- `POST /api/admin/newsletter/generate` — returns `{"error":"Unauthorized"}`
+
+**Missing (404):**
+- `POST /api/newsletters/generate` — 404 "Cannot POST"
+- `POST /api/newsletter/generate` — 404 "Cannot POST"
+- `POST /api/newsletters/send` — 404 "Cannot POST"
+- `POST /api/newsletter/send` — 404 "Cannot POST"
+- `POST /api/admin/newsletter/send` — 404 "Cannot POST"
+- `POST /api/admin/newsletters/generate` — 404 "Cannot POST"
+- `POST /api/newsletters/generate-preview` — 404
+
+**Key finding:** The generate route EXISTS at `POST /api/admin/newsletter/generate` but returns 401 because the admin auth token (`afrienergy_admin_token`) is NULL in localStorage. The admin page renders fine — the user sees the scraper/review UI — but the localStorage token that the newsletter API endpoints check for authorization has been lost or was never set after a recent deployment.
+
+The admin page currently shows the user as "REVIEWER" with "Sign out of reviewer" — suggesting the auth system may have been refactored to use session/cookie-based auth for the admin pages, but the newsletter API endpoints still check for a Bearer token from localStorage.
+
+### Problem 2: No Send Endpoint Exists
+
+There is no registered route for sending newsletters. ALL variations of POST send return 404. This means the entire send flow is broken even if generation works.
+
+### Problem 3: No Admin Newsletter Management Page
+
+- `/admin/newsletter` returns a **404** — the frontend route doesn't exist
+- The only newsletter UI is the **subscriber-facing** tab on `/insights` (shows published editions, subscribe button)
+- There is NO admin UI for: generating drafts, previewing content, editing, or sending newsletters
+- The 7 existing newsletters in the DB were generated earlier today via the scheduler/cron, NOT from any admin UI
+
+---
+
+## FIX 1: Repair Newsletter Route Registration & Auth (CRITICAL)
+
+### Root Cause
+The newsletter backend routes file (`artifacts/api-server/src/routes/newsletter.ts`) likely has:
+1. A `POST /api/admin/newsletter/generate` route that exists but uses an auth middleware checking for a token format that no longer matches what the frontend sends
+2. No `POST` send route at all
+
+### What to Do
+
+**A. Fix the auth middleware on the generate route:**
+
+Find the admin auth middleware being applied to the newsletter generate route. It likely checks:
+```javascript
+// Current broken check — looks for Bearer token from localStorage
+const token = req.headers.authorization?.replace('Bearer ', '');
+if (token !== process.env.ADMIN_PASSWORD) {
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+```
+
+The problem is that `localStorage.getItem('afrienergy_admin_token')` is returning NULL. Either:
+1. The admin login flow no longer sets `afrienergy_admin_token` in localStorage (if auth was refactored to session-based), OR
+2. The token is being stored under a different key
+
+**Fix option A (recommended) — make the newsletter admin routes use the same auth as the scraper admin routes:**
+
+Check how the admin scraper routes (`/api/admin/projects/...`) authenticate. They clearly work because the admin can review/approve/reject projects. Copy that same auth mechanism to the newsletter routes:
+
+```javascript
+// Find how the scraper admin routes authenticate — likely something like:
+// 1. Session cookie check
+// 2. Or a different header/token pattern
+// Whatever auth pattern the working admin routes use, apply it to newsletter routes too
+
+// Example: if scraper routes use session auth
+router.post('/api/admin/newsletter/generate', requireAdminSession, async (req, res) => { ... });
+router.post('/api/admin/newsletter/send', requireAdminSession, async (req, res) => { ... });
+```
+
+**Fix option B — if the admin routes use localStorage token and it's just not being set:**
+
+Find the admin login handler. After a successful admin login, ensure it returns the token:
+```javascript
+// In the admin login response
+res.json({ success: true, token: process.env.ADMIN_PASSWORD });
+```
+
+And the frontend stores it:
+```javascript
+localStorage.setItem('afrienergy_admin_token', response.token);
+```
+
+**B. Add the missing send route:**
+
+Add a POST send route that dispatches the newsletter:
+
+```javascript
+router.post('/api/admin/newsletter/send', adminAuth, async (req, res) => {
+  try {
+    const { newsletterId } = req.body;
+
+    // Get the newsletter from DB
+    const newsletter = await db.select()
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, newsletterId))
+      .limit(1);
+
+    if (!newsletter.length) {
+      return res.status(404).json({ error: 'Newsletter not found' });
+    }
+
+    if (newsletter[0].status === 'sent') {
+      return res.status(400).json({ error: 'Newsletter already sent' });
+    }
+
+    // Get subscribers
+    const subscribers = await db.select()
+      .from(subscribersTable)
+      .where(eq(subscribersTable.active, true));
+
+    // Send individually (NOT batch — batch returns 403 on current Resend plan)
+    let sentCount = 0;
+    for (const subscriber of subscribers) {
+      try {
+        await resend.emails.send({
+          from: 'AfriEnergy Tracker <noreply@afrienergytracker.io>',
+          to: subscriber.email,
+          subject: newsletter[0].title,
+          html: newsletter[0].contentHtml, // the rendered HTML email
+        });
+        sentCount++;
+      } catch (err) {
+        console.error(`Failed to send to ${subscriber.email}:`, err);
+      }
+    }
+
+    // Update newsletter status
+    await db.update(newslettersTable)
+      .set({
+        status: 'sent',
+        sentAt: new Date(),
+        recipientCount: sentCount
+      })
+      .where(eq(newslettersTable.id, newsletterId));
+
+    res.json({ success: true, sentCount });
+  } catch (error) {
+    console.error('Newsletter send error:', error);
+    res.status(500).json({ error: 'Failed to send newsletter' });
+  }
+});
+```
+
+**CRITICAL:** Use `resend.emails.send()` (individual), NOT `resend.emails.batch.send()`. The batch endpoint returns 403 on the current Resend plan. This was already diagnosed and documented in the earlier email delivery fix prompt.
+
+---
+
+## FIX 2: Add Admin Newsletter Management Page (HIGH)
+
+### Root Cause
+There is no frontend route for `/admin/newsletter` and no admin UI for managing newsletters. The only newsletter UI is the subscriber-facing tab on `/insights`.
+
+### What to Do
+
+**A. Create an admin newsletter page at `/admin/newsletter`:**
+
+Add a new route in the React router for the admin newsletter management page:
+
+```javascript
+// In the router config (likely App.tsx or routes.tsx)
+<Route path="/admin/newsletter" element={<AdminNewsletter />} />
+```
+
+**B. The admin newsletter page should have:**
+
+1. **Newsletter list** — showing all 7 existing newsletters with status (draft/sent), type (insights/brief), date
+2. **Generate button** — calls `POST /api/admin/newsletter/generate` with type selector (brief vs insights)
+3. **Preview** — clicking a newsletter shows its full content in a preview panel
+4. **Send button** — for draft newsletters, a "Send to X subscribers" button that calls the send endpoint
+5. **Delete button** — for draft newsletters only, ability to delete unused drafts
+
+**C. Add a link to the admin sidebar:**
+
+In the admin navigation/sidebar component, add a "Newsletter" link alongside the existing scraper/review links:
+
+```jsx
+<NavLink to="/admin/newsletter">Newsletter</NavLink>
+```
+
+**D. Wire the admin auth to API calls:**
+
+Whatever auth mechanism the scraper admin page uses for its API calls (session cookies, Authorization header, etc.), use the same pattern for the newsletter API calls. Check how the scraper page makes authenticated requests (e.g., approving/rejecting projects) and replicate that pattern.
+
+Look for patterns like:
+```javascript
+// How the scraper page makes admin API calls:
+fetch('/api/admin/projects/123/approve', {
+  method: 'POST',
+  credentials: 'include',  // <-- if using cookies
+  headers: { 'Authorization': 'Bearer ' + getAdminToken() }  // <-- if using token
+});
+
+// Use the SAME pattern for newsletter calls:
+fetch('/api/admin/newsletter/generate', {
+  method: 'POST',
+  credentials: 'include',  // SAME auth mechanism
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAdminToken() },
+  body: JSON.stringify({ type: 'brief' })
+});
+```
+
+---
+
+## FIX 3: Ensure Newsletter Frontend Uses Correct Endpoint Paths
+
+### Root Cause
+If there IS any existing generate/send code in the frontend (possibly in the insights page), it may be calling the wrong endpoint paths.
+
+### What to Do
+
+Search the frontend code for any fetch calls to newsletter endpoints. Common patterns to look for:
+- `fetch('/api/newsletters/generate'` — WRONG, should be `/api/admin/newsletter/generate`
+- `fetch('/api/newsletters/send'` — WRONG, should be `/api/admin/newsletter/send`
+- `fetch('/api/newsletter/generate'` — WRONG
+
+Update all frontend newsletter API calls to use the correct paths that match the backend routes.
+
+---
+
+## Testing Checklist
+
+### Auth Fix
+1. Log into the admin panel
+2. Check that `localStorage` has the admin token (or that session cookies are set)
+3. Open browser DevTools Network tab
+4. Navigate to `/admin/newsletter`
+5. Click "Generate" — verify the request goes to `POST /api/admin/newsletter/generate`
+6. Check the response: should be 200 with newsletter data, NOT 401
+
+### Generate
+7. After generation, verify a new newsletter appears in the list with status "draft"
+8. Click on the newsletter to preview its content
+9. Verify the newsletter content renders correctly (not just raw markdown)
+
+### Send
+10. Click "Send" on a draft newsletter
+11. Verify the request goes to `POST /api/admin/newsletter/send`
+12. Check the response: should be 200 with `{ success: true, sentCount: N }`
+13. Check Resend Logs page — verify individual `POST /emails → 200` entries appear (NOT batch)
+14. Verify the newsletter email actually arrives in your inbox (danoladoja@gmail.com)
+
+### Data Verification
+15. `GET /api/newsletters` — verify the sent newsletter now shows `status: "sent"` and correct `recipientCount`
+
+---
+
+## Summary of All Fixes
+
+| Fix | Priority | What | Root Cause |
+|---|---|---|---|
+| 1 | CRITICAL | Repair auth on generate route + add send route | Auth middleware mismatch + missing route |
+| 2 | HIGH | Create admin newsletter management page | No admin UI exists — only subscriber view |
+| 3 | MEDIUM | Fix frontend endpoint paths | Frontend may call wrong API paths |
+
+### Critical Implementation Order
+1. **First:** Fix 1 — repair the backend routes and auth (without this, nothing works)
+2. **Second:** Fix 2 — create the admin newsletter page (so there's a UI to trigger generation and sending)
+3. **Third:** Fix 3 — verify frontend wiring matches backend paths
+
+### Relationship to Other Prompts
+- The **email delivery fix** (Replit-Newsletter-DB-Migration-Fix.md) documented the `resend.emails.batch.send()` → 403 issue. The send route in Fix 1 above already uses individual `resend.emails.send()` to avoid this.
+- The **editorial workflow** (Replit-Newsletter-Editorial-Workflow.md) describes a more advanced UI with Preview/Editor/AI Revise tabs. Implement the basic admin page (Fix 2 above) FIRST, then layer in the editorial workflow enhancements afterward.

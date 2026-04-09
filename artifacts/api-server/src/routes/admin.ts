@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   createAdminToken,
-  isValidAdminToken,
+  isValidAdminTokenAsync,
   revokeAdminToken,
 } from "../middleware/adminAuth.js";
 
@@ -25,14 +25,15 @@ router.post("/admin/login", (req, res) => {
   res.json({ token });
 });
 
-router.get("/admin/verify", (req, res) => {
+router.get("/admin/verify", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.json({ valid: false });
     return;
   }
   const token = authHeader.slice(7);
-  res.json({ valid: isValidAdminToken(token) });
+  const valid = await isValidAdminTokenAsync(token);
+  res.json({ valid });
 });
 
 router.post("/admin/logout", (req, res) => {
