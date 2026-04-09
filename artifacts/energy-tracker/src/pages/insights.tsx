@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import { useChat, type InsightContext } from "@/contexts/chat-context";
 import { TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
 import { SEOMeta } from "@/components/seo-meta";
+import { Layout } from "@/components/layout";
 
 const BASE = "/api";
 
@@ -670,13 +671,13 @@ export default function InsightsPage() {
   }, [sendMessage]);
 
   return (
-    <>
+    <Layout>
       <SEOMeta
         title="AI Insights | AfriEnergy Tracker"
         description="AI-powered chatbot for African energy investment intelligence, market analysis, and deal search"
       />
 
-      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex h-full overflow-hidden">
         {/* ── Main area ─────────────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Page header */}
@@ -833,6 +834,6 @@ export default function InsightsPage() {
           </div>
         )}
       </div>
-    </>
+    </Layout>
   );
 }
