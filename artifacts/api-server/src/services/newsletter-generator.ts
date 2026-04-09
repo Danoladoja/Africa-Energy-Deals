@@ -217,57 +217,57 @@ function computeBreakdowns(projects: any[]) {
 export function markdownToHtml(md: string): string {
   let html = md;
 
-  // Tables
+  // Tables — dark header, clean alternating rows
   html = html.replace(/(\|.+\|\n)(\|[-| :]+\|\n)((?:\|.+\|\n?)+)/g, (_match, header, _sep, body) => {
     const headerCells = header.trim().split("|").filter(Boolean).map((c: string) =>
-      `<th style="background:#0b0f1a;color:#00e676;font-size:12px;font-weight:700;padding:10px 14px;text-align:left;border:1px solid #1e293b;">${c.trim()}</th>`
+      `<th style="background:#0f172a;color:#10b981;font-size:11px;font-weight:700;padding:11px 14px;text-align:left;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">${c.trim()}</th>`
     ).join("");
     const bodyRows = body.trim().split("\n").map((row: string, i: number) => {
       const cells = row.split("|").filter(Boolean).map((c: string) =>
-        `<td style="padding:9px 14px;font-size:13px;color:#374151;border:1px solid #e5e7eb;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
+        `<td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
       ).join("");
       return `<tr>${cells}</tr>`;
     }).join("");
-    return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;border:1px solid #e5e7eb;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+    return `<div style="border-radius:10px;overflow:hidden;margin:22px 0;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,0.06);"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><thead><tr style="background:#0f172a;">${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
   });
 
-  // Blockquotes
+  // Blockquotes → key insight callout
   html = html.replace(/^> (.+)$/gm,
-    '<div style="border-left:4px solid #00e676;background:#f0fdf4;padding:12px 16px;margin:16px 0;color:#166534;font-size:14px;line-height:1.6;font-style:italic;">$1</div>'
+    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:Georgia,serif;">$1</div>'
   );
 
-  // H2
+  // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0b0f1a;font-size:20px;font-weight:800;margin:36px 0 12px;padding-bottom:8px;border-bottom:3px solid #00e676;font-family:Arial,sans-serif;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:21px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.3px;line-height:1.3;">$1</h2>'
   );
 
   // H3
   html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:16px;font-weight:700;margin:24px 0 8px;font-family:Arial,sans-serif;">$1</h3>'
+    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</h3>'
   );
 
   // Bold and italic
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0b0f1a;font-weight:700;">$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em style="color:#374151;">$1</em>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
 
   // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
   html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
-    '<ul style="padding-left:22px;margin:12px 0;list-style-type:disc;">$&</ul>'
+    '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
   );
 
   // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
 
   // Horizontal rules
-  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />');
+  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
 
   // Paragraphs
   html = html.split("\n\n").map(block => {
     const trimmed = block.trim();
     if (!trimmed) return "";
     if (trimmed.startsWith("<")) return trimmed;
-    return `<p style="color:#374151;font-size:15px;line-height:1.75;margin:0 0 16px;">${trimmed.replace(/\n/g, " ")}</p>`;
+    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;">${trimmed.replace(/\n/g, " ")}</p>`;
   }).join("\n");
 
   return html;

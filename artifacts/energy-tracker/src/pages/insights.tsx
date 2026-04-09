@@ -530,16 +530,29 @@ function NewsletterTab() {
   const filtered = typeFilter === "all" ? newsletters : newsletters.filter(nl => (nl.type ?? "insights") === typeFilter);
   const [latest, ...past] = filtered;
 
-  function renderContent(id: number) {
+  function renderContent(id: number, nlType?: string) {
     const cached = expandedContent[id];
     if (!cached) return null;
     if (cached.contentHtml) {
+      const isBrief = nlType === "brief";
       return (
-        <div
-          className="newsletter-html-content"
-          dangerouslySetInnerHTML={{ __html: cached.contentHtml }}
-          style={{ fontFamily: "Arial, sans-serif", fontSize: "14px", lineHeight: "1.7", color: "var(--foreground)" }}
-        />
+        <div className="nl-reader-shell rounded-xl overflow-hidden border border-border/20 shadow-md">
+          {/* Branded reader header */}
+          <div style={{ background: "#080d1a", padding: "14px 28px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ color: "#10b981", fontSize: "10px", fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" }}>
+              {isBrief ? "Africa Energy Brief" : "AfriEnergy Insights"}
+            </span>
+            <span style={{ color: "#1e293b", fontSize: "12px" }}>·</span>
+            <span style={{ color: "#475569", fontSize: "11px" }}>
+              {isBrief ? "Biweekly Intelligence Update" : "Monthly Intelligence Report"}
+            </span>
+          </div>
+          {/* Light reader body — email HTML rendered at intended white background */}
+          <div
+            className="nl-reader-body"
+            dangerouslySetInnerHTML={{ __html: cached.contentHtml }}
+          />
+        </div>
       );
     }
     return (
@@ -672,7 +685,7 @@ function NewsletterTab() {
                     </div>
                     {expanded === latest.id && expandedContent[latest.id] && (
                       <div className="mt-5 pt-5 border-t border-border/50">
-                        {renderContent(latest.id)}
+                        {renderContent(latest.id, latest.type)}
                       </div>
                     )}
                   </div>
@@ -716,7 +729,7 @@ function NewsletterTab() {
                         </div>
                         {expanded === nl.id && expandedContent[nl.id] && (
                           <div className="px-4 pb-4 border-t border-border/50 pt-4">
-                            {renderContent(nl.id)}
+                            {renderContent(nl.id, nl.type)}
                           </div>
                         )}
                       </div>

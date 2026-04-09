@@ -9,65 +9,58 @@ const FROM_BRIEF = "Africa Energy Brief <brief@send.afrienergytracker.io>";
 function markdownToEmailHtml(md: string): string {
   let html = md;
 
-  // Tables — convert markdown tables to styled HTML tables
+  // Tables — dark header rows, clean alternating body rows
   html = html.replace(/(\|.+\|\n)(\|[-| :]+\|\n)((?:\|.+\|\n?)+)/g, (_match, header, _sep, body) => {
     const headerCells = header.trim().split("|").filter(Boolean).map(c =>
-      `<th style="background:#0b0f1a;color:#00e676;font-size:12px;font-weight:700;padding:10px 14px;text-align:left;border:1px solid #1e293b;white-space:nowrap;">${c.trim()}</th>`
+      `<th style="background:#0f172a;color:#10b981;font-size:11px;font-weight:700;padding:11px 14px;text-align:left;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">${c.trim()}</th>`
     ).join("");
     const bodyRows = body.trim().split("\n").map((row: string, i: number) => {
       const cells = row.split("|").filter(Boolean).map(c =>
-        `<td style="padding:9px 14px;font-size:13px;color:#374151;border:1px solid #e5e7eb;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
+        `<td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
       ).join("");
       return `<tr>${cells}</tr>`;
     }).join("");
-    return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
-<thead><tr>${headerCells}</tr></thead>
-<tbody>${bodyRows}</tbody>
-</table>`;
+    return `<div style="border-radius:10px;overflow:hidden;margin:22px 0;border:1px solid #e2e8f0;"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
   });
 
-  // Blockquotes → styled callout boxes
+  // Blockquotes → key insight callout
   html = html.replace(/^> (.+)$/gm,
-    '<div style="border-left:4px solid #00e676;background:#f0fdf4;padding:12px 16px;margin:16px 0;border-radius:0 8px 8px 0;color:#166534;font-size:14px;line-height:1.6;font-style:italic;">$1</div>'
+    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:Georgia,\'Times New Roman\',serif;">$1</div>'
   );
 
-  // H2 → section headers with green underline
+  // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0b0f1a;font-size:20px;font-weight:800;margin:36px 0 12px;padding-bottom:8px;border-bottom:3px solid #00e676;font-family:Arial,sans-serif;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:21px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.3px;line-height:1.3;">$1</h2>'
   );
 
-  // H3 → sub-headers
+  // H3
   html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:16px;font-weight:700;margin:24px 0 8px;font-family:Arial,sans-serif;">$1</h3>'
+    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</h3>'
   );
 
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0b0f1a;font-weight:700;">$1</strong>');
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, '<em style="color:#374151;">$1</em>');
+  // Bold and italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
 
   // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
   html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
-    '<ul style="padding-left:22px;margin:12px 0;list-style-type:disc;">$&</ul>'
+    '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
   );
 
   // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:5px 0;color:#374151;font-size:14px;line-height:1.6;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
 
   // Horizontal rules
-  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />');
+  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
 
-  // Paragraphs — wrap standalone lines
-  html = html
-    .split("\n\n")
-    .map(block => {
-      const trimmed = block.trim();
-      if (!trimmed) return "";
-      if (trimmed.startsWith("<")) return trimmed;
-      return `<p style="color:#374151;font-size:15px;line-height:1.75;margin:0 0 16px;">${trimmed.replace(/\n/g, " ")}</p>`;
-    })
-    .join("\n");
+  // Paragraphs
+  html = html.split("\n\n").map(block => {
+    const trimmed = block.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("<")) return trimmed;
+    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;">${trimmed.replace(/\n/g, " ")}</p>`;
+  }).join("\n");
 
   return html;
 }
@@ -79,7 +72,6 @@ function buildNewsletterEmailHtml(newsletter: {
   editionNumber: number;
   id: number;
 }): string {
-  // Prefer pre-rendered HTML with charts; fall back to markdown conversion
   const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
@@ -89,75 +81,89 @@ function buildNewsletterEmailHtml(newsletter: {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
+<style>
+  img { max-width:100% !important; height:auto !important; display:block; }
+  @media only screen and (max-width:620px) {
+    .outer-td { padding:16px 8px !important; }
+    .content-td { padding:28px 20px !important; }
+    .masthead-td { padding:28px 20px 22px !important; }
+    .title-td { padding:16px 20px !important; }
+    .footer-td { padding:22px 20px !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:0;background:#e8ecf0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
-<tr><td align="center" style="padding:32px 16px;">
-<table width="100%" style="max-width:680px;" cellpadding="0" cellspacing="0">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf0;">
+<tr><td class="outer-td" align="center" style="padding:32px 16px 48px;">
+<table width="100%" style="max-width:620px;" cellpadding="0" cellspacing="0">
 
-  <!-- Header -->
-  <tr><td style="background:#0b0f1a;border-radius:16px 16px 0 0;padding:36px 44px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="vertical-align:middle;">
-          <div style="color:#00e676;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:10px;font-family:Arial,sans-serif;">Africa Energy Pulse</div>
-          <div style="color:#ffffff;font-size:32px;font-weight:900;line-height:1.15;letter-spacing:-0.5px;font-family:Arial,sans-serif;">AfriEnergy<br><span style="color:#00e676;">Insights</span></div>
-          <div style="color:#94a3b8;font-size:12px;font-weight:600;margin-top:6px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:1px;">Monthly Intelligence Report</div>
-          <div style="color:#64748b;font-size:13px;margin-top:8px;font-family:Arial,sans-serif;">Edition #${newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</div>
-        </td>
-        <td align="right" style="vertical-align:top;padding-left:20px;">
-          <div style="background:#00e676;color:#0b0f1a;font-size:9px;font-weight:800;padding:7px 13px;border-radius:20px;letter-spacing:1.5px;white-space:nowrap;text-transform:uppercase;display:inline-block;">AI-Powered<br>Intelligence</div>
-        </td>
-      </tr>
-    </table>
-  </td></tr>
+  <!-- Top green accent line -->
+  <tr><td style="background:#10b981;height:3px;border-radius:2px 2px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
 
-  <!-- Title bar -->
-  <tr><td style="background:#0f172a;padding:16px 44px 20px;border-bottom:1px solid #1e293b;">
-    <p style="color:#e2e8f0;font-size:18px;font-weight:700;margin:0;font-family:Arial,sans-serif;line-height:1.3;">${newsletter.title}</p>
-  </td></tr>
-
-  <!-- Content body -->
-  <tr><td style="background:#ffffff;padding:40px 44px;">
-    ${bodyContent}
-  </td></tr>
-
-  <!-- AI disclaimer callout -->
-  <tr><td style="background:#fffbeb;border-left:none;padding:0;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td style="background:#fffbeb;border-top:1px solid #fef3c7;border-bottom:1px solid #fef3c7;padding:16px 44px;">
-      <table cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="vertical-align:top;padding-right:12px;font-size:18px;">⚠️</td>
-          <td style="color:#92400e;font-size:12px;line-height:1.6;font-family:Arial,sans-serif;">
-            <strong>AI-Generated Analysis:</strong> This newsletter is produced by AI from the AfriEnergy Tracker database.
-            While grounded in real, tracked project data, AI interpretation may contain errors or omissions.
-            Always verify critical figures against primary source data before making investment or policy decisions.
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-    </table>
-  </td></tr>
-
-  <!-- Footer -->
-  <tr><td style="background:#0f172a;border-radius:0 0 16px 16px;padding:28px 44px;">
+  <!-- MASTHEAD -->
+  <tr><td class="masthead-td" style="background:#080d1a;padding:36px 44px 28px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:top;">
-          <p style="color:#e2e8f0;font-size:13px;font-weight:700;margin:0 0 4px;font-family:Arial,sans-serif;">AfriEnergy Tracker</p>
-          <p style="color:#64748b;font-size:12px;margin:0;font-family:Arial,sans-serif;">by Africa Energy Pulse</p>
-          <p style="color:#475569;font-size:12px;margin:12px 0 0;font-family:Arial,sans-serif;">You're receiving this because you subscribed to AfriEnergy Insights.</p>
+          <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; Monthly Intelligence</p>
+          <p style="margin:0;font-size:38px;font-weight:900;line-height:1.0;letter-spacing:-1.5px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+            <span style="color:#ffffff;">AfriEnergy</span><br>
+            <span style="color:#10b981;">Insights</span>
+          </p>
         </td>
-        <td align="right" style="vertical-align:top;padding-left:20px;white-space:nowrap;">
-          <a href="https://afrienergytracker.io/insights" style="color:#00e676;font-size:12px;text-decoration:none;display:block;margin-bottom:10px;font-family:Arial,sans-serif;font-weight:600;">View on web →</a>
-          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:11px;text-decoration:underline;font-family:Arial,sans-serif;">Unsubscribe</a>
+        <td align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
+          <div style="background:#0f2318;border:1px solid #1a4a2e;border-radius:8px;padding:12px 16px;text-align:center;display:inline-block;">
+            <p style="margin:0;color:#10b981;font-size:13px;font-weight:800;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">#${newsletter.editionNumber}</p>
+            <p style="margin:4px 0 0;color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Edition</p>
+          </div>
         </td>
       </tr>
     </table>
-    <p style="color:#334155;font-size:11px;margin:20px 0 0;border-top:1px solid #1e293b;padding-top:16px;font-family:Arial,sans-serif;">
-      © ${new Date().getFullYear()} Africa Energy Pulse · AfriEnergy Tracker · <a href="https://afrienergytracker.io" style="color:#00e676;text-decoration:none;">afrienergytracker.io</a>
+    <div style="height:1px;background:#1a2744;margin:22px 0 18px;">&nbsp;</div>
+    <p style="margin:0;color:#64748b;font-size:13px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${dateStr}</p>
+  </td></tr>
+
+  <!-- TITLE BAND -->
+  <tr><td class="title-td" style="background:#0d1526;padding:18px 44px;border-top:1px solid #1a2744;border-bottom:3px solid #10b981;">
+    <p style="margin:0;color:#f1f5f9;font-size:17px;font-weight:700;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.title}</p>
+  </td></tr>
+
+  <!-- CONTENT BODY -->
+  <tr><td class="content-td" style="background:#ffffff;padding:44px 44px 36px;">
+    ${bodyContent}
+  </td></tr>
+
+  <!-- AI DISCLAIMER -->
+  <tr><td style="background:#fffdf5;border-top:1px solid #fef3c7;border-bottom:1px solid #fef3c7;padding:14px 44px;">
+    <table cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="vertical-align:top;padding-right:10px;font-size:15px;line-height:1;">⚠️</td>
+        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+          <strong style="color:#92400e;">AI-Generated Analysis:</strong> Content produced by Claude AI from the AfriEnergy Tracker database. Grounded in real tracked project data — always verify critical figures before making investment or policy decisions.
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td class="footer-td" style="background:#080d1a;border-radius:0 0 4px 4px;padding:28px 44px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="vertical-align:top;">
+          <p style="margin:0;color:#e2e8f0;font-size:13px;font-weight:700;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker</p>
+          <p style="margin:3px 0 0;color:#475569;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">by Africa Energy Pulse</p>
+          <p style="margin:12px 0 0;color:#334155;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
+        </td>
+        <td align="right" style="vertical-align:top;padding-left:20px;white-space:nowrap;">
+          <a href="https://afrienergytracker.io/insights" style="color:#10b981;font-size:12px;font-weight:600;text-decoration:none;display:block;margin-bottom:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:11px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
+        </td>
+      </tr>
+    </table>
+    <div style="height:1px;background:#1e293b;margin:20px 0 16px;">&nbsp;</div>
+    <p style="margin:0;color:#334155;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#10b981;text-decoration:none;">afrienergytracker.io</a>
     </p>
   </td></tr>
 
@@ -184,62 +190,84 @@ function buildBriefEmailHtml(newsletter: {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${newsletter.title}</title>
+<style>
+  img { max-width:100% !important; height:auto !important; display:block; }
+  @media only screen and (max-width:580px) {
+    .brief-outer { padding:16px 8px !important; }
+    .brief-header { padding:22px 20px 18px !important; }
+    .brief-content { padding:26px 20px !important; }
+    .brief-footer { padding:18px 20px !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:0;background:#eaecef;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;">
-<tr><td align="center" style="padding:28px 16px;">
-<table width="100%" style="max-width:620px;" cellpadding="0" cellspacing="0">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#eaecef;">
+<tr><td class="brief-outer" align="center" style="padding:28px 16px 44px;">
+<table width="100%" style="max-width:580px;" cellpadding="0" cellspacing="0">
 
-  <!-- Compact header -->
-  <tr><td style="background:#0b0f1a;border-radius:12px 12px 0 0;padding:24px 36px 20px;">
+  <!-- Dual-tone top strip -->
+  <tr>
+    <td style="background:#10b981;height:3px;width:70%;font-size:0;line-height:0;">&nbsp;</td>
+    <td style="background:#065f46;height:3px;width:30%;font-size:0;line-height:0;">&nbsp;</td>
+  </tr>
+
+  <!-- COMPACT HEADER -->
+  <tr><td class="brief-header" style="background:#080d1a;padding:26px 36px 22px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:middle;">
-          <div style="color:#00e676;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:8px;font-family:Arial,sans-serif;">Africa Energy Pulse</div>
-          <div style="color:#ffffff;font-size:22px;font-weight:900;line-height:1.2;font-family:Arial,sans-serif;">Africa Energy <span style="color:#00e676;">Brief</span></div>
-          <div style="color:#94a3b8;font-size:11px;font-weight:600;margin-top:4px;letter-spacing:1px;text-transform:uppercase;font-family:Arial,sans-serif;">Biweekly Update · ${dateStr}</div>
+          <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
+          <p style="margin:0;font-size:26px;font-weight:900;line-height:1.1;letter-spacing:-0.5px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+            <span style="color:#ffffff;">Africa Energy </span><span style="color:#10b981;">Brief</span>
+          </p>
+          <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Biweekly Update &nbsp;·&nbsp; ${dateStr}</p>
         </td>
-        <td align="right" style="vertical-align:top;">
-          <div style="background:#1e293b;border:1px solid #334155;color:#94a3b8;font-size:9px;font-weight:700;padding:5px 10px;border-radius:12px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;">3–5 MIN READ</div>
+        <td align="right" style="vertical-align:middle;padding-left:16px;white-space:nowrap;">
+          <div style="border:1px solid #1a3a28;border-radius:6px;padding:8px 12px;text-align:center;display:inline-block;">
+            <p style="margin:0;color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">3–5 MIN</p>
+            <p style="margin:3px 0 0;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Read</p>
+          </div>
         </td>
       </tr>
     </table>
   </td></tr>
 
-  <!-- Thin accent bar -->
-  <tr><td style="background:#00e676;height:3px;"></td></tr>
+  <!-- GREEN RULE + TITLE -->
+  <tr><td style="background:#10b981;height:2px;font-size:0;line-height:0;">&nbsp;</td></tr>
+  <tr><td style="background:#0d1526;padding:14px 36px;border-bottom:1px solid #1a2744;">
+    <p style="margin:0;color:#e2e8f0;font-size:15px;font-weight:600;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.title}</p>
+  </td></tr>
 
-  <!-- Content body — clean, minimal -->
-  <tr><td style="background:#ffffff;padding:32px 36px;">
+  <!-- CONTENT -->
+  <tr><td class="brief-content" style="background:#ffffff;padding:32px 36px;">
     ${bodyContent}
   </td></tr>
 
-  <!-- AI disclaimer — minimal -->
-  <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 36px;">
-    <p style="color:#94a3b8;font-size:11px;margin:0;line-height:1.5;font-family:Arial,sans-serif;">
-      ⚠️ <strong>AI-generated briefing</strong> from the AfriEnergy Tracker database. Verify critical figures before decisions.
+  <!-- DISCLAIMER -->
+  <tr><td style="background:#f8f9fb;border-top:1px solid #e2e8f0;padding:12px 36px;">
+    <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      ⚠️ <strong style="color:#64748b;">AI-generated briefing</strong> from AfriEnergy Tracker data. Verify critical figures before decisions.
     </p>
   </td></tr>
 
-  <!-- Footer -->
-  <tr><td style="background:#0f172a;border-radius:0 0 12px 12px;padding:20px 36px;">
+  <!-- FOOTER -->
+  <tr><td class="brief-footer" style="background:#080d1a;border-radius:0 0 4px 4px;padding:20px 36px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <p style="color:#64748b;font-size:11px;margin:0;font-family:Arial,sans-serif;">
-            <span style="color:#e2e8f0;font-weight:600;">AfriEnergy Tracker</span> by Africa Energy Pulse
-          </p>
-          <p style="color:#475569;font-size:11px;margin:6px 0 0;font-family:Arial,sans-serif;">You're receiving this because you subscribed to AfriEnergy Insights.</p>
+          <p style="margin:0;color:#e2e8f0;font-size:12px;font-weight:600;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker <span style="color:#475569;font-weight:400;">by Africa Energy Pulse</span></p>
+          <p style="margin:6px 0 0;color:#334155;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
         </td>
-        <td align="right" style="white-space:nowrap;padding-left:16px;">
-          <a href="https://afrienergytracker.io/insights" style="color:#00e676;font-size:11px;text-decoration:none;font-family:Arial,sans-serif;">View on web →</a><br>
-          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:10px;text-decoration:underline;font-family:Arial,sans-serif;margin-top:4px;display:inline-block;">Unsubscribe</a>
+        <td align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
+          <a href="https://afrienergytracker.io/insights" style="color:#10b981;font-size:11px;font-weight:600;text-decoration:none;display:block;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#334155;font-size:10px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
         </td>
       </tr>
     </table>
-    <p style="color:#334155;font-size:10px;margin:14px 0 0;border-top:1px solid #1e293b;padding-top:12px;font-family:Arial,sans-serif;">
-      © ${new Date().getFullYear()} Africa Energy Pulse · <a href="https://afrienergytracker.io" style="color:#00e676;text-decoration:none;">afrienergytracker.io</a>
+    <div style="height:1px;background:#1e293b;margin:14px 0 12px;">&nbsp;</div>
+    <p style="margin:0;color:#334155;font-size:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#10b981;text-decoration:none;">afrienergytracker.io</a>
     </p>
   </td></tr>
 
