@@ -58,62 +58,44 @@ If no external intelligence is relevant to a section, do not force it in.
 
 📝 SECTION-BY-SECTION WRITING INSTRUCTIONS:
 
-## 1. EXECUTIVE SUMMARY (~200 words)
-Open with 2-3 crisp sentences summarising the headline numbers: total tracked portfolio (projects, total investment, countries covered). Then flag 2-3 of the most notable patterns or data points visible in this edition's dataset. Close with a one-sentence forward look. Cite exact numbers throughout.
+## 1. EXECUTIVE SUMMARY (~100 words)
+2-3 sentences covering the headline portfolio numbers (projects, total investment, countries covered), 1-2 notable data patterns, and one forward-looking sentence. Cite exact figures.
 
-## 2. MARKET OVERVIEW (~350 words)
-Write a substantive market briefing. Cover:
-- Total portfolio size (project count, investment, countries, sectors) with exact figures
-- Sector distribution: identify the top 3 sectors by project count AND by capital value — note whether the rankings diverge and why that matters
-- Regional distribution: which region leads by project count vs. capital concentration? Name the top 2 regions and cite their figures
-- Deal stage pipeline: what share of projects are at Announced vs. Financial Close vs. Construction vs. Commissioned? What does the pipeline shape tell us about execution risk?
-- At least one notable data quality observation (e.g., how many projects have undisclosed deal sizes and what this means for the total figures)
+## 2. MARKET OVERVIEW (~150 words)
+- Top 3 sectors by project count and capital value — note divergences
+- Top 2 regions by count and capital concentration with exact figures
+- Deal stage pipeline split (Announced / Financial Close / Construction / Commissioned)
+- One data quality note (undisclosed deal sizes)
 Use the pre-formatted SECTOR TABLE and REGION TABLE provided in the data.
 
-## 3. SECTOR SPOTLIGHT: [SECTOR] (~400 words minimum)
-This section must be at least 400 words. Write a deep, analyst-quality briefing on the spotlight sector.
-- Open with the sector's total tracked footprint: project count, total investment, number of countries, share of overall portfolio
-- Name and describe the TOP 5 LARGEST PROJECTS by deal size from the SECTOR SPOTLIGHT DATA — include project name, country, deal size, stage, and key investors/developers where available
-- Analyse the geographic spread within the sector: which countries dominate and why?
-- Analyse the deal stage distribution: is this sector heavy on announced deals (pipeline risk) or constructed/commissioned deals (proven delivery)?
-- Discuss the typical financing structures visible in the data — DFI involvement, blended finance, grant components
-- Close with 1-2 sentences of forward-looking commentary ONLY IF supported by the data
+## 3. SECTOR SPOTLIGHT: [SECTOR] (~200 words)
+- Sector footprint: project count, total investment, countries, share of overall portfolio
+- Top 3 largest projects from the SECTOR SPOTLIGHT DATA — name, country, deal size, stage, key investors
+- Brief geographic and deal stage commentary
+- Financing patterns (DFI, blended finance) visible in data
 
-## 4. COUNTRY IN FOCUS: [COUNTRY] (~400 words minimum)
-This section must be at least 400 words. Write a deep country investment profile.
-- Open with the country's total energy investment footprint from the data: number of projects, total investment, sectors represented
-- Name and describe AT LEAST 5 SPECIFIC PROJECTS from the COUNTRY IN FOCUS DATA — include names, sectors, deal sizes, stages, investors/developers
-- Analyse the sectoral composition: what does the mix tell us about the country's energy priorities?
-- Examine the investor and developer landscape: which institutions are most active?
-- Note the deal stage distribution: how much is pipeline vs. committed vs. operational?
-- Discuss any DFI, climate finance, or concessional finance patterns visible in the data
-- Close with an honest assessment of what the data suggests about this market's investment dynamics
+## 4. COUNTRY IN FOCUS: [COUNTRY] (~200 words)
+- Country's total footprint: projects, total investment, sectors
+- Top 3-4 specific projects from COUNTRY IN FOCUS DATA — names, sectors, deal sizes, stages
+- Sectoral mix and investor landscape observations
+- One honest data-backed assessment of this market's dynamics
 
-## 5. DEAL PIPELINE UPDATE (~300 words)
-Provide a structured analysis of the overall deal pipeline across all projects.
-- Break down projects by deal stage (Announced / Financial Close / Construction / Commissioned) with exact counts and investment values for each stage
-- Identify which stages represent the highest capital concentration
-- Comment on pipeline conversion: are there many projects stuck at "Announced" stage? What does this suggest?
-- Highlight 2-3 specific notable deals at critical stages (name the project, country, sector, size, stage)
-- Note any patterns in deal timing (announced year distribution)
+## 5. DEAL PIPELINE UPDATE (~150 words)
+- Stage breakdown with counts and investment values
+- Which stage has highest capital concentration
+- 2 notable deals at critical stages (name, country, sector, size, stage)
 
-## 6. INVESTMENT & FINANCING TRENDS (~300 words)
-Analyse the financing landscape visible in the data.
-- DFI involvement: how many projects have documented DFI participation? Name the most active DFIs by count
-- Financing structures: breakdown of project finance, corporate finance, grant-based approaches where data exists
-- Blended finance and concessional terms: how prevalent are these structures? What does this tell us about commercial risk perception?
-- Debt/equity characteristics: any patterns in the debtEquitySplit data?
-- Climate finance tagging: how many projects carry climate finance designation?
-- Capacity versus capital: is there a relationship between project size (MW) and deal size ($)?
+## 6. INVESTMENT & FINANCING TRENDS (~150 words)
+- DFI involvement count and most active DFIs
+- Blended / concessional finance prevalence
+- Climate finance tagging count
+- Any notable debt/equity or capacity-vs-capital pattern
 
-## 7. RISK RADAR (~200 words)
-Identify 3-4 concrete risk signals visible in the data.
-- Concentrate on data-derived risks: geographic concentration, sector overexposure, pipeline execution gaps, undisclosed deal sizes, stalled projects
-- For each risk, cite the specific data that supports it
-- Do NOT fabricate geopolitical or macro risks not visible in the dataset
+## 7. RISK RADAR (~100 words)
+3 data-derived risk signals only — cite the specific data behind each. No fabricated macro risks.
 
-## 8. KEY TAKEAWAYS & OUTLOOK (~150 words)
-Close with 4-5 crisp, specific, data-backed takeaways. Each takeaway should be one sentence beginning with an action verb or a data point. End with a brief forward look — only what the pipeline data reasonably supports.
+## 8. KEY TAKEAWAYS & OUTLOOK (~80 words)
+4 crisp, data-backed one-sentence takeaways beginning with an action verb or data point. One forward-looking sentence grounded in the pipeline data.
 
 ---
 
@@ -121,8 +103,8 @@ FORMATTING RULES:
 - Use ## for section headers (exactly as numbered above)
 - Use **bold** for project names, key figures, and important terms
 - Use markdown tables for sector and region comparisons — include at least 2 data tables across the newsletter
-- Use > blockquotes for key statistics or pull-quotes worth highlighting — you MUST include a MINIMUM OF 4 blockquote highlight boxes (> text) spread across the newsletter; do not leave a section without at least one if the data supports it
-- Write 2,500–3,500 words total. Every section is mandatory. Do not truncate.
+- Use > blockquotes for key statistics or pull-quotes worth highlighting — include a MINIMUM OF 3 blockquote boxes (> text) spread across the newsletter
+- Write approximately 1,200 words total. All sections are required — keep each section concise and punchy. Do not exceed 1,200 words.
 - Monetary values: "$1.2B", "$450M", "$12M" — always include the dollar sign
 - Capacity values: "200 MW", "1.2 GW"`;
 
@@ -140,7 +122,7 @@ This is NOT the monthly deep-dive report. It's a fast intelligence flash — thi
 5. If a statistic is not in the data, write "not yet disclosed" — never invent it.
 
 BRIEF FORMAT RULES:
-- Maximum 600-900 words total
+- Maximum 600 words total — be tight and punchy
 - Use bullet points freely — this must be scannable in 3 minutes
 - Every bullet must contain a specific data point (project name, dollar amount, country)
 - NO filler paragraphs — every sentence must carry information

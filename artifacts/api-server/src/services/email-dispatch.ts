@@ -199,7 +199,7 @@ function buildBriefEmailHtml(newsletter: {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
-  @media only screen and (max-width:580px) {
+  @media only screen and (max-width:480px) {
     .brief-outer { padding:16px 8px !important; }
     .brief-header { padding:22px 20px 18px !important; }
     .brief-content { padding:26px 20px !important; }
@@ -211,7 +211,7 @@ function buildBriefEmailHtml(newsletter: {
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaecef;">
 <tr><td class="brief-outer" align="center" style="padding:28px 16px 44px;">
-<table width="100%" style="max-width:580px;" cellpadding="0" cellspacing="0">
+<table width="100%" style="max-width:600px;" cellpadding="0" cellspacing="0">
 
   <!-- Dual-tone top strip -->
   <tr>
