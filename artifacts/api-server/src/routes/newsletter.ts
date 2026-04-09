@@ -474,59 +474,6 @@ router.post("/admin/newsletter/:id/revise", adminAuthMiddleware, async (req: Req
   }
 });
 
-// GET /api/admin/newsletter/test-email — TEMPORARY DIAGNOSTIC: sends one test email via Brevo
-router.get("/admin/newsletter/test-email", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const apiKey = process.env.BREVO_API_KEY;
-    if (!apiKey) {
-      res.json({ success: false, error: "BREVO_API_KEY environment variable is not set", step: "env_check" });
-      return;
-    }
-
-    const keyPrefix = apiKey.substring(0, 8);
-    console.log(`[TEST-EMAIL] BREVO_API_KEY starts with: ${keyPrefix}...`);
-    console.log("[TEST-EMAIL] Sending test email to danoladoja@gmail.com via Brevo...");
-
-    const { BrevoClient } = await import("@getbrevo/brevo");
-    const brevo = new BrevoClient({ apiKey });
-
-    const result = await brevo.transactionalEmails.sendTransacEmail({
-      sender: { name: "AfriEnergy Tracker", email: "noreply@afrienergytracker.io" },
-      to: [{ email: "danoladoja@gmail.com" }],
-      subject: "AfriEnergy Test Email — Brevo Diagnostic",
-      htmlContent: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #10b981;">AfriEnergy Tracker — Test Email (Brevo)</h2>
-          <p>This is a diagnostic test email sent at <strong>${new Date().toISOString()}</strong>.</p>
-          <p>If you received this, Brevo is working correctly with your domain.</p>
-          <hr style="border: 1px solid #e0e0e0;">
-          <p style="color: #888; font-size: 12px;">Sent from afrienergytracker.io via Brevo</p>
-        </div>
-      `,
-    });
-
-    console.log("[TEST-EMAIL] Brevo response:", JSON.stringify(result));
-
-    res.json({
-      success: true,
-      brevoResponse: result,
-      keyPrefix: keyPrefix + "...",
-      timestamp: new Date().toISOString(),
-      step: "send_complete",
-    });
-  } catch (err: any) {
-    console.error("[TEST-EMAIL] Error:", err);
-    res.json({
-      success: false,
-      error: err?.message || String(err),
-      errorName: err?.name,
-      statusCode: err?.statusCode,
-      fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
-      step: "send_failed",
-    });
-  }
-});
-
 // POST /api/admin/newsletter/:id/send — approve and dispatch a draft
 router.post("/admin/newsletter/:id/send", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);

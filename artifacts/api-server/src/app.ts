@@ -211,52 +211,6 @@ app.get("/sitemap.xml", async (_req: Request, res: Response) => {
   }
 });
 
-// TEMPORARY DIAGNOSTIC — public, no auth, remove after email delivery confirmed
-app.get("/api/test-email", async (_req: Request, res: Response) => {
-  const diagnostics: Record<string, unknown> = { timestamp: new Date().toISOString(), steps: [] };
-  const steps = diagnostics.steps as unknown[];
-
-  try {
-    const apiKey = process.env.BREVO_API_KEY;
-    steps.push({ step: "env_check", keyExists: !!apiKey, keyPrefix: apiKey ? apiKey.substring(0, 8) + "..." : "NOT SET", keyLength: apiKey?.length ?? 0 });
-    console.log("[TEST-EMAIL] BREVO_API_KEY set:", !!apiKey, "| prefix:", apiKey?.substring(0, 8));
-
-    if (!apiKey) {
-      diagnostics.error = "BREVO_API_KEY is not set";
-      res.json(diagnostics);
-      return;
-    }
-
-    const { BrevoClient } = require("@getbrevo/brevo");
-    const brevo = new BrevoClient({ apiKey });
-    steps.push({ step: "brevo_initialized" });
-
-    const to = "danoladoja@gmail.com";
-    steps.push({ step: "sending", from: "noreply@afrienergytracker.io", to, subject: `AfriEnergy Test — ${new Date().toISOString()}` });
-    console.log("[TEST-EMAIL] Calling brevo.transactionalEmails.sendTransacEmail() to", to, "...");
-
-    const result = await brevo.transactionalEmails.sendTransacEmail({
-      sender: { name: "AfriEnergy Tracker", email: "noreply@afrienergytracker.io" },
-      to: [{ email: to }],
-      subject: `AfriEnergy Test — ${new Date().toISOString()}`,
-      htmlContent: `<h2 style="color:#10b981;">AfriEnergy Tracker — Test Email</h2><p>Sent at: ${new Date().toISOString()}</p><p>If you see this, Brevo is working correctly.</p>`,
-    });
-
-    console.log("[TEST-EMAIL] Brevo response:", JSON.stringify(result));
-    steps.push({ step: "send_complete", result });
-    diagnostics.success = true;
-    diagnostics.brevoResponse = result;
-    res.json(diagnostics);
-  } catch (err: any) {
-    console.error("[TEST-EMAIL] Error:", err);
-    steps.push({ step: "error", message: err?.message, name: err?.name, statusCode: err?.statusCode, code: err?.code });
-    diagnostics.success = false;
-    diagnostics.error = err?.message || String(err);
-    try { diagnostics.fullError = JSON.stringify(err, Object.getOwnPropertyNames(err)); } catch { diagnostics.fullError = String(err); }
-    res.json(diagnostics);
-  }
-});
-
 // Mount API routes
 app.use("/api", router);
 
