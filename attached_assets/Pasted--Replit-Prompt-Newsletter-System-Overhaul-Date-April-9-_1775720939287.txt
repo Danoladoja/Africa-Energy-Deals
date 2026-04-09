@@ -1,0 +1,533 @@
+# Replit Prompt — Newsletter System Overhaul
+
+**Date:** April 9, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Deploy:** Railway auto-deploy from master
+
+---
+
+## ⚠️ DO NOT DISRUPT EXISTING WORKING FEATURES
+
+The Chat tab, Quick Insight cards, data provenance badge, conversation history, and all other pages work correctly. This prompt modifies ONLY the newsletter generation system, the Newsletter tab UI, and the PDF export. Do not touch the Chat tab, the chatbot endpoint, or any non-newsletter features.
+
+---
+
+## OVERVIEW — What's Changing and Why
+
+The current newsletter system produces a single lengthy publication (~2,500-3,500 words, 9 sections). This needs to be restructured into **two distinct products** with different cadences, lengths, and purposes. Both must include **real visuals generated from the App's data** (charts, maps, tables) — not just text. The standalone "Global Context & External Intelligence" section must be removed; external intelligence should instead inform the analysis throughout.
+
+---
+
+## CHANGE 1: Rebrand the Current Newsletter as a Monthly Publication
+
+### What
+The existing long-form newsletter becomes **"AfriEnergy Insights"** — a monthly deep-dive intelligence report. Its length is appropriate for a monthly cadence, not weekly.
+
+### Files to Modify
+- `artifacts/api-server/src/services/newsletter-generator.ts`
+- `artifacts/api-server/src/services/newsletter-scheduler.ts`
+- `artifacts/api-server/src/services/email-dispatch.ts`
+- `artifacts/energy-tracker/src/pages/insights.tsx` (Newsletter tab UI)
+
+### What to Do
+
+**A. Change the scheduler:**
+In `newsletter-scheduler.ts`, change the "AfriEnergy Insights" generation schedule from weekly (Monday 7:00 AM) to **monthly (first Monday of each month, 7:00 AM UTC)**:
+```javascript
+// Monthly: First Monday of each month at 7:00 AM UTC
+// Cron: minute hour dayOfMonth month dayOfWeek
+// Use a cron expression that fires every Monday, then check if it's the first Monday
+cron.schedule('0 7 * * 1', async () => {
+  const today = new Date();
+  if (today.getDate() <= 7) {
+    // First Monday of the month
+    await generateAndSendInsightsNewsletter();
+  }
+});
+```
+
+**B. Update the system prompt** in `newsletter-generator.ts`:
+- Change all references from "weekly" to "monthly"
+- Change the reporting period from "last 7 days" to "last 30 days"
+- Keep the 8-section structure (see Change 3 for removing Global Context)
+- Keep the 2,500-3,500 word target — it's appropriate for a monthly report
+
+**C. Update the email subject and template** in `email-dispatch.ts`:
+- Subject: `"AfriEnergy Insights — Monthly Intelligence Report — [Month Year]"`
+- The email header should say "Monthly Intelligence Report"
+
+**D. Update the Newsletter tab UI** in `insights.tsx`:
+- Label this as "Monthly Report" or "AfriEnergy Insights (Monthly)" in the tab
+- Show the publication frequency: "Published on the first Monday of each month"
+
+---
+
+## CHANGE 2: Create a New Biweekly "Africa Energy Brief"
+
+### What
+A new, shorter, denser publication called **"Africa Energy Brief"** — a condensed intelligence update published every two weeks. This is a quick-read briefing for busy professionals who want the key updates without the deep analysis.
+
+### Content Strategy
+The Brief should:
+- Be **600-900 words** maximum (roughly 3-5 minute read)
+- Draw from both the **App's database** (project count changes, new deals, stage progressions) and the **parent website Africa Energy Pulse** (news, policy updates)
+- Be scannable: use bullet points, numbered lists, and short paragraphs
+- NOT duplicate the monthly Insights — instead it fills the gap between monthly reports
+
+### Brief Structure (5 sections, all short)
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFRICA ENERGY BRIEF
+Biweekly Update — [Date]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. HEADLINE NUMBERS (2-3 lines)
+   Key stats since last brief: new projects added, total
+   investment change, notable milestones.
+
+2. DEALS TO WATCH (3-5 bullet points)
+   The most significant new or progressing deals — name,
+   country, sector, deal size, what happened.
+
+3. SECTOR PULSE (3-4 bullet points)
+   Quick sector-level movements: which sectors gained
+   projects, which saw financial closes, any notable shifts.
+
+4. POLICY & MARKET SIGNALS (2-3 bullet points)
+   Key external developments from Africa Energy Pulse
+   and other sources that affect the investment landscape.
+   This is where scraped external intelligence is woven in
+   — attributed to source but NOT as a standalone dump.
+
+5. ONE CHART (1 visual)
+   A single data visualization from the App — could be
+   sector breakdown, regional investment map, deal pipeline
+   funnel, or month-over-month comparison.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Implementation
+
+**A. Create a new generator function** in `newsletter-generator.ts`:
+
+```typescript
+async function generateBrief(): Promise<Newsletter> {
+  // Same data gathering as the full newsletter but with a different prompt
+  const allProjects = await db.query('SELECT * FROM projects');
+  const stats = await getAggregateStats();
+  const recentChanges = await getRecentChanges(14); // Last 14 days
+  const externalIntel = await gatherExternalIntelligence();
+
+  // Generate a single chart/visual (see Change 4)
+  const chartData = await generateChartData(stats, recentChanges);
+
+  const briefPrompt = buildBriefPrompt({
+    allProjects, stats, recentChanges, externalIntel, chartData
+  });
+
+  const response = await anthropicClient.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000, // Much shorter than the full newsletter
+    system: BRIEF_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: briefPrompt }]
+  });
+
+  // Parse, save, return
+}
+```
+
+**B. Brief system prompt** (add to `newsletter-generator.ts`):
+
+```
+You are the AfriEnergy Intelligence Analyst producing the Africa Energy Brief — a biweekly quick-read update for energy professionals, investors, and policy advisors.
+
+BRIEF FORMAT:
+Write a CONCISE, SCANNABLE briefing. This is NOT the monthly deep-dive report — it's a quick intelligence update. Think "Bloomberg terminal flash" not "research paper."
+
+RULES:
+- Maximum 600-900 words total
+- Use bullet points freely — this must be scannable in 3 minutes
+- Every bullet must contain a specific data point (project name, dollar amount, country)
+- NO filler paragraphs — every sentence must carry information
+- Attribute external intelligence to its source inline (e.g., "per IRENA's latest data...")
+- Do NOT create a standalone "Global Context" section — weave external intelligence into the relevant bullets
+- Include a data caveat at the bottom: "Based on [N] tracked projects. Data as of [date]."
+
+⛔ DATA INTEGRITY RULES: Same as the monthly newsletter — never invent data, never extrapolate, always cite from the DATA PROVIDED.
+
+STRUCTURE:
+1. HEADLINE NUMBERS — 2-3 lines with the key stats
+2. DEALS TO WATCH — 3-5 bullets on the most significant deals
+3. SECTOR PULSE — 3-4 bullets on sector-level movements
+4. POLICY & MARKET SIGNALS — 2-3 bullets on external developments (sourced)
+5. ONE CHART — Reference the chart data provided and describe what it shows in 1-2 sentences
+```
+
+**C. Schedule the Brief** in `newsletter-scheduler.ts`:
+
+```javascript
+// Biweekly: Every other Monday at 7:00 AM UTC
+// Use week number to alternate: even weeks = brief, odd weeks = skip
+cron.schedule('0 7 * * 1', async () => {
+  const weekNumber = getISOWeekNumber(new Date());
+  const today = new Date();
+  const isFirstMonday = today.getDate() <= 7;
+
+  if (isFirstMonday) {
+    // First Monday = monthly Insights (handled above)
+    return;
+  }
+
+  if (weekNumber % 2 === 0) {
+    // Even week Monday (not first Monday) = biweekly Brief
+    await generateAndSendBrief();
+  }
+});
+```
+
+**D. Add the Brief to the Newsletter tab UI** in `insights.tsx`:
+- Show two sub-sections: "AfriEnergy Insights (Monthly)" and "Africa Energy Brief (Biweekly)"
+- Or use a toggle/filter to switch between the two
+- Each Brief entry in the archive should show a "Brief" badge to distinguish it from the full monthly report
+
+**E. Add a `type` column to the newsletters table:**
+```sql
+ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'insights';
+-- Values: 'insights' (monthly full report) or 'brief' (biweekly short update)
+```
+Update the Drizzle schema in `lib/db/src/schema/newsletters.ts` to include this column.
+
+**F. Email template for the Brief** in `email-dispatch.ts`:
+- Shorter, more compact template than the monthly report
+- Subject: `"Africa Energy Brief — [Date]"`
+- Clean, minimal styling — no hero images, just a branded header and clean text
+- The single chart should render as an inline image
+
+---
+
+## CHANGE 3: Remove the "Global Context & External Intelligence" Standalone Section
+
+### What
+The current newsletter has a dedicated section called "Global Context & External Intelligence" that dumps scraped external sources into a separate block. This should be removed. Instead, external intelligence should be **woven into the analysis** throughout the other sections, always attributed to its source.
+
+### Files to Modify
+- `artifacts/api-server/src/services/newsletter-generator.ts`
+
+### What to Do
+
+**A. Update the monthly newsletter system prompt:**
+- Remove "7. GLOBAL CONTEXT & EXTERNAL INTELLIGENCE" from the section structure
+- The newsletter now has **8 sections** (not 9):
+  1. Executive Summary
+  2. Market Overview
+  3. Sector Spotlight
+  4. Country in Focus
+  5. Deal Pipeline Update
+  6. Investment & Financing Trends
+  7. Risk Radar
+  8. Key Takeaways & Outlook
+
+- Add this instruction to the prompt:
+```
+EXTERNAL INTELLIGENCE INTEGRATION:
+External intelligence items are provided below. Do NOT create a standalone section for them.
+Instead, weave them into the relevant sections where they add context:
+- A World Bank energy access report → cite in the Country in Focus section
+- An IRENA renewables statistic → cite in Sector Spotlight or Market Overview
+- A BloombergNEF funding trend → cite in Investment & Financing Trends
+Always attribute: "According to [Source]..." or "Per [Source's] latest data..."
+If no external intelligence is relevant to a section, do not force it in.
+```
+
+**B. Same approach for the Brief:**
+The Brief already doesn't have a Global Context section. Its "Policy & Market Signals" section uses external intelligence by design, but as short attributed bullets — not a dump.
+
+---
+
+## CHANGE 4: Add Real Visuals from the App to Both Publications
+
+### What
+Both the monthly Insights and the biweekly Brief must include **data visualizations generated from the actual App data** — not just text. The current newsletter is pure text with no charts, maps, or visual tables. This is unacceptable.
+
+### Types of Visuals to Generate
+
+For the **monthly Insights** (include 3-5 visuals):
+1. **Sector Investment Breakdown** — Horizontal bar chart showing total investment by sector (Solar, Wind, Hydro, Oil & Gas, etc.)
+2. **Regional Investment Map** — A simplified map or table showing investment by region (East, West, North, Central, Southern Africa)
+3. **Deal Pipeline Funnel** — Bar chart showing project counts by deal stage (Announced → Financial Close → Construction → Commissioned)
+4. **Top Deals Table** — Styled HTML table of the top 5-10 deals by investment size
+5. **Spotlight Sector Chart** — A chart specific to the sector being spotlighted (e.g., solar project count by country)
+
+For the **biweekly Brief** (include 1 visual):
+- Rotate between: sector breakdown chart, deal pipeline funnel, or a "new deals this period" summary card
+
+### Implementation
+
+**A. Create a chart generation service:**
+
+**File:** Create `artifacts/api-server/src/services/chart-generator.ts`
+
+This service generates chart images server-side using a charting library. Use one of these approaches:
+
+**Option 1 (Recommended): Generate charts as SVG strings** that are embedded directly in the HTML:
+```typescript
+// Use a server-side charting library like chartjs-node-canvas or vega-lite
+import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
+
+const chartCanvas = new ChartJSNodeCanvas({ width: 600, height: 350, backgroundColour: '#1a1a2e' });
+
+async function generateSectorChart(stats: SectorStats[]): Promise<string> {
+  const config = {
+    type: 'bar',
+    data: {
+      labels: stats.map(s => s.sector),
+      datasets: [{
+        label: 'Investment ($B)',
+        data: stats.map(s => s.totalInvestment / 1000),
+        backgroundColor: '#10B981', // AfriEnergy green
+      }]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Investment by Sector', color: '#fff' } },
+      scales: { y: { ticks: { color: '#ccc' } }, x: { ticks: { color: '#ccc' } } }
+    }
+  };
+  const imageBuffer = await chartCanvas.renderToBuffer(config);
+  return `data:image/png;base64,${imageBuffer.toString('base64')}`;
+}
+
+async function generateDealPipelineChart(stages: StageStats[]): Promise<string> { /* similar */ }
+async function generateRegionalChart(regions: RegionStats[]): Promise<string> { /* similar */ }
+async function generateTopDealsTable(deals: Project[]): Promise<string> {
+  // Returns a styled HTML table string (not a chart image)
+  return `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">
+    <thead><tr style="background:#10B981;color:#fff;">
+      <th style="padding:10px;text-align:left;">Project</th>
+      <th style="padding:10px;">Country</th>
+      <th style="padding:10px;">Sector</th>
+      <th style="padding:10px;text-align:right;">Deal Size</th>
+    </tr></thead>
+    <tbody>${deals.slice(0, 10).map((d, i) => `
+      <tr style="background:${i % 2 === 0 ? '#f9fafb' : '#ffffff'};">
+        <td style="padding:8px;">${d.projectName}</td>
+        <td style="padding:8px;">${d.country}</td>
+        <td style="padding:8px;">${d.technology}</td>
+        <td style="padding:8px;text-align:right;">$${d.dealSizeUsdMn}M</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+```
+
+**B. Inject visuals into the newsletter HTML:**
+
+In `newsletter-generator.ts`, after Claude generates the markdown content and it's converted to HTML:
+1. Generate the chart images/SVGs from the actual database query results
+2. Insert them at designated points in the HTML:
+   - After the "Market Overview" section → sector breakdown chart + regional chart
+   - After the "Deal Pipeline Update" section → pipeline funnel chart
+   - After the "Sector Spotlight" section → spotlight-specific chart
+   - After the "Executive Summary" → top deals table
+
+The insertion points can be identified by looking for the section heading `<h2>` tags in the generated HTML.
+
+**C. For the Brief:** Generate one chart and embed it after the "ONE CHART" section heading.
+
+**D. Visuals in the frontend display:**
+When the Newsletter tab renders a newsletter, the `content_html` field should already contain the embedded charts (as base64 images or inline SVG). No additional frontend work is needed if the HTML is stored with the visuals baked in.
+
+**E. Install the charting library:**
+```bash
+cd artifacts/api-server && npm install chartjs-node-canvas chart.js
+```
+If `chartjs-node-canvas` doesn't work in the Railway environment (it requires `canvas` native bindings), use **QuickChart API** as a fallback:
+```typescript
+// Fallback: Use QuickChart.io API to generate chart images
+async function generateChartViaAPI(config: object): Promise<string> {
+  const response = await fetch('https://quickchart.io/chart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chart: config, width: 600, height: 350, backgroundColor: '#1a1a2e' })
+  });
+  const buffer = await response.arrayBuffer();
+  return `data:image/png;base64,${Buffer.from(buffer).toString('base64')}`;
+}
+```
+
+---
+
+## CHANGE 5: Fix PDF Download — Must Render Full Visual Format
+
+### What
+The current "Download PDF" button generates a plain-text PDF with no table formatting, no charts, and none of the visual styling from the newsletter. The PDF must be a faithful reproduction of the newsletter as displayed in the app — with all charts, styled tables, typography, and layout intact.
+
+### Files to Modify
+- `artifacts/energy-tracker/src/pages/insights.tsx` (frontend PDF generation)
+- Optionally: `artifacts/api-server/src/routes/newsletter.ts` (server-side PDF endpoint)
+
+### What to Do
+
+**Option A (Recommended): Server-side PDF generation with Puppeteer**
+
+Generate the PDF on the server from the newsletter's `content_html` (which already contains charts and styled tables after Change 4):
+
+```typescript
+// In newsletter.ts route handler for GET /api/newsletters/:id/pdf
+import puppeteer from 'puppeteer';
+
+async function generateNewsletterPdf(newsletterId: number): Promise<Buffer> {
+  const newsletter = await db.query('SELECT content_html, title FROM newsletters WHERE id = $1', [newsletterId]);
+
+  const htmlTemplate = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Arial', sans-serif; color: #1a1a1a; max-width: 800px; margin: 0 auto; padding: 40px; }
+        h1 { color: #10B981; border-bottom: 2px solid #10B981; padding-bottom: 10px; }
+        h2 { color: #065F46; margin-top: 30px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th { background: #10B981; color: white; padding: 10px; text-align: left; }
+        td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+        tr:nth-child(even) { background: #f9fafb; }
+        blockquote { border-left: 4px solid #10B981; padding: 12px 20px; background: #f0fdf4; margin: 20px 0; }
+        img { max-width: 100%; height: auto; margin: 15px 0; }
+        .header { background: #064E3B; color: white; padding: 30px; margin: -40px -40px 30px -40px; text-align: center; }
+        .header h1 { color: white; border: none; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>AFRIENERGY INSIGHTS</h1>
+        <p>${newsletter.title}</p>
+      </div>
+      ${newsletter.content_html}
+      <div class="footer">
+        <p>AfriEnergy Tracker — afrienergytracker.io</p>
+        <p>AI-generated intelligence report. Verify critical data against source records.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage();
+  await page.setContent(htmlTemplate, { waitUntil: 'networkidle0' });
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' }
+  });
+  await browser.close();
+
+  return pdfBuffer;
+}
+```
+
+Install Puppeteer:
+```bash
+cd artifacts/api-server && npm install puppeteer
+```
+
+If Puppeteer is too heavy for Railway (it bundles Chromium), use `puppeteer-core` with a smaller Chromium or use the **html-pdf-node** alternative:
+```bash
+npm install html-pdf-node
+```
+
+**Option B (Fallback): Improved client-side PDF**
+
+If server-side Puppeteer doesn't work on Railway, improve the client-side PDF generation in `insights.tsx`:
+
+1. Use `html2canvas` + `jspdf` to capture the rendered newsletter HTML as an image-based PDF:
+```javascript
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
+async function downloadPdf(elementId: string, title: string) {
+  const element = document.getElementById(elementId);
+  const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const imgWidth = 190; // A4 width minus margins
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+  let position = 10;
+  let heightLeft = imgHeight;
+
+  pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+  heightLeft -= 277; // A4 page height minus margins
+
+  while (heightLeft > 0) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= 277;
+  }
+
+  pdf.save(`${title}.pdf`);
+}
+```
+
+2. Ensure the newsletter content div has an `id` attribute that can be targeted for capture.
+
+**C. Add "Download PDF" button to past editions** (currently only on the latest):
+In `insights.tsx`, the Past Editions list currently shows only a "Read" button. Add a "Download PDF" icon button next to each "Read" button that calls the PDF generation for that edition.
+
+---
+
+## CHANGE SUMMARY
+
+| # | What | Type | Cadence | Length |
+|---|------|------|---------|--------|
+| 1 | AfriEnergy Insights | Monthly deep-dive report | 1st Monday of each month | 2,500-3,500 words + 3-5 charts |
+| 2 | Africa Energy Brief | Biweekly quick update | Every other Monday (not 1st) | 600-900 words + 1 chart |
+
+| # | Change | Files |
+|---|--------|-------|
+| 1 | Monthly schedule + branding | `newsletter-scheduler.ts`, `email-dispatch.ts`, `insights.tsx` |
+| 2 | New Brief generator + template | `newsletter-generator.ts`, `newsletter-scheduler.ts`, `email-dispatch.ts`, `insights.tsx`, DB schema |
+| 3 | Remove Global Context section | `newsletter-generator.ts` (both prompts) |
+| 4 | Add real chart visuals | New `chart-generator.ts`, `newsletter-generator.ts`, `email-dispatch.ts` |
+| 5 | Fix PDF rendering | `insights.tsx` and/or `newsletter.ts` route |
+
+---
+
+## DATABASE CHANGES
+
+```sql
+-- Add type column to distinguish monthly from biweekly
+ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'insights';
+-- Values: 'insights' (monthly report) or 'brief' (biweekly update)
+
+-- Update existing newsletters to 'insights' type
+UPDATE newsletters SET type = 'insights' WHERE type IS NULL;
+```
+
+---
+
+## ENVIRONMENT
+
+```
+# May need to add if using QuickChart:
+# No new env vars needed — QuickChart API is free and keyless
+
+# Existing (should already be set):
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=postgresql://...
+RESEND_API_KEY=re_...
+```
+
+---
+
+## AFTER ALL CHANGES
+
+1. `cd artifacts/api-server && npm install` (for new dependencies)
+2. `cd artifacts/energy-tracker && pnpm run build`
+3. Test: Generate a monthly Insights preview from admin → verify it has charts embedded
+4. Test: Generate a Brief preview from admin → verify it's short with 1 chart
+5. Test: Download PDF of the Insights → verify charts, tables, and formatting render
+6. Test: Download PDF of the Brief → same verification
+7. Test: Newsletter tab shows both types with correct badges
+8. Commit and push to master

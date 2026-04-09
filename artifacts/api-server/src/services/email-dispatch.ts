@@ -2,7 +2,8 @@ import { Resend } from "resend";
 import { db, userEmailsTable, newslettersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
-const FROM = "AfriEnergy Insights <insights@send.afrienergytracker.io>";
+const FROM_INSIGHTS = "AfriEnergy Insights <insights@send.afrienergytracker.io>";
+const FROM_BRIEF = "Africa Energy Brief <brief@send.afrienergytracker.io>";
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -81,10 +82,12 @@ function markdownToEmailHtml(md: string): string {
 function buildNewsletterEmailHtml(newsletter: {
   title: string;
   content: string;
+  contentHtml?: string | null;
   editionNumber: number;
   id: number;
 }): string {
-  const bodyContent = markdownToEmailHtml(newsletter.content);
+  // Prefer pre-rendered HTML with charts; fall back to markdown conversion
+  const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   return `<!DOCTYPE html>
@@ -107,7 +110,8 @@ function buildNewsletterEmailHtml(newsletter: {
         <td style="vertical-align:middle;">
           <div style="color:#00e676;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:10px;font-family:Arial,sans-serif;">Africa Energy Pulse</div>
           <div style="color:#ffffff;font-size:32px;font-weight:900;line-height:1.15;letter-spacing:-0.5px;font-family:Arial,sans-serif;">AfriEnergy<br><span style="color:#00e676;">Insights</span></div>
-          <div style="color:#64748b;font-size:13px;margin-top:10px;font-family:Arial,sans-serif;">Edition #${newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</div>
+          <div style="color:#94a3b8;font-size:12px;font-weight:600;margin-top:6px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:1px;">Monthly Intelligence Report</div>
+          <div style="color:#64748b;font-size:13px;margin-top:8px;font-family:Arial,sans-serif;">Edition #${newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</div>
         </td>
         <td align="right" style="vertical-align:top;padding-left:20px;">
           <div style="background:#00e676;color:#0b0f1a;font-size:9px;font-weight:800;padding:7px 13px;border-radius:20px;letter-spacing:1.5px;white-space:nowrap;text-transform:uppercase;display:inline-block;">AI-Powered<br>Intelligence</div>
@@ -172,6 +176,88 @@ function buildNewsletterEmailHtml(newsletter: {
 </html>`;
 }
 
+function buildBriefEmailHtml(newsletter: {
+  title: string;
+  content: string;
+  contentHtml?: string | null;
+  editionNumber: number;
+}): string {
+  const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${newsletter.title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;">
+<tr><td align="center" style="padding:28px 16px;">
+<table width="100%" style="max-width:620px;" cellpadding="0" cellspacing="0">
+
+  <!-- Compact header -->
+  <tr><td style="background:#0b0f1a;border-radius:12px 12px 0 0;padding:24px 36px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="vertical-align:middle;">
+          <div style="color:#00e676;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:8px;font-family:Arial,sans-serif;">Africa Energy Pulse</div>
+          <div style="color:#ffffff;font-size:22px;font-weight:900;line-height:1.2;font-family:Arial,sans-serif;">Africa Energy <span style="color:#00e676;">Brief</span></div>
+          <div style="color:#94a3b8;font-size:11px;font-weight:600;margin-top:4px;letter-spacing:1px;text-transform:uppercase;font-family:Arial,sans-serif;">Biweekly Update · ${dateStr}</div>
+        </td>
+        <td align="right" style="vertical-align:top;">
+          <div style="background:#1e293b;border:1px solid #334155;color:#94a3b8;font-size:9px;font-weight:700;padding:5px 10px;border-radius:12px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;">3–5 MIN READ</div>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- Thin accent bar -->
+  <tr><td style="background:#00e676;height:3px;"></td></tr>
+
+  <!-- Content body — clean, minimal -->
+  <tr><td style="background:#ffffff;padding:32px 36px;">
+    ${bodyContent}
+  </td></tr>
+
+  <!-- AI disclaimer — minimal -->
+  <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 36px;">
+    <p style="color:#94a3b8;font-size:11px;margin:0;line-height:1.5;font-family:Arial,sans-serif;">
+      ⚠️ <strong>AI-generated briefing</strong> from the AfriEnergy Tracker database. Verify critical figures before decisions.
+    </p>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#0f172a;border-radius:0 0 12px 12px;padding:20px 36px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td>
+          <p style="color:#64748b;font-size:11px;margin:0;font-family:Arial,sans-serif;">
+            <span style="color:#e2e8f0;font-weight:600;">AfriEnergy Tracker</span> by Africa Energy Pulse
+          </p>
+          <p style="color:#475569;font-size:11px;margin:6px 0 0;font-family:Arial,sans-serif;">You're receiving this because you subscribed to AfriEnergy Insights.</p>
+        </td>
+        <td align="right" style="white-space:nowrap;padding-left:16px;">
+          <a href="https://afrienergytracker.io/insights" style="color:#00e676;font-size:11px;text-decoration:none;font-family:Arial,sans-serif;">View on web →</a><br>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:10px;text-decoration:underline;font-family:Arial,sans-serif;margin-top:4px;display:inline-block;">Unsubscribe</a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#334155;font-size:10px;margin:14px 0 0;border-top:1px solid #1e293b;padding-top:12px;font-family:Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse · <a href="https://afrienergytracker.io" style="color:#00e676;text-decoration:none;">afrienergytracker.io</a>
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+
+</body>
+</html>`;
+}
+
 export async function dispatchNewsletter(newsletterId: number): Promise<number> {
   if (!process.env.RESEND_API_KEY) {
     console.log("[EmailDispatch] No RESEND_API_KEY configured — skipping email dispatch");
@@ -180,22 +266,43 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  // Get the newsletter (select only guaranteed columns — avoids failures on
-  // production DBs that may be missing optional columns added later)
-  const [newsletter] = await db
-    .select({
-      id: newslettersTable.id,
-      editionNumber: newslettersTable.editionNumber,
-      title: newslettersTable.title,
-      content: newslettersTable.content,
-      executiveSummary: newslettersTable.executiveSummary,
-      spotlightSector: newslettersTable.spotlightSector,
-      spotlightCountry: newslettersTable.spotlightCountry,
-      status: newslettersTable.status,
-    })
-    .from(newslettersTable)
-    .where(eq(newslettersTable.id, newsletterId))
-    .limit(1);
+  // Fetch newsletter — try to include content_html (best-effort; may not exist on older DBs)
+  let newsletter: any;
+  try {
+    const [row] = await db
+      .select({
+        id: newslettersTable.id,
+        editionNumber: newslettersTable.editionNumber,
+        title: newslettersTable.title,
+        content: newslettersTable.content,
+        contentHtml: newslettersTable.contentHtml,
+        executiveSummary: newslettersTable.executiveSummary,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+        status: newslettersTable.status,
+      })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, newsletterId))
+      .limit(1);
+    newsletter = row;
+  } catch {
+    // Fall back to safe columns if content_html column doesn't exist yet
+    const [row] = await db
+      .select({
+        id: newslettersTable.id,
+        editionNumber: newslettersTable.editionNumber,
+        title: newslettersTable.title,
+        content: newslettersTable.content,
+        executiveSummary: newslettersTable.executiveSummary,
+        spotlightSector: newslettersTable.spotlightSector,
+        spotlightCountry: newslettersTable.spotlightCountry,
+        status: newslettersTable.status,
+      })
+      .from(newslettersTable)
+      .where(eq(newslettersTable.id, newsletterId))
+      .limit(1);
+    newsletter = row;
+  }
 
   if (!newsletter) throw new Error(`Newsletter ${newsletterId} not found`);
 
@@ -210,20 +317,30 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
     return 0;
   }
 
-  const htmlTemplate = buildNewsletterEmailHtml({
-    title: newsletter.title,
-    content: newsletter.content,
-    editionNumber: newsletter.editionNumber,
-    id: newsletter.id,
-  });
+  const isBrief = newsletter.title?.startsWith("Africa Energy Brief");
+  const htmlTemplate = isBrief
+    ? buildBriefEmailHtml({
+        title: newsletter.title,
+        content: newsletter.content,
+        contentHtml: newsletter.contentHtml ?? null,
+        editionNumber: newsletter.editionNumber,
+      })
+    : buildNewsletterEmailHtml({
+        title: newsletter.title,
+        content: newsletter.content,
+        contentHtml: newsletter.contentHtml ?? null,
+        editionNumber: newsletter.editionNumber,
+        id: newsletter.id,
+      });
 
+  const fromAddress = isBrief ? FROM_BRIEF : FROM_INSIGHTS;
   const batches = chunkArray(subscribers, 100);
   let sent = 0;
 
   for (const batch of batches) {
     try {
       const emails = batch.map(sub => ({
-        from: FROM,
+        from: fromAddress,
         to: sub.email,
         subject: newsletter.title,
         html: htmlTemplate.replace(
@@ -253,4 +370,8 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
 
   console.log(`[EmailDispatch] Sent edition #${newsletter.editionNumber} to ${sent} subscribers`);
   return sent;
+}
+
+export async function dispatchBrief(newsletterId: number): Promise<number> {
+  return dispatchNewsletter(newsletterId);
 }

@@ -437,18 +437,34 @@ function HistorySidebar({ onClose }: { onClose?: () => void }) {
 }
 
 // ── Newsletter tab ────────────────────────────────────────────────────────────
+function TypeBadge({ type }: { type?: string }) {
+  if (type === "brief") {
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold">
+        Biweekly Brief
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20 font-semibold">
+      Monthly Report
+    </span>
+  );
+}
+
 function NewsletterTab() {
   const [newsletters, setNewsletters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<"all" | "insights" | "brief">("all");
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [expandedContent, setExpandedContent] = useState<Record<number, string>>({});
+  const [expandedContent, setExpandedContent] = useState<Record<number, { content: string; contentHtml?: string }>>({});
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeLoading, setSubscribeLoading] = useState(false);
   const [subscribeMsg, setSubscribeMsg] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/newsletters?limit=20`)
+    fetch(`${BASE}/newsletters?limit=30`)
       .then(r => r.json())
       .then(d => setNewsletters(d.newsletters ?? []))
       .catch(() => {})
@@ -458,14 +474,14 @@ function NewsletterTab() {
   async function downloadNlPdf(id: number, title: string) {
     setPdfLoading(id);
     try {
-      let content = expandedContent[id];
-      if (!content) {
+      let cached = expandedContent[id];
+      if (!cached) {
         const r = await fetch(`${BASE}/newsletters/${id}`);
         const d = await r.json();
-        content = d.content;
-        if (content) setExpandedContent(prev => ({ ...prev, [id]: content }));
+        cached = { content: d.content, contentHtml: d.contentHtml };
+        if (cached.content) setExpandedContent(prev => ({ ...prev, [id]: cached }));
       }
-      if (content) printAsPdf(title, content);
+      if (cached.content) printAsPdf(title, cached.content);
     } catch {
       // silently fail
     } finally {
@@ -478,7 +494,7 @@ function NewsletterTab() {
     try {
       const r = await fetch(`${BASE}/newsletters/${id}`);
       const d = await r.json();
-      setExpandedContent(prev => ({ ...prev, [id]: d.content }));
+      setExpandedContent(prev => ({ ...prev, [id]: { content: d.content, contentHtml: d.contentHtml } }));
       setExpanded(id);
     } catch {}
   }
@@ -494,7 +510,7 @@ function NewsletterTab() {
         body: JSON.stringify({ email: subscribeEmail.trim() }),
       });
       const d = await r.json();
-      if (r.ok) setSubscribeMsg("Subscribed! You'll receive the next edition.");
+      if (r.ok) setSubscribeMsg("Subscribed! You'll receive both publications.");
       else setSubscribeMsg(d.error ?? "Failed to subscribe.");
     } catch {
       setSubscribeMsg("Network error. Please try again.");
@@ -511,16 +527,36 @@ function NewsletterTab() {
     );
   }
 
-  const [latest, ...past] = newsletters;
+  const filtered = typeFilter === "all" ? newsletters : newsletters.filter(nl => (nl.type ?? "insights") === typeFilter);
+  const [latest, ...past] = filtered;
+
+  function renderContent(id: number) {
+    const cached = expandedContent[id];
+    if (!cached) return null;
+    if (cached.contentHtml) {
+      return (
+        <div
+          className="newsletter-html-content"
+          dangerouslySetInnerHTML={{ __html: cached.contentHtml }}
+          style={{ fontFamily: "Arial, sans-serif", fontSize: "14px", lineHeight: "1.7", color: "var(--foreground)" }}
+        />
+      );
+    }
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/80">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{cached.content}</ReactMarkdown>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Subscribe CTA */}
       <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">
             <h3 className="text-sm font-bold text-foreground mb-1">Subscribe to AfriEnergy Insights</h3>
-            <p className="text-xs text-muted-foreground">Receive our AI-powered weekly intelligence briefing on African energy investment every Monday.</p>
+            <p className="text-xs text-muted-foreground">Monthly deep-dive report (1st Monday) + biweekly Africa Energy Brief (every other Monday).</p>
           </div>
           {subscribeMsg ? (
             <p className="text-xs text-primary font-medium">{subscribeMsg}</p>
@@ -545,107 +581,150 @@ function NewsletterTab() {
         </div>
       </div>
 
+      {/* Publication legend */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 flex items-start gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+            <Newspaper className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-foreground">AfriEnergy Insights</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Monthly deep-dive · Published 1st Monday of each month · 2,500–3,500 words + charts</p>
+          </div>
+        </div>
+        <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0 mt-0.5">
+            <Clock className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-foreground">Africa Energy Brief</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Biweekly quick-read · Every other Monday · 600–900 words · 3–5 min read</p>
+          </div>
+        </div>
+      </div>
+
       {newsletters.length === 0 ? (
         <div className="text-center py-16">
           <Newspaper className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-sm font-medium text-foreground mb-1">No newsletters yet</h3>
-          <p className="text-xs text-muted-foreground">The first edition will be generated automatically on Monday at 7 AM UTC, or an admin can trigger it manually.</p>
+          <h3 className="text-sm font-medium text-foreground mb-1">No publications yet</h3>
+          <p className="text-xs text-muted-foreground">AfriEnergy Insights publishes on the 1st Monday of each month. Africa Energy Brief publishes every other Monday. Admins can trigger either manually.</p>
         </div>
       ) : (
         <>
-          {/* Latest edition hero */}
-          {latest && (
-            <div className="rounded-2xl border border-border bg-card overflow-hidden">
-              <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-border px-6 py-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Latest Edition</span>
-                  <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium">#{latest.editionNumber}</span>
-                </div>
-                <h2 className="text-base font-bold text-foreground">{latest.title}</h2>
-                <p className="text-xs text-muted-foreground mt-1">{new Date(latest.generatedAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
-              </div>
-              <div className="px-6 py-4">
-                {latest.executiveSummary && (
-                  <p className="text-sm text-foreground/80 leading-relaxed mb-4 line-clamp-4">{latest.executiveSummary}</p>
-                )}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {latest.spotlightSector && <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">⚡ {latest.spotlightSector}</span>}
-                  {latest.spotlightCountry && <span className="text-[11px] px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">🌍 {latest.spotlightCountry}</span>}
-                  {latest.projectsAnalyzed && <span className="text-[11px] px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border font-medium">📋 {latest.projectsAnalyzed} projects</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => expanded === latest.id ? setExpanded(null) : loadContent(latest.id)}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    {expanded === latest.id ? "Collapse" : "Read Full Edition"}
-                  </button>
-                  <button
-                    onClick={() => downloadNlPdf(latest.id, latest.title)}
-                    disabled={pdfLoading === latest.id}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
-                    title="Download as PDF"
-                  >
-                    {pdfLoading === latest.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                    Download PDF
-                  </button>
-                </div>
-                {expanded === latest.id && expandedContent[latest.id] && (
-                  <div className="mt-5 pt-5 border-t border-border/50">
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/80">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{expandedContent[latest.id]}</ReactMarkdown>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Type filter toggle */}
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/50 border border-border w-fit">
+            {(["all", "insights", "brief"] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setTypeFilter(f)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${typeFilter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {f === "all" ? "All" : f === "insights" ? "Monthly Reports" : "Biweekly Briefs"}
+              </button>
+            ))}
+          </div>
 
-          {/* Past editions */}
-          {past.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3">Past Editions</h3>
-              <div className="space-y-2">
-                {past.map(nl => (
-                  <div key={nl.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 text-xs font-bold text-muted-foreground">#{nl.editionNumber}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{nl.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-[10px] text-muted-foreground">{new Date(nl.generatedAt).toLocaleDateString()}</span>
-                          {nl.spotlightSector && <span className="text-[10px] text-amber-600 dark:text-amber-400">⚡ {nl.spotlightSector}</span>}
-                          {nl.spotlightCountry && <span className="text-[10px] text-blue-600 dark:text-blue-400">🌍 {nl.spotlightCountry}</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => expanded === nl.id ? setExpanded(null) : loadContent(nl.id)}
-                          className="text-[11px] px-2.5 py-1.5 rounded-lg border border-border text-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
-                        >
-                          {expanded === nl.id ? "Collapse" : "Read"}
-                        </button>
-                        <button
-                          onClick={() => downloadNlPdf(nl.id, nl.title)}
-                          disabled={pdfLoading === nl.id}
-                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
-                          title="Download PDF"
-                        >
-                          {pdfLoading === nl.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+          {filtered.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-muted-foreground">No {typeFilter === "insights" ? "monthly reports" : "biweekly briefs"} yet.</p>
+            </div>
+          ) : (
+            <>
+              {/* Latest edition hero */}
+              {latest && (
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-border px-6 py-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Latest Edition</span>
+                      <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium">#{latest.editionNumber}</span>
+                      <TypeBadge type={latest.type} />
                     </div>
-                    {expanded === nl.id && expandedContent[nl.id] && (
-                      <div className="px-4 pb-4 border-t border-border/50 pt-4">
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/80">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{expandedContent[nl.id]}</ReactMarkdown>
-                        </div>
+                    <h2 className="text-base font-bold text-foreground">{latest.title}</h2>
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(latest.generatedAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+                  </div>
+                  <div className="px-6 py-4">
+                    {latest.executiveSummary && (
+                      <p className="text-sm text-foreground/80 leading-relaxed mb-4 line-clamp-4">{latest.executiveSummary}</p>
+                    )}
+                    {latest.type !== "brief" && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {latest.spotlightSector && <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">⚡ {latest.spotlightSector}</span>}
+                        {latest.spotlightCountry && <span className="text-[11px] px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">🌍 {latest.spotlightCountry}</span>}
+                        {latest.projectsAnalyzed && <span className="text-[11px] px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border font-medium">📋 {latest.projectsAnalyzed} projects</span>}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => expanded === latest.id ? setExpanded(null) : loadContent(latest.id)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        {expanded === latest.id ? "Collapse" : "Read Full Edition"}
+                      </button>
+                      <button
+                        onClick={() => downloadNlPdf(latest.id, latest.title)}
+                        disabled={pdfLoading === latest.id}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border text-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
+                        title="Download as PDF"
+                      >
+                        {pdfLoading === latest.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                        Download PDF
+                      </button>
+                    </div>
+                    {expanded === latest.id && expandedContent[latest.id] && (
+                      <div className="mt-5 pt-5 border-t border-border/50">
+                        {renderContent(latest.id)}
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+
+              {/* Past editions */}
+              {past.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Past Editions</h3>
+                  <div className="space-y-2">
+                    {past.map(nl => (
+                      <div key={nl.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 text-xs font-bold text-muted-foreground">#{nl.editionNumber}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{nl.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] text-muted-foreground">{new Date(nl.generatedAt).toLocaleDateString()}</span>
+                              <TypeBadge type={nl.type} />
+                              {nl.type !== "brief" && nl.spotlightSector && <span className="text-[10px] text-amber-600 dark:text-amber-400">⚡ {nl.spotlightSector}</span>}
+                              {nl.type !== "brief" && nl.spotlightCountry && <span className="text-[10px] text-blue-600 dark:text-blue-400">🌍 {nl.spotlightCountry}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => expanded === nl.id ? setExpanded(null) : loadContent(nl.id)}
+                              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-border text-foreground font-medium hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
+                            >
+                              {expanded === nl.id ? "Collapse" : "Read"}
+                            </button>
+                            <button
+                              onClick={() => downloadNlPdf(nl.id, nl.title)}
+                              disabled={pdfLoading === nl.id}
+                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
+                              title="Download PDF"
+                            >
+                              {pdfLoading === nl.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                        {expanded === nl.id && expandedContent[nl.id] && (
+                          <div className="px-4 pb-4 border-t border-border/50 pt-4">
+                            {renderContent(nl.id)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

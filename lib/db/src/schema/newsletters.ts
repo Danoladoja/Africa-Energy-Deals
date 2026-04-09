@@ -17,6 +17,7 @@ export const newslettersTable = pgTable("newsletters", {
   generatedAt: timestamp("generated_at").defaultNow(),
   sentAt: timestamp("sent_at"),
   status: text("status").default("draft").notNull(), // 'draft' | 'sent' | 'failed'
+  type: text("type").default("insights").notNull(), // 'insights' (monthly) | 'brief' (biweekly)
 });
 
 export type Newsletter = typeof newslettersTable.$inferSelect;

@@ -1,8 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, newslettersTable, userEmailsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
-import { generateNewsletter, saveNewsletter } from "../services/newsletter-generator.js";
-import { dispatchNewsletter } from "../services/email-dispatch.js";
+import { generateNewsletter, generateBrief, saveNewsletter } from "../services/newsletter-generator.js";
+import { dispatchNewsletter, dispatchBrief } from "../services/email-dispatch.js";
 import { isValidAdminToken } from "../middleware/adminAuth.js";
 
 function requireAdmin(req: Request, res: Response): boolean {
@@ -40,6 +40,7 @@ router.get("/newsletters", async (req: Request, res: Response): Promise<void> =>
         sentAt: newslettersTable.sentAt,
         status: newslettersTable.status,
         recipientCount: newslettersTable.recipientCount,
+        type: newslettersTable.type,
       })
       .from(newslettersTable)
       .orderBy(desc(newslettersTable.editionNumber))
@@ -70,6 +71,7 @@ router.get("/newsletters/latest", async (_req: Request, res: Response): Promise<
         sentAt: newslettersTable.sentAt,
         status: newslettersTable.status,
         recipientCount: newslettersTable.recipientCount,
+        type: newslettersTable.type,
       })
       .from(newslettersTable)
       .orderBy(desc(newslettersTable.editionNumber))
@@ -100,6 +102,7 @@ router.get("/newsletters/:id", async (req: Request, res: Response): Promise<void
         editionNumber: newslettersTable.editionNumber,
         title: newslettersTable.title,
         content: newslettersTable.content,
+        contentHtml: newslettersTable.contentHtml,
         executiveSummary: newslettersTable.executiveSummary,
         spotlightSector: newslettersTable.spotlightSector,
         spotlightCountry: newslettersTable.spotlightCountry,
@@ -109,6 +112,7 @@ router.get("/newsletters/:id", async (req: Request, res: Response): Promise<void
         sentAt: newslettersTable.sentAt,
         status: newslettersTable.status,
         recipientCount: newslettersTable.recipientCount,
+        type: newslettersTable.type,
       })
       .from(newslettersTable)
       .where(eq(newslettersTable.id, id))
@@ -222,7 +226,7 @@ router.get("/admin/newsletter/job/:jobId", (req: Request, res: Response): void =
   res.json({ status: "done", ...job.result });
 });
 
-// POST /api/admin/newsletter/preview — generate without sending (admin only, async)
+// POST /api/admin/newsletter/preview — generate monthly Insights without sending (admin only, async)
 router.post("/admin/newsletter/preview", (req: Request, res: Response): void => {
   if (!requireAdmin(req, res)) return;
   pruneOldJobs();
@@ -230,10 +234,9 @@ router.post("/admin/newsletter/preview", (req: Request, res: Response): void => 
   jobs.set(jobId, { status: "running", startedAt: Date.now() });
   res.json({ jobId, status: "running" });
 
-  // Run generation in the background (not awaited)
   (async () => {
     try {
-      const newsletter = await generateNewsletter(7);
+      const newsletter = await generateNewsletter(30);
       const id = await saveNewsletter(newsletter);
       jobs.set(jobId, {
         status: "done",
@@ -248,7 +251,7 @@ router.post("/admin/newsletter/preview", (req: Request, res: Response): void => 
   })();
 });
 
-// POST /api/admin/newsletter/generate — generate and send (admin only, async)
+// POST /api/admin/newsletter/generate — generate monthly Insights and send (admin only, async)
 router.post("/admin/newsletter/generate", (req: Request, res: Response): void => {
   if (!requireAdmin(req, res)) return;
   pruneOldJobs();
@@ -258,7 +261,7 @@ router.post("/admin/newsletter/generate", (req: Request, res: Response): void =>
 
   (async () => {
     try {
-      const newsletter = await generateNewsletter(7);
+      const newsletter = await generateNewsletter(30);
       const id = await saveNewsletter(newsletter);
       const recipientCount = await dispatchNewsletter(id);
       jobs.set(jobId, {
@@ -269,6 +272,57 @@ router.post("/admin/newsletter/generate", (req: Request, res: Response): void =>
       console.log(`[Newsletter] Send job ${jobId} completed — sent to ${recipientCount} subscribers`);
     } catch (err: any) {
       console.error(`[Newsletter] Send job ${jobId} failed:`, err);
+      jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
+    }
+  })();
+});
+
+// POST /api/admin/newsletter/preview-brief — generate Africa Energy Brief without sending (admin only, async)
+router.post("/admin/newsletter/preview-brief", (req: Request, res: Response): void => {
+  if (!requireAdmin(req, res)) return;
+  pruneOldJobs();
+  const jobId = makeJobId();
+  jobs.set(jobId, { status: "running", startedAt: Date.now() });
+  res.json({ jobId, status: "running" });
+
+  (async () => {
+    try {
+      const brief = await generateBrief(14);
+      const id = await saveNewsletter(brief);
+      jobs.set(jobId, {
+        status: "done",
+        startedAt: jobs.get(jobId)!.startedAt,
+        result: { ...brief, id, status: "preview" },
+      });
+      console.log(`[Brief] Preview job ${jobId} completed — edition #${brief.editionNumber}`);
+    } catch (err: any) {
+      console.error(`[Brief] Preview job ${jobId} failed:`, err);
+      jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
+    }
+  })();
+});
+
+// POST /api/admin/newsletter/generate-brief — generate and send Africa Energy Brief (admin only, async)
+router.post("/admin/newsletter/generate-brief", (req: Request, res: Response): void => {
+  if (!requireAdmin(req, res)) return;
+  pruneOldJobs();
+  const jobId = makeJobId();
+  jobs.set(jobId, { status: "running", startedAt: Date.now() });
+  res.json({ jobId, status: "running" });
+
+  (async () => {
+    try {
+      const brief = await generateBrief(14);
+      const id = await saveNewsletter(brief);
+      const recipientCount = await dispatchBrief(id);
+      jobs.set(jobId, {
+        status: "done",
+        startedAt: jobs.get(jobId)!.startedAt,
+        result: { ...brief, id, recipientCount, status: "sent" },
+      });
+      console.log(`[Brief] Send job ${jobId} completed — sent to ${recipientCount} subscribers`);
+    } catch (err: any) {
+      console.error(`[Brief] Send job ${jobId} failed:`, err);
       jobs.set(jobId, { status: "error", startedAt: jobs.get(jobId)!.startedAt, error: err.message ?? "Generation failed" });
     }
   })();
