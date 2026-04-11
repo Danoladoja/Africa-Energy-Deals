@@ -1,0 +1,26 @@
+Admin dashboard hotfix — three bugs to fix in one PR
+I ran a live audit of production and captured three bugs. Please fix all three in a single PR and push to master so Railway auto-deploys.
+Bug 1 — Backend 500s from schema drift. /api/admin/reviewers, /api/admin/contributors, and /api/admin/contributors/recent-submissions all return HTTP 500 with "Failed query" Drizzle errors. The Railway Postgres tables are missing columns the ORM is selecting. Expected columns (from the live error payloads):
+
+reviewers: id, email, display_name, is_active, created_at, created_by, suspended_at, suspended_by, deleted_at
+contributors: id, email, email_verified_at, display_name, slug, country, bio, is_public, is_banned, current_tier, created_at, last_submission_at
+contributor_submissions: id, contributor_id, project_name, country, sub_sector (used in a LEFT JOIN + COUNT for the contributors list)
+
+Please: (a) diff lib/db/schema.ts against the live Railway Postgres tables, (b) generate any missing Drizzle migration via npx drizzle-kit generate --name admin_schema_drift_hotfix, (c) commit it under artifacts/api-server/drizzle/ so artifacts/api-server/src/db/migrate.ts applies it on startup, (d) update the error handler (probably artifacts/api-server/src/middleware/errorHandler.ts) so Postgres error causes propagate into the JSON response body instead of being stripped — right now the response ends at "params: " with no Postgres code/message/hint.
+Bug 2 — Frontend ReferenceError on the Reviewers tab. Clicking the Reviewers tab in /admin throws ReferenceError: AlertCircle is not defined, which escapes to the app-root error boundary and unmounts the entire admin shell (shows "Something went wrong / Reload Page"). Root cause: the Reviewers page references <AlertCircle /> in its error branch without importing it from lucide-react. Please:
+
+Find the Reviewers admin page (likely artifacts/energy-tracker/src/pages/admin/ReviewerManagement.tsx or similar) and add AlertCircle to its lucide-react import.
+Grep artifacts/energy-tracker/src/pages/admin/ and artifacts/energy-tracker/src/components/admin/ for any lucide icon used without being imported — check at least AlertCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, RefreshCw. Fix every one.
+Copy the Contributors page's error-card pattern (it already handles the 500 correctly with a Retry button and the "Deploy the latest API server to apply schema migrations, then retry" message) and apply the same pattern to Reviewers, Review Queue, Data Pipeline, Newsletter, and Overview.
+Wrap each admin tab's content in its own <ErrorBoundary> so a future ReferenceError or 500 in one tab cannot unmount sibling tabs.
+
+Bug 3 — "Go To App" button routes to the wrong page. In both the admin dashboard sidebar and the reviewer dashboard sidebar, the "Go To App" button navigates to /map (Market Overview only). It should go to / (the tracker home). Grep for Go To App in artifacts/energy-tracker/src/ and change the href / to prop from /map to /.
+Definition of done:
+
+curl https://afrienergytracker.io/api/admin/reviewers returns 200 with JSON
+Same for /api/admin/contributors and /api/admin/contributors/recent-submissions
+Clicking Reviewers in /admin shows a list (or a contained error card), never the global "Something went wrong" boundary
+Clicking every tab in sequence (Overview → Data Pipeline → Review Queue → Newsletter → Reviewers → Contributors) renders each tab's own content, no frozen state
+"Go To App" lands on /, not /map
+
+Please push a single PR titled hotfix: admin dashboard schema drift + Reviewers ReferenceError + Go To App redirect and confirm the Railway deploy went green before handing back.

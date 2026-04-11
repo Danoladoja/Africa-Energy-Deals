@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Component, type ReactNode, type ErrorInfo } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { getAdminToken } from "@/contexts/admin-auth";
@@ -12,6 +12,42 @@ import {
   History,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
+
+class SectionErrorBoundary extends Component<
+  { label: string; children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { label: string; children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[AdminSection:${this.props.label}]`, error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="m-6 rounded-xl border border-red-500/30 bg-red-500/10 p-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-300 mb-1">{this.props.label} failed to render</p>
+            <p className="text-xs text-red-400/80 font-mono break-all">{this.state.error?.message}</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="mt-3 px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const API = "/api";
 
@@ -1759,16 +1795,24 @@ export default function AdminDashboard() {
     <Layout>
       <div className="h-full overflow-y-auto bg-background">
         {section === "overview" && (
-          <OverviewSection sources={sources} bySource={bySource} pendingCount={pendingCount} newsletters={newsletters} subscriberStats={subscriberStats} setSection={setSection} />
+          <SectionErrorBoundary label="Overview">
+            <OverviewSection sources={sources} bySource={bySource} pendingCount={pendingCount} newsletters={newsletters} subscriberStats={subscriberStats} setSection={setSection} />
+          </SectionErrorBoundary>
         )}
         {section === "pipeline" && (
-          <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
+          <SectionErrorBoundary label="Data Pipeline">
+            <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
+          </SectionErrorBoundary>
         )}
         {section === "queue" && (
-          <QueueSection onPendingCountChange={setPendingCount} />
+          <SectionErrorBoundary label="Review Queue">
+            <QueueSection onPendingCountChange={setPendingCount} />
+          </SectionErrorBoundary>
         )}
         {section === "newsletter" && (
-          <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />
+          <SectionErrorBoundary label="Newsletter">
+            <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />
+          </SectionErrorBoundary>
         )}
       </div>
     </Layout>
