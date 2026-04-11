@@ -1,0 +1,175 @@
+# Replit Prompt — PR1a: Adapter Foundation + First DFI Batch + RSS Sources
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** We're expanding scraper source coverage in two batches so the adapter pattern gets reviewed and validated on a smaller surface before we repeat it six times. This PR establishes the reusable base class, ships the three highest-value DFI adapters (AfDB, IFC, DFC), and adds APO Group + Google Alerts RSS. PR1b will add the remaining three DFIs (Proparco, FMO, BII) once this pattern is merged and proven.
+
+---
+
+## GOAL
+
+1. Land a clean, reusable `BaseSourceAdapter` that all future source integrations inherit from.
+2. Ship the three highest-value DFI adapters.
+3. Ship a generic RSS adapter used by both APO Group and Google Alerts.
+4. Add per-source rate limiting, conditional-request caching, and retry-with-jitter.
+5. Make adding a new adapter in PR1b a one-file change with no core refactor required.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### 1. `BaseSourceAdapter` base class
+
+Abstract class that all source adapters extend. Required interface:
+
+- `readonly key: string` — unique slug (e.g., `dfi:afdb`, `rss:apo`, `rss:google_alerts:<slug>`)
+- `readonly schedule: string` — cron expression or interval
+- `readonly defaultConfidence: number` — base confidence for candidates from this source
+- `async fetch(): Promise<RawRow[]>` — pulls fresh rows, respects conditional requests
+- `normalize(row: RawRow): CandidateDraft` — maps to `energy_projects` candidate shape
+- `deduplicate(candidates: CandidateDraft[]): CandidateDraft[]` — source-level dedup (guid, URL, etc.)
+- `async run(): Promise<RunReport>` — orchestrates fetch → dedupe → normalize → write, logs a `RunReport` to `scraper_runs`
+
+Shared helpers provided by the base class:
+
+- `httpFetch(url, options)` that automatically applies per-adapter rate limit, conditional headers (`If-Modified-Since`, `If-None-Match` from cache), retry with exponential backoff + jitter (max 3, base 500ms), and 304 short-circuit.
+- `cacheGet(key)` / `cacheSet(key, value)` for per-URL cache metadata (etag, lastModified).
+- `logRunStart()` / `logRunEnd(report)` writing to `scraper_runs`.
+
+Refactor the existing World Bank adapter to inherit from `BaseSourceAdapter` as part of this PR. If that refactor balloons in scope, stop and ask — do not land a half-done refactor.
+
+### 2. Adapter registry
+
+Runtime registry at `server/scraper/adapters/index.ts` (or equivalent) that all adapters register into on import. The scraper runner iterates the registry instead of hardcoded source switches. Adding a new adapter file in PR1b should be a single-line registry addition.
+
+### 3. DFI adapters — batch 1
+
+Ship these three:
+
+**`DFIAfDBAdapter`** — African Development Bank
+- Source: `projectsportal.afdb.org` JSON endpoints
+- Filter: energy sector, African countries
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:afdb`
+
+**`DFIIFCAdapter`** — International Finance Corporation
+- Source: `disclosures.ifc.org`
+- Filter: energy sector, African operations
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:ifc`
+
+**`DFIDFCAdapter`** — US International Development Finance Corporation
+- Source: `dfc.gov` project database
+- Filter: power/energy, African countries
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:dfc`
+
+For each adapter, extract and map: `title`, `country`, `sector`, `subSector`, `amountUsd`, `stage`, `announcementDate`, `sourceUrl` (the DFI's own disclosure page — counts as a valid `newsUrl`), and `rawJson` for audit. Set `source` to the adapter key. Leave `newsUrl2` empty — corroboration happens downstream.
+
+### 4. Generic RSS adapter
+
+`RSSAdapter` base subclass that accepts a feed URL + key + schedule + defaultConfidence as config. Reused for both APO and Google Alerts. Handles RSS/Atom parsing, guid/link-based dedup, and per-entry normalization.
+
+**`APOGroupAdapter`** (instance of RSSAdapter)
+- Feed: APO Group energy category RSS
+- Schedule: every 2 hours
+- `defaultConfidence`: LLM-scored (runs candidates through the existing LLM scoring step, since APO carries both investment and non-investment stories)
+- Key: `rss:apo`
+
+**`GoogleAlertsAdapter`** (instance of RSSAdapter, configurable)
+- Multiple instances, one per configured alert feed
+- Feed URLs stored in a new `scraper_sources` table (see section 5)
+- Schedule: every 6 hours
+- `defaultConfidence`: LLM-scored
+- Keys: `rss:google_alerts:<query_slug>`
+
+### 5. Scraper sources config table
+
+New `scraper_sources` table for user-configurable feeds (primarily Google Alerts in this PR):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `adapterType` | enum | `google_alerts`, `rss` (generic), future: others |
+| `key` | string | unique, slugified |
+| `label` | string | human-readable name |
+| `feedUrl` | string | |
+| `isActive` | boolean | default `true` |
+| `createdAt` | timestamp | |
+| `createdBy` | string | admin email |
+
+Seed the table with 4 starter Google Alerts queries:
+- `"Africa" "energy" "investment" "MW"`
+- `"solar" "Africa" "project finance"`
+- `"Afrique" "énergie" "investissement"` (French)
+- `"África" "energia" "investimento"` (Portuguese)
+
+### 6. Admin UI — Source feeds control
+
+Add a new **"Source feeds"** card to the existing Admin Dashboard Pipeline section with:
+
+- A table listing all `scraper_sources` rows: label, adapter type, feed URL, active toggle, delete button
+- An "Add feed" button opening a modal with fields: adapter type (dropdown), label, feed URL
+- A "Run now" button per row that triggers an immediate ad-hoc run of that source
+
+Keep the UI minimal — this is operator tooling, not a polished surface.
+
+### 7. Scraper runs history extension
+
+Extend the existing `scraper_runs` table with an `adapterKey` column (nullable for legacy rows). Update the run history UI to show adapter key per run and filter by it.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** build Proparco / FMO / BII adapters — they land in PR1b.
+- Do **not** add a Playwright/headless browser fetcher — separate PR if needed later.
+- Do **not** add multi-language translation at ingestion time (keyword-level multi-language via Google Alerts is enough).
+- Do **not** touch community submissions, badges, leaderboards (PR2/PR3).
+- Do **not** touch the Reviewer Portal or reviewer auth.
+- Do **not** change auto-approval thresholds.
+- Do **not** delete `/discovery`.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `BaseSourceAdapter` exists and the existing World Bank adapter inherits from it cleanly. All existing scraper tests still pass.
+2. Running `npm run scraper:run -- --adapter=dfi:afdb` (or equivalent) pulls fresh AfDB rows and writes candidates with `source = 'dfi:afdb'` and `defaultConfidence = 0.90`.
+3. Same for `dfi:ifc` and `dfi:dfc`.
+4. `rss:apo` adapter pulls the APO energy feed, dedupes by guid, and writes LLM-scored candidates.
+5. At least one Google Alerts feed (from the seed) ingests entries successfully.
+6. The Admin Pipeline "Source feeds" card lists the seeded Google Alerts rows and supports add / delete / toggle / run-now.
+7. Conditional-request caching works: a second run within the cache window returns `304 Not Modified` and processes zero rows (verify in logs).
+8. Per-adapter rate limits are enforced (verify via manual run logs).
+9. A simulated transient 500 triggers retry (not a `needs_source` cascade).
+10. `scraper_runs` shows adapter key per run and the UI filters by it.
+11. New tests cover: `BaseSourceAdapter` contract, one DFI adapter happy path + failure path, `RSSAdapter` with a local fixture feed, `scraper_sources` CRUD.
+12. PR description lists every new env var (API keys, feed URLs) that needs to be set in Railway post-merge.
+
+---
+
+## DELIVERABLES
+
+1. Single PR against master.
+2. PR description listing:
+   - Base class + registry files
+   - Three new DFI adapter files
+   - RSS adapter + APO + Google Alerts files
+   - Migration for `scraper_sources` table and `scraper_runs.adapterKey`
+   - New env vars for Railway
+   - Screenshots of the Source feeds admin card
+3. A short **"Adding a new adapter in PR1b"** section showing exactly the diff needed to add Proparco (as a worked example for the follow-up PR). This is the proof that the pattern is reusable.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING
+
+1. Is the current World Bank adapter already structured as a reusable class, or is it inline in the scraper runner? If inline, the refactor to inherit from `BaseSourceAdapter` might expand scope — stop and confirm before doing it.
+2. Are scraper run schedules driven by Railway cron or an in-process scheduler? New adapters need to plug into whichever exists.
+3. Is there an existing LLM scoring helper I can call from the RSS adapters, or is it embedded in the scraper runner?
+4. Does AfDB, IFC, or DFC require API keys or registration? If yes, stop and ask before signing up on behalf of the project.
+
+Don't guess. Stop and ask.
