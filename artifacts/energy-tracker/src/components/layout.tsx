@@ -45,6 +45,7 @@ const publicNavItems = [
   { name: "Countries", href: "/countries", icon: Globe },
   { name: "Investors", href: "/developers", icon: Users },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
+  { name: "Contribute", href: "/contribute", icon: Users, badge: "Community" as const },
 ];
 
 const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
@@ -55,10 +56,11 @@ const adminNavItems = [
 ];
 
 const adminDashboardSections = [
-  { id: "overview",    label: "Overview",      icon: LayoutDashboard, href: "/admin?section=overview" },
-  { id: "pipeline",    label: "Data Pipeline", icon: Database,        href: "/admin?section=pipeline" },
-  { id: "queue",       label: "Review Queue",  icon: ListTodo,        href: "/admin?section=queue" },
-  { id: "newsletter",  label: "Newsletter",    icon: Newspaper,       href: "/admin?section=newsletter" },
+  { id: "overview",      label: "Overview",         icon: LayoutDashboard, href: "/admin?section=overview" },
+  { id: "pipeline",      label: "Data Pipeline",    icon: Database,        href: "/admin?section=pipeline" },
+  { id: "queue",         label: "Review Queue",     icon: ListTodo,        href: "/admin?section=queue" },
+  { id: "newsletter",    label: "Newsletter",       icon: Newspaper,       href: "/admin?section=newsletter" },
+  { id: "contributors",  label: "Contributors",     icon: Users,           href: "/admin/contributors" },
 ] as const;
 
 // Reviewer nav items (visible to reviewers + admins)
@@ -144,7 +146,8 @@ function AdminNavDropdown() {
     if (isOnAdmin) setOpen(true);
   }, [isOnAdmin]);
 
-  const handleSectionClick = (sectionId: string) => {
+  const handleSectionClick = (sectionId: string, href?: string) => {
+    if (href) { navigate(href); return; }
     if (isOnAdmin) {
       changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
@@ -170,11 +173,12 @@ function AdminNavDropdown() {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && activeSection === s.id;
+            const isActive = isOnAdmin && (activeSection === s.id || (s.id === "contributors" && location === "/admin/contributors"));
+            const href = "href" in s ? (s as any).href : undefined;
             return (
               <button
                 key={s.id}
-                onClick={() => handleSectionClick(s.id)}
+                onClick={() => handleSectionClick(s.id, href && !href.includes("section=") ? href : undefined)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-medium"
@@ -198,8 +202,9 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
   const [open, setOpen] = useState(isOnAdmin);
   const activeSection = useAdminSection();
 
-  const handleSectionClick = (sectionId: string) => {
+  const handleSectionClick = (sectionId: string, href?: string) => {
     onClose();
+    if (href) { navigate(href); return; }
     if (isOnAdmin) {
       changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
@@ -223,11 +228,12 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && activeSection === s.id;
+            const isActive = isOnAdmin && (activeSection === s.id || (s.id === "contributors" && location === "/admin/contributors"));
+            const href = "href" in s ? (s as any).href : undefined;
             return (
               <button
                 key={s.id}
-                onClick={() => handleSectionClick(s.id)}
+                onClick={() => handleSectionClick(s.id, href && !href.includes("section=") ? href : undefined)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-medium"

@@ -1,0 +1,238 @@
+# Replit Prompt — PR2: Community Submissions, Contributor Profiles, and Badge Tiers
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** The tracker currently ingests projects only through the scraper pipeline. We want to open a community contribution channel: any verified user can submit an energy investment deal by providing two corroborating URLs, which lands in the existing review queue for approval. Approved contributors earn tier badges and appear on a public contributor directory.
+
+This PR ships the **core engine only** — submissions, profiles, tiers, and basic badge awarding. The shareable badge image generation, leaderboard UI, and LinkedIn integration are PR3.
+
+This PR depends on PR1 (source expansion) being merged first, because we reuse the `source` field pattern for community-sourced candidates.
+
+---
+
+## GOAL
+
+1. Let verified users submit energy investment deals with two corroborating URLs.
+2. Route every submission into the existing Admin Queue (alongside scraper candidates) with a visible `source: 'community'` marker.
+3. Give every contributor a public profile page with their approved submissions and earned badges.
+4. Automatically award tier badges based on approval count.
+5. Make it hard to abuse: email verification, rate limits, duplicate-URL rejection, per-user throttling based on approval rate.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### 1. Database schema
+
+Add three new tables plus extensions to `energy_projects`.
+
+**`contributors` table:**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | primary key |
+| `email` | string | unique, lowercased, indexed |
+| `emailVerifiedAt` | timestamp | nullable until verified |
+| `displayName` | string | required, 2–40 chars |
+| `country` | string | optional, ISO-3166 alpha-2 |
+| `bio` | string | optional, max 280 chars |
+| `isPublic` | boolean | default `true` — controls profile visibility |
+| `isBanned` | boolean | default `false` — admin-set |
+| `createdAt` | timestamp | |
+| `lastSubmissionAt` | timestamp | nullable |
+
+**`contributor_submissions` table:**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `contributorId` | fk → contributors.id | |
+| `projectName` | string | |
+| `country` | string | ISO-3166 alpha-2 |
+| `subSector` | string | solar / wind / hydro / gas / etc. |
+| `description` | string | max 500 chars |
+| `newsUrl` | string | required |
+| `newsUrl2` | string | required — corroboration from day 1 |
+| `investmentAmountUsd` | decimal | optional |
+| `submitterNote` | string | optional note to reviewer, max 300 chars |
+| `status` | enum | `pending`, `approved`, `rejected`, `duplicate` |
+| `reviewedAt` | timestamp | nullable |
+| `reviewedBy` | string | nullable — admin or reviewer email |
+| `rejectionReason` | string | nullable |
+| `linkedProjectId` | fk → energy_projects.id | nullable; set on approval |
+| `createdAt` | timestamp | |
+
+**`contributor_badges` table:**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `contributorId` | fk → contributors.id | |
+| `badgeSlug` | string | `bronze`, `silver`, `gold`, `platinum`, `first_light`, `scoop`, `country_specialist_<cc>`, `multi_sector`, `cross_border`, `corroborator` |
+| `awardedAt` | timestamp | |
+| `metadata` | json | e.g., country code for country_specialist, count snapshot |
+
+**`energy_projects` extension:**
+
+- Add `submittedByContributorId` (fk, nullable)
+- Add `communitySubmissionId` (fk, nullable) — links back to the submission record
+
+### 2. Public submission flow
+
+Add a new public route: `/contribute`.
+
+**Step 1 — Sign in / sign up.** Reuse the magic-link auth infrastructure from the reviewer management PR. First-time users enter email + display name + optional country; a magic link is sent via Brevo. Clicking the link verifies email and signs them in.
+
+**Step 2 — Submission form.** Fields:
+
+- Project name (required, 3–120 chars)
+- Country (required, dropdown of African countries)
+- Energy sub-sector (required, dropdown: Solar, Wind, Hydro, Gas, Oil, Geothermal, Transmission, Storage, Nuclear, Other)
+- Short description (required, 20–500 chars)
+- Primary news URL (required, must be http/https, must resolve)
+- Corroborating news URL (required, must be http/https, must resolve, must be a different domain from the primary URL)
+- Estimated investment amount (optional, USD)
+- Note to reviewer (optional, max 300 chars)
+- Honeypot field (hidden, must be empty)
+
+**Validation on submit:**
+
+- Both URLs must pass the same reachability check the reviewer portal uses.
+- Both URLs must resolve to different registered domains. Same-domain submissions are rejected with a clear message ("We require two different publications as sources").
+- Duplicate check: if either URL matches an existing `energy_projects.newsUrl` or `newsUrl2`, or an existing pending `contributor_submissions.newsUrl` / `newsUrl2`, reject as duplicate with a link to the existing project (or a message that it's pending review).
+- Rate limit check (see below).
+
+**On accept:** write a `contributor_submissions` row with `status = 'pending'`, write a corresponding candidate to `energy_projects` with `source = 'community'`, `reviewStatus = 'pending'`, `submittedByContributorId`, and `communitySubmissionId` links. Show a success screen with the submission ID and a "View my submissions" link.
+
+### 3. Rate limiting and anti-abuse
+
+- **Per-user**: 3 submissions per day until the user has 5 approved submissions; then 10 per day. Banned users blocked.
+- **Per-IP**: 10 submissions per day across all users. Blocks spammers using throwaway emails.
+- **Approval-rate throttle**: once a user has submitted 10+ and their approval rate is below 20%, reduce their daily limit to 1. Restore when approval rate climbs back above 40%.
+- **Domain allowlist**: maintain a `trusted_domains` config (news outlets, DFIs, government, .edu). Submissions with both URLs on the allowlist flow normally. Submissions with one or both URLs outside the allowlist are still accepted but flagged `needsExtraScrutiny = true` on the submission row and shown with a warning icon in the Admin Queue.
+- **Honeypot**: form includes a hidden `website` field. Any submission with that field populated is silently dropped (200 OK but no row written) to frustrate bots.
+
+### 4. Review flow integration
+
+Community submissions appear in the existing `/admin` Queue tab alongside scraper candidates, distinguished by:
+
+- A "Community" badge on the row
+- The contributor's display name and a link to their profile
+- The reviewer note (if provided) shown inline
+- The `needsExtraScrutiny` warning if flagged
+
+When a reviewer approves a community-sourced candidate:
+- Set `energy_projects.reviewStatus = 'approved'` (existing logic).
+- Set `contributor_submissions.status = 'approved'`, `reviewedAt`, `reviewedBy`.
+- Trigger the badge awarding job (see section 6).
+
+When a reviewer rejects:
+- Set `contributor_submissions.status = 'rejected'` with a rejection reason.
+- Optionally email the contributor a notification (toggleable per reviewer preference — default off for PR2, we'll decide later).
+
+### 5. Contributor profile page
+
+Add a public route: `/contributors/<displayName-slug>`.
+
+Shows:
+- Display name, country flag, join date, bio
+- Tier badge (highest earned)
+- Total approved submissions
+- Count by country (top 5)
+- Count by sub-sector
+- List of approved submissions (paginated, most recent first) with links to the live project pages
+- List of earned badges with hover tooltips explaining each
+
+If `isPublic = false`, return 404.
+
+Each contributor also gets a private `/contributors/me` page showing:
+- Everything on the public profile
+- Plus pending and rejected submissions with status and rejection reasons
+- A "Submit another project" button
+- Account settings: toggle `isPublic`, edit display name / country / bio, sign out
+
+### 6. Badge awarding logic
+
+Run a job on every `contributor_submissions` approval that evaluates all badge rules for that contributor and awards any newly earned badges (idempotent — do not re-award).
+
+**Tier badges (by approved count):**
+
+- `bronze` — 1 approved
+- `silver` — 10 approved
+- `gold` — 50 approved
+- `platinum` — 200 approved
+
+**Narrative badges:**
+
+- `first_light` — the first community submission ever approved across the entire system (single user wins this forever)
+- `scoop` — submitted a deal whose `announcementDate` or first known publication predates any scraper-sourced mention of it by at least 48 hours
+- `country_specialist_<cc>` — 10 approved submissions for the same country (separate badge per country)
+- `multi_sector` — approved submissions across 3+ distinct sub-sectors
+- `cross_border` — approved submissions across 5+ distinct countries
+- `corroborator` — 10 approved submissions where both URLs passed reachability on first check
+
+Awarding writes a `contributor_badges` row and, if the tier changed, updates a cached `currentTier` field on the contributor row.
+
+### 7. Admin moderation
+
+Extend the existing admin panel with a `/admin/contributors` page (admin-auth only):
+
+- Table of all contributors with columns: display name, email, country, total submissions, approval rate, current tier, isBanned, lastSubmissionAt
+- Actions per row: view profile, ban (flip `isBanned = true`), unban
+- A "recent submissions" section showing the last 50 community submissions system-wide with quick-action approve/reject buttons
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** build shareable badge images (PNG/SVG generation) — PR3.
+- Do **not** build the public leaderboard page — PR3.
+- Do **not** build LinkedIn "Add to Profile" integration — PR3.
+- Do **not** add email notifications to contributors on approval/rejection — decided deliberately, will revisit.
+- Do **not** allow contributors to edit or delete submissions after the fact. Once submitted, it's in the queue.
+- Do **not** allow anonymous submissions — email verification is required.
+- Do **not** touch the scraper or DFI adapters — PR1 already handled those.
+- Do **not** change reviewer authentication or the Reviewer Portal.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. Unauthenticated visitor can reach `/contribute` and sees the magic-link email form.
+2. Submitting an email sends a magic link via Brevo; clicking it signs the user in and lands them on the submission form.
+3. Submitting a valid form writes both a `contributor_submissions` row and an `energy_projects` candidate with correct links between them.
+4. Submitting a form with same-domain URLs is rejected client-side with a clear message.
+5. Submitting a URL that matches an existing project is rejected as duplicate.
+6. A 4th submission in 24 hours from a new user is rate-limited with a friendly message.
+7. A honeypot-filled submission returns 200 but writes nothing.
+8. The Admin Queue tab shows community submissions with the "Community" badge and contributor link.
+9. Approving a community submission awards the `bronze` badge (on first approval) and updates the contributor's `currentTier`.
+10. A contributor with 10 approvals gets `silver` automatically.
+11. A contributor with 10 approvals for the same country gets `country_specialist_<cc>`.
+12. Public profile page `/contributors/<slug>` renders for `isPublic = true` contributors and 404s otherwise.
+13. `/contributors/me` shows pending, approved, and rejected submissions.
+14. `/admin/contributors` lists all contributors, supports ban/unban, and shows recent submissions.
+15. Existing tests pass; new tests cover: submission happy path, duplicate rejection, same-domain rejection, rate limiting, honeypot, badge awarding for tier + at least one narrative badge, profile visibility toggle.
+
+---
+
+## DELIVERABLES
+
+1. Single PR against master.
+2. PR description listing:
+   - New tables and migration file
+   - New public routes (`/contribute`, `/contributors/:slug`, `/contributors/me`)
+   - New admin route (`/admin/contributors`)
+   - New config values (trusted domains list, rate limit thresholds)
+   - Screenshots of: submission form, public profile, admin contributor management, community submission in Admin Queue
+3. A "Security & abuse notes" section explaining: honeypot placement, rate limit enforcement layer, ban enforcement, how bad actors are throttled.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING (if unclear)
+
+1. Is the magic-link auth from the reviewer management PR already merged and reusable for contributors, or do I need to extend it?
+2. Is there an existing public site layout / header / footer I should inherit for `/contribute` and `/contributors/*`?
+3. Where is the URL reachability check currently implemented — I need to reuse it, not duplicate.
+4. Are trusted domains already configured anywhere in the codebase, or do I start a new config?
+
+Don't guess. Stop and ask.

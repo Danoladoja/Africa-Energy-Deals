@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, projectsTable, urlAuditTable } from "@workspace/db";
+import { db, projectsTable, urlAuditTable, contributorSubmissionsTable } from "@workspace/db";
 import { eq, and, desc, count, or, isNull, inArray } from "drizzle-orm";
 import { reviewerAuthMiddleware, type ReviewerRequest } from "../middleware/reviewAuth.js";
+import { awardBadges } from "../services/badges.js";
 
 const router = Router();
 
@@ -134,10 +135,42 @@ router.patch("/review/:id/status", async (req: ReviewerRequest, res) => {
 
     if (!current) { res.status(404).json({ error: "Not found" }); return; }
 
+    const [project] = await db
+      .select({
+        reviewStatus: projectsTable.reviewStatus,
+        extractionSource: projectsTable.extractionSource,
+        communitySubmissionId: projectsTable.communitySubmissionId,
+        submittedByContributorId: projectsTable.submittedByContributorId,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, id))
+      .limit(1);
+
     await db
       .update(projectsTable)
       .set({ reviewStatus: status })
       .where(eq(projectsTable.id, id));
+
+    if (project?.extractionSource === "community" && project.communitySubmissionId) {
+      const submissionStatus = status === "approved" ? "approved"
+        : status === "rejected" ? "rejected"
+        : null;
+
+      if (submissionStatus) {
+        db.update(contributorSubmissionsTable)
+          .set({
+            status: submissionStatus,
+            reviewedAt: new Date(),
+            reviewedBy: req.reviewerEmail ?? "reviewer",
+          })
+          .where(eq(contributorSubmissionsTable.id, project.communitySubmissionId))
+          .catch(() => {});
+
+        if (submissionStatus === "approved" && project.submittedByContributorId) {
+          awardBadges(project.submittedByContributorId).catch(() => {});
+        }
+      }
+    }
 
     // Audit trail — non-blocking; never fails the request
     db.insert(urlAuditTable).values({

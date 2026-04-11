@@ -36,8 +36,13 @@ const ReviewDashboard      = lazy(() => import("@/pages/review"));
 const ReviewQueue          = lazy(() => import("@/pages/review-queue"));
 const ReviewItem           = lazy(() => import("@/pages/review-item"));
 const ReviewAuthCallback   = lazy(() => import("@/pages/review-auth-callback"));
-const AdminReviewersPage   = lazy(() => import("@/pages/admin-reviewers"));
-const InsightsPage     = lazy(() => import("@/pages/insights"));
+const AdminReviewersPage     = lazy(() => import("@/pages/admin-reviewers"));
+const InsightsPage           = lazy(() => import("@/pages/insights"));
+const ContributePage         = lazy(() => import("@/pages/contribute"));
+const ContributeAuthCallback = lazy(() => import("@/pages/contribute-auth-callback"));
+const ContributorMePage      = lazy(() => import("@/pages/contributor-me"));
+const ContributorProfilePage = lazy(() => import("@/pages/contributor-profile"));
+const AdminContributorsPage  = lazy(() => import("@/pages/admin-contributors"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -225,6 +230,13 @@ function Router() {
           )}
         </Route>
         <Route path="/api-docs" component={ApiDocsPage} />
+        <Route path="/contribute/auth" component={ContributeAuthCallback} />
+        <Route path="/contribute" component={ContributePage} />
+        <Route path="/contributors/me" component={ContributorMePage} />
+        <Route path="/contributors/:slug" component={ContributorProfilePage} />
+        <Route path="/admin/contributors">
+          {() => <AdminRoute component={AdminContributorsPage} />}
+        </Route>
         <Route path="/admin/reviewers">
           {() => <AdminRoute component={AdminReviewersPage} />}
         </Route>

@@ -95,6 +95,83 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // ── community contributions ───────────────────────────────────────────────
+  await runMigration("energy_projects.submitted_by_contributor_id", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS submitted_by_contributor_id INTEGER`);
+  await runMigration("energy_projects.community_submission_id", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS community_submission_id INTEGER`);
+
+  await runMigration("create contributors", `
+    CREATE TABLE IF NOT EXISTS contributors (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      email_verified_at TIMESTAMP,
+      display_name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      country TEXT,
+      bio TEXT,
+      is_public BOOLEAN NOT NULL DEFAULT TRUE,
+      is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+      current_tier TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      last_submission_at TIMESTAMP
+    )
+  `);
+
+  await runMigration("create contributor_magic_tokens", `
+    CREATE TABLE IF NOT EXISTS contributor_magic_tokens (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      display_name TEXT,
+      country TEXT,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await runMigration("create contributor_sessions", `
+    CREATE TABLE IF NOT EXISTS contributor_sessions (
+      id SERIAL PRIMARY KEY,
+      contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      issued_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP
+    )
+  `);
+
+  await runMigration("create contributor_submissions", `
+    CREATE TABLE IF NOT EXISTS contributor_submissions (
+      id SERIAL PRIMARY KEY,
+      contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+      project_name TEXT NOT NULL,
+      country TEXT NOT NULL,
+      sub_sector TEXT NOT NULL,
+      description TEXT NOT NULL,
+      news_url TEXT NOT NULL,
+      news_url_2 TEXT NOT NULL,
+      investment_amount_usd_mn DOUBLE PRECISION,
+      submitter_note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TIMESTAMP,
+      reviewed_by TEXT,
+      rejection_reason TEXT,
+      linked_project_id INTEGER REFERENCES energy_projects(id) ON DELETE SET NULL,
+      needs_extra_scrutiny BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await runMigration("create contributor_badges", `
+    CREATE TABLE IF NOT EXISTS contributor_badges (
+      id SERIAL PRIMARY KEY,
+      contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+      badge_slug TEXT NOT NULL,
+      awarded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      metadata JSONB
+    )
+  `);
+
   await runMigration("seed scraper_sources google alerts", `
     INSERT INTO scraper_sources (adapter_type, key, label, feed_url, created_by) VALUES
       ('google_alerts', 'rss:google_alerts:africa_energy_investment_mw',

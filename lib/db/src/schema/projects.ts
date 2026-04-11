@@ -59,6 +59,10 @@ export const projectsTable = pgTable("energy_projects", {
   // ── AI Extraction Metadata ────────────────────────────────────────────────
   confidenceScore: doublePrecision("confidence_score"),
   extractionSource: text("extraction_source"),
+
+  // ── Community Submissions ─────────────────────────────────────────────────
+  submittedByContributorId: integer("submitted_by_contributor_id"),
+  communitySubmissionId: integer("community_submission_id"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });

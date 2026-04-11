@@ -18,6 +18,8 @@ import newsletterRouter from "./newsletter.js";
 import reviewerAuthRouter from "./reviewer-auth.js";
 import adminReviewersRouter from "./admin-reviewers.js";
 import adaptersRouter from "./adapters.js";
+import contributorAuthRouter from "./contributor-auth.js";
+import contributionsRouter from "./contributions.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +42,7 @@ router.use(newsletterRouter);
 router.use(reviewerAuthRouter);
 router.use(adminReviewersRouter);
 router.use(adaptersRouter);
+router.use(contributorAuthRouter);
+router.use(contributionsRouter);
 
 export default router;
