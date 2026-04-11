@@ -20,6 +20,7 @@ import adminReviewersRouter from "./admin-reviewers.js";
 import adaptersRouter from "./adapters.js";
 import contributorAuthRouter from "./contributor-auth.js";
 import contributionsRouter from "./contributions.js";
+import badgeImagesRouter from "./badge-images.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(adminReviewersRouter);
 router.use(adaptersRouter);
 router.use(contributorAuthRouter);
 router.use(contributionsRouter);
+router.use(badgeImagesRouter);
 
 export default router;

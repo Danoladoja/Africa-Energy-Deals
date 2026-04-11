@@ -588,4 +588,87 @@ router.post("/admin/contributor-submissions/:id/review", adminAuthMiddleware, as
   }
 });
 
+// ── Public leaderboard ───────────────────────────────────────────────────────
+// GET /api/contributors?period=all|month|year&country=NG&subSector=Solar&page=1
+router.get("/contributors", async (req: Request, res: Response) => {
+  try {
+    const period = (req.query["period"] as string) || "all";
+    const country = (req.query["country"] as string) || "";
+    const subSector = (req.query["subSector"] as string) || "";
+    const page = Math.max(1, parseInt((req.query["page"] as string) || "1"));
+    const limit = 25;
+    const offset = (page - 1) * limit;
+
+    let dateFilter = "";
+    if (period === "month") dateFilter = `AND cs.reviewed_at >= NOW() - INTERVAL '30 days'`;
+    else if (period === "year") dateFilter = `AND cs.reviewed_at >= NOW() - INTERVAL '1 year'`;
+
+    const params: string[] = [];
+    if (country) params.push(country);
+    if (subSector) params.push(subSector);
+
+    const { pool } = await import("@workspace/db");
+
+    const query = `
+      SELECT
+        c.id,
+        c.display_name AS "displayName",
+        c.slug,
+        c.country,
+        c.current_tier AS "currentTier",
+        c.created_at AS "createdAt",
+        COALESCE(stats.approved_count, 0)::int AS "approvedCount",
+        stats.last_approved AS "lastApproved"
+      FROM contributors c
+      LEFT JOIN (
+        SELECT
+          cs.contributor_id,
+          COUNT(*) AS approved_count,
+          MAX(cs.reviewed_at) AS last_approved
+        FROM contributor_submissions cs
+        WHERE cs.status = 'approved'
+          ${dateFilter}
+          ${country ? `AND cs.country = $${params.indexOf(country) + 1}` : ""}
+          ${subSector ? `AND cs.sub_sector = $${params.indexOf(subSector) + 1}` : ""}
+        GROUP BY cs.contributor_id
+      ) stats ON stats.contributor_id = c.id
+      WHERE c.is_public = true AND c.is_banned = false
+        AND COALESCE(stats.approved_count, 0) > 0
+      ORDER BY stats.approved_count DESC NULLS LAST, c.created_at ASC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT c.id) AS total
+      FROM contributors c
+      LEFT JOIN (
+        SELECT cs.contributor_id, COUNT(*) AS approved_count
+        FROM contributor_submissions cs
+        WHERE cs.status = 'approved'
+          ${dateFilter}
+          ${country ? `AND cs.country = $${params.indexOf(country) + 1}` : ""}
+          ${subSector ? `AND cs.sub_sector = $${params.indexOf(subSector) + 1}` : ""}
+        GROUP BY cs.contributor_id
+      ) stats ON stats.contributor_id = c.id
+      WHERE c.is_public = true AND c.is_banned = false
+        AND COALESCE(stats.approved_count, 0) > 0
+    `;
+
+    const [rows, countRows] = await Promise.all([
+      pool.query(query, [...params, limit, offset]),
+      pool.query(countQuery, params),
+    ]);
+
+    res.json({
+      contributors: rows.rows,
+      total: parseInt(countRows.rows[0]?.total ?? "0"),
+      page,
+      limit,
+      totalPages: Math.ceil(parseInt(countRows.rows[0]?.total ?? "0") / limit),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;

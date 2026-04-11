@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { Layout } from "@/components/layout";
-import { Loader2, Award, Globe, CalendarDays, ExternalLink } from "lucide-react";
+import { Loader2, Award, Globe, CalendarDays, ExternalLink, Share2 } from "lucide-react";
 
 const API = "/api";
 
@@ -127,23 +127,30 @@ export default function ContributorProfilePage() {
 
         {badges.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-5 mb-6">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-4">
               <Award className="w-4 h-4 text-primary" />
               <h2 className="font-semibold text-foreground text-sm">Badges</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-3">
               {badges.map((b: any) => {
                 const info = badgeInfo(b.badgeSlug);
                 return (
-                  <div key={b.id} className="group relative">
-                    <span className={`px-3 py-1 rounded-full border border-border text-xs font-medium ${info.color} cursor-default`}>
-                      {info.label}
-                    </span>
-                    {info.desc && (
-                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-card border border-border rounded text-xs text-muted-foreground whitespace-nowrap z-10">
-                        {info.desc}
+                  <div key={b.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background border border-border/50">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`text-xl font-bold ${info.color} shrink-0`}>
+                        {b.badgeSlug === "bronze" ? "B" : b.badgeSlug === "silver" ? "S" : b.badgeSlug === "gold" ? "G" : b.badgeSlug === "platinum" ? "P" : "★"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold ${info.color}`}>{info.label}</p>
+                        <p className="text-xs text-muted-foreground">{info.desc}</p>
                       </div>
-                    )}
+                    </div>
+                    <a
+                      href={`/contributors/${contributor.slug}/badges/${b.badgeSlug}`}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                    >
+                      <Share2 className="w-3 h-3" /> Share
+                    </a>
                   </div>
                 );
               })}

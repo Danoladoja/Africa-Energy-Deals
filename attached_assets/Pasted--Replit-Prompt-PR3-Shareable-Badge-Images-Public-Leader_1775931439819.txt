@@ -1,0 +1,182 @@
+# Replit Prompt — PR3: Shareable Badge Images, Public Leaderboard, and LinkedIn Integration
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** PR2 shipped the community contribution engine (submissions, profiles, badge tiers). This PR adds the growth layer on top: server-rendered shareable badge images, Open Graph/Twitter Card meta so pasted links auto-embed, a public leaderboard page, and a LinkedIn "Add to Profile" deep link so contributors can put the AfriEnergy Tracker badge on their professional profiles.
+
+Depends on PR2 being merged.
+
+---
+
+## GOAL
+
+1. Every badge has a downloadable, shareable image (1200×630 social card + 1080×1080 square).
+2. Every contributor profile and badge page renders correct OG and Twitter Card meta so links unfurl with the badge image.
+3. A public `/contributors` leaderboard ranks contributors by approved count with filters for all-time, this month, by country, and by sub-sector.
+4. A one-click "Share" flow on the profile page with pre-filled post text for LinkedIn, X, and copy-to-clipboard.
+5. A LinkedIn "Add to Profile" deep link for tier badges (Bronze/Silver/Gold/Platinum) that puts the certification on the contributor's LinkedIn profile.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### 1. Dynamic badge image generation
+
+Add two new server routes that return rendered badge images:
+
+- `GET /api/badges/:contributorId/:badgeSlug.png?format=social` → 1200×630 PNG
+- `GET /api/badges/:contributorId/:badgeSlug.png?format=square` → 1080×1080 PNG
+
+And SVG equivalents at the same paths with `.svg`.
+
+**Rendering approach:** use Satori (by Vercel) for React → SVG, then resvg-js or sharp to rasterise to PNG. Single code path, pixel-perfect, works on Railway's node runtime without a headless Chrome dependency. Alternatively, `@napi-rs/canvas` is fine if Satori is awkward — document the choice in the PR.
+
+**Template design** (single template, parameterised):
+
+- Background: AfriEnergy Tracker brand gradient (reuse existing brand colors from the site CSS).
+- Top-left: small AfriEnergy Tracker logo + wordmark.
+- Centre: large badge icon (different per tier — bronze/silver/gold/platinum medallion; narrative badges have their own icons).
+- Below icon: contributor display name in large type.
+- Below name: stat line, dynamically composed:
+  - Tier badges: "X approved contributions"
+  - `country_specialist_<cc>`: "Country specialist — <country name>"
+  - `cross_border`: "Contributions across X countries"
+  - `multi_sector`: "Contributions across X energy sectors"
+  - `scoop`: "First to report X deals"
+- Bottom: `afrienergytracker.io` URL and the date earned.
+
+Store the template as a single React component (if using Satori) that accepts `{contributor, badge, format}` props. Any new badge type added later is a one-line addition in the icon map.
+
+**Caching:** rendered images are pure functions of `(contributorId, badgeSlug, format, contributor.displayName, contributor.country, approvedCount)`. Cache on disk or in a CDN with a cache key that incorporates those inputs. Invalidate the cache entry when the contributor's relevant stats change.
+
+**Download endpoint:** `GET /api/badges/:contributorId/:badgeSlug/download?format=png&size=social` sets `Content-Disposition: attachment; filename="afrienergy-<badge>-<displayName>.png"`.
+
+### 2. Open Graph and Twitter Card meta
+
+Every public contributor profile (`/contributors/<slug>`) and every badge page (`/contributors/<slug>/badges/<badgeSlug>`) must render:
+
+```
+<meta property="og:title" content="..." />
+<meta property="og:description" content="..." />
+<meta property="og:image" content="<full URL to social-format badge PNG>" />
+<meta property="og:url" content="<canonical page URL>" />
+<meta property="og:type" content="profile" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="..." />
+<meta name="twitter:description" content="..." />
+<meta name="twitter:image" content="<full URL to social-format badge PNG>" />
+```
+
+Profile page OG title: `"<Display Name> — Contributor to AfriEnergy Tracker"`
+Profile page OG description: `"<X> approved energy investment deals contributed across <Y> African countries."`
+Profile page OG image: the contributor's highest-tier badge.
+
+Badge page OG title: `"<Display Name> earned the <Badge Name> badge on AfriEnergy Tracker"`
+Badge page OG description: tied to badge type.
+Badge page OG image: that specific badge.
+
+Verify these render correctly via the LinkedIn Post Inspector, Twitter Card Validator, and Facebook Sharing Debugger — screenshots required in the PR description.
+
+### 3. Public leaderboard page
+
+New route: `/contributors` (public, no auth).
+
+Layout:
+- Hero section with title and a short explainer of the contribution programme.
+- Filter bar: **All time** / **This month** / **This year** toggle; **Country** dropdown (all African countries + "All"); **Sub-sector** dropdown.
+- Leaderboard table with columns:
+  1. Rank (with medal icons for top 3)
+  2. Contributor (display name + country flag + avatar placeholder)
+  3. Approved contributions (count)
+  4. Highest tier (badge icon)
+  5. Most recent contribution (relative time)
+- Only shows contributors with `isPublic = true`.
+- Pagination: 25 per page.
+- Row click opens the contributor's profile page.
+
+Add a small "How to contribute" CTA at the top linking to `/contribute`.
+
+### 4. Share flow on profile page
+
+On `/contributors/me` and on any public profile the contributor owns, add a "Share your badge" panel for each earned badge with:
+
+- Live preview of the social-format image (1200×630).
+- Three buttons:
+  - **Share on LinkedIn** — opens `https://www.linkedin.com/sharing/share-offsite/?url=<badge page URL>` in a new tab.
+  - **Share on X** — opens `https://twitter.com/intent/tweet?text=<pre-filled text>&url=<badge page URL>` in a new tab. Pre-filled text example: `"I'm a Silver Contributor to the @AfriEnergyTracker 🏆 — 12 approved energy investment deals across 4 African countries."` (adjust per badge type).
+  - **Download image** — triggers the `/api/badges/.../download` endpoint; offer both social and square sizes via a small dropdown.
+- A "Copy link" button that copies the badge page URL to clipboard.
+
+### 5. LinkedIn "Add to Profile" integration
+
+LinkedIn has an official "Add to Profile" flow for certifications: `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=...&organizationName=...&issueYear=...&issueMonth=...&certUrl=...&certId=...`.
+
+For the four tier badges (Bronze/Silver/Gold/Platinum) only, add an **"Add to LinkedIn profile"** button that builds this URL with:
+
+- `name`: `"AfriEnergy Tracker <Tier> Contributor"`
+- `organizationName`: `"AfriEnergy Tracker"`
+- `issueYear` / `issueMonth`: from `contributor_badges.awardedAt`
+- `certUrl`: the public badge page URL (must be crawlable for LinkedIn's verifier)
+- `certId`: the `contributor_badges.id`
+
+Narrative badges don't get this button (they're not really "certifications"), but they're still shareable via the LinkedIn Share URL above.
+
+### 6. Minor additions
+
+- Add a `GET /api/contributors/:slug/og-image` redirect that 302s to the highest-earned-tier badge image, so the profile OG meta can reference a stable URL.
+- Add a small "Verified contribution programme" footer section site-wide linking to `/contributors` and `/contribute`.
+- Invalidate the image cache when `contributor.displayName`, `contributor.country`, or approved count changes.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** build account-avatar uploads. Use initials-in-a-circle placeholders.
+- Do **not** build follower/following relationships between contributors.
+- Do **not** build a real-time notification system for badge awards — a toast on next login is enough.
+- Do **not** build email digests for contributors.
+- Do **not** change the badge-awarding logic from PR2. This PR only surfaces and shares what PR2 produced.
+- Do **not** add any further auth or submission logic.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `GET /api/badges/<id>/bronze.png?format=social` returns a 1200×630 PNG of the bronze badge for that contributor.
+2. `GET /api/badges/<id>/silver.png?format=square` returns 1080×1080.
+3. SVG variants work at the same paths with `.svg`.
+4. Download endpoint triggers a browser download with a sensible filename.
+5. Image cache returns the same bytes for the same inputs and invalidates when inputs change (verify by changing a contributor's displayName and re-fetching).
+6. Pasting a contributor profile URL into LinkedIn's Post Inspector shows the correct OG title, description, and badge image.
+7. Same test passes in Twitter Card Validator for X.
+8. `/contributors` renders the leaderboard with working filters (all-time/month/year, country, sub-sector) and pagination.
+9. Top 3 ranks show medal icons.
+10. Clicking a leaderboard row opens the contributor profile.
+11. Profile page "Share" panel shows live badge preview and three working buttons per earned badge.
+12. LinkedIn share URL opens LinkedIn's share dialog with the badge page URL pre-filled.
+13. X share URL opens X's intent dialog with pre-filled text and URL.
+14. "Add to LinkedIn profile" button on tier badges opens LinkedIn's certification-add flow with all fields populated correctly.
+15. Existing tests pass; new tests cover image rendering (snapshot test for one badge), OG meta rendering on profile and badge pages, leaderboard query correctness with filters, and LinkedIn share URL construction.
+
+---
+
+## DELIVERABLES
+
+1. Single PR against master.
+2. PR description listing:
+   - New routes (image endpoints, download endpoint, leaderboard, badge pages)
+   - Rendering library chosen (Satori vs. canvas) and why
+   - Cache location and invalidation strategy
+   - Screenshots: social-format badge PNG, square badge PNG, leaderboard page, share panel on profile, LinkedIn Post Inspector result, Twitter Card Validator result
+3. A "Growth notes" section explaining: how to track share clicks (add analytics event hooks), how to add a new narrative badge icon in the future, and which assets live where.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING (if unclear)
+
+1. Does the site already have a brand kit / CSS variables for brand colours and fonts I should pull into the badge template?
+2. Where should the image cache live — disk, Redis, a CDN bucket? Depends on Railway constraints.
+3. Is there an existing analytics event system (PostHog, GA, etc.) I should hook into for share-click tracking, or skip that for this PR?
+4. Do we have official social handles (`@AfriEnergyTracker` on X, a LinkedIn company page) to use in pre-filled share text? If not, omit the handle.
+5. Are there existing badge icon assets (SVGs) in the repo, or do I need to generate/source them? If generating: confirm a simple flat-design medallion approach is OK.
+
+Don't guess. Stop and ask.

@@ -23,6 +23,7 @@ import {
   ArrowRight,
   ChevronDown,
   Database,
+  Trophy,
   ListTodo,
   Newspaper,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const publicNavItems = [
   { name: "Countries", href: "/countries", icon: Globe },
   { name: "Investors", href: "/developers", icon: Users },
   { name: "Vis Studio", href: "/studio", icon: BarChart4 },
+  { name: "Leaderboard", href: "/contributors", icon: Trophy },
   { name: "Contribute", href: "/contribute", icon: Users, badge: "Community" as const },
 ];
 
