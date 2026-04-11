@@ -4,8 +4,20 @@ import { getAdminToken } from "@/contexts/admin-auth";
 import {
   Database, Play, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
-  FileSearch, Activity, BarChart2, Filter, Download, Globe,
+  FileSearch, Activity, BarChart2, Filter, Download, Globe, Rss,
+  PlusCircle, Trash2, ToggleLeft, ToggleRight,
 } from "lucide-react";
+
+interface ScraperSource {
+  id: string;
+  adapterType: string;
+  key: string;
+  label: string;
+  feedUrl: string;
+  isActive: boolean;
+  createdAt: string;
+  createdBy: string;
+}
 
 const API = "/api";
 
@@ -37,6 +49,7 @@ interface SourceStat {
   lastRun: {
     id: number;
     sourceName: string;
+    adapterKey: string | null;
     startedAt: string;
     completedAt: string | null;
     recordsFound: number;
@@ -126,25 +139,119 @@ export default function AdminScraperPage() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const specialLogEndRef = useRef<HTMLDivElement>(null);
 
+  const [scraperSources, setScraperSources] = useState<ScraperSource[]>([]);
+  const [showAddFeed, setShowAddFeed] = useState(false);
+  const [newFeedLabel, setNewFeedLabel] = useState("");
+  const [newFeedUrl, setNewFeedUrl] = useState("");
+  const [newFeedType, setNewFeedType] = useState("google_alerts");
+  const [addingFeed, setAddingFeed] = useState(false);
+  const [feedRunning, setFeedRunning] = useState<string | null>(null);
+  const [feedRunLog, setFeedRunLog] = useState<string[]>([]);
+
   async function loadData() {
     try {
-      const [sourcesRes, runsRes, statusRes] = await Promise.all([
+      const [sourcesRes, runsRes, statusRes, feedsRes] = await Promise.all([
         fetch(`${API}/scraper/sources`, { headers: authHeaders() }),
         fetch(`${API}/scraper/runs?limit=100`, { headers: authHeaders() }),
         fetch(`${API}/scraper/status`, { headers: authHeaders() }),
+        fetch(`${API}/scraper/source-feeds`, { headers: authHeaders() }),
       ]);
-      const [sourcesData, runsData, statusData] = await Promise.all([
+      const [sourcesData, runsData, statusData, feedsData] = await Promise.all([
         sourcesRes.json(),
         runsRes.json(),
         statusRes.json(),
+        feedsRes.json(),
       ]);
       setSources(Array.isArray(sourcesData) ? sourcesData : []);
       setBySource(runsData.bySource ?? {});
       setPendingCount(statusData.pendingCount ?? 0);
+      setScraperSources(Array.isArray(feedsData) ? feedsData : []);
     } catch {
       // ignore
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function addFeed() {
+    if (!newFeedLabel || !newFeedUrl) return;
+    setAddingFeed(true);
+    try {
+      const res = await fetch(`${API}/scraper/source-feeds`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ adapterType: newFeedType, label: newFeedLabel, feedUrl: newFeedUrl }),
+      });
+      if (res.ok) {
+        const row = await res.json();
+        setScraperSources((prev) => [...prev, row]);
+        setNewFeedLabel("");
+        setNewFeedUrl("");
+        setShowAddFeed(false);
+      }
+    } catch { /* ignore */ } finally {
+      setAddingFeed(false);
+    }
+  }
+
+  async function deleteFeed(id: string) {
+    if (!confirm("Delete this source feed?")) return;
+    try {
+      await fetch(`${API}/scraper/source-feeds/${id}`, { method: "DELETE", headers: authHeaders() });
+      setScraperSources((prev) => prev.filter((s) => s.id !== id));
+    } catch { /* ignore */ }
+  }
+
+  async function toggleFeed(id: string, current: boolean) {
+    try {
+      const res = await fetch(`${API}/scraper/source-feeds/${id}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ isActive: !current }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setScraperSources((prev) => prev.map((s) => s.id === id ? updated : s));
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function runFeed(id: string, label: string) {
+    if (feedRunning) return;
+    setFeedRunning(id);
+    setFeedRunLog([`Running ${label}...`]);
+    try {
+      const res = await fetch(`${API}/scraper/source-feeds/${id}/run`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              if (parsed.stage === "complete" && parsed.report) {
+                setFeedRunLog((prev) => [...prev, `✓ Done — inserted:${parsed.report.rowsInserted} updated:${parsed.report.rowsUpdated} flagged:${parsed.report.rowsFlagged}`]);
+              } else if (parsed.message) {
+                setFeedRunLog((prev) => [...prev, parsed.message]);
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch (err) {
+      setFeedRunLog((prev) => [...prev, `✗ ${String(err)}`]);
+    } finally {
+      setFeedRunning(null);
     }
   }
 
@@ -448,6 +555,131 @@ export default function AdminScraperPage() {
                 {specialResult.errors > 0 && (
                   <span className="text-muted-foreground">Errors: <span className="text-red-400 font-medium">{specialResult.errors}</span></span>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Source Feeds Card */}
+          <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Rss className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-foreground">Source feeds</h2>
+                <span className="text-xs text-muted-foreground ml-1">Configurable feeds — Google Alerts, custom RSS</span>
+              </div>
+              <button
+                onClick={() => setShowAddFeed(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Add feed
+              </button>
+            </div>
+
+            {showAddFeed && (
+              <div className="px-6 py-4 border-b border-border bg-muted/30">
+                <p className="text-xs font-medium text-foreground mb-3">Add new source feed</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">Type</label>
+                    <select
+                      value={newFeedType}
+                      onChange={(e) => setNewFeedType(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-background border border-border text-foreground text-xs"
+                    >
+                      <option value="google_alerts">Google Alerts</option>
+                      <option value="rss">Generic RSS</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">Label</label>
+                    <input
+                      type="text"
+                      value={newFeedLabel}
+                      onChange={(e) => setNewFeedLabel(e.target.value)}
+                      placeholder="e.g. Africa solar deals"
+                      className="w-full px-3 py-1.5 rounded-lg bg-background border border-border text-foreground text-xs placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">Feed URL</label>
+                    <input
+                      type="text"
+                      value={newFeedUrl}
+                      onChange={(e) => setNewFeedUrl(e.target.value)}
+                      placeholder="https://news.google.com/rss/search?q=..."
+                      className="w-full px-3 py-1.5 rounded-lg bg-background border border-border text-foreground text-xs placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addFeed}
+                    disabled={addingFeed || !newFeedLabel || !newFeedUrl}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-40"
+                  >
+                    {addingFeed ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Save
+                  </button>
+                  <button
+                    onClick={() => { setShowAddFeed(false); setNewFeedLabel(""); setNewFeedUrl(""); }}
+                    className="px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {scraperSources.length === 0 ? (
+              <div className="px-6 py-8 text-center text-xs text-muted-foreground">No source feeds configured yet.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {scraperSources.map((src) => (
+                  <div key={src.id} className="px-6 py-3 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium text-foreground">{src.label}</span>
+                        <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-muted">{src.adapterType}</span>
+                        {!src.isActive && <span className="text-xs text-red-400/70">inactive</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate max-w-lg">{src.feedUrl}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => toggleFeed(src.id, src.isActive)}
+                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
+                        title={src.isActive ? "Disable" : "Enable"}
+                      >
+                        {src.isActive ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => runFeed(src.id, src.label)}
+                        disabled={feedRunning === src.id || !!feedRunning}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                        title="Run now"
+                      >
+                        {feedRunning === src.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                        Run now
+                      </button>
+                      <button
+                        onClick={() => deleteFeed(src.id)}
+                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {feedRunLog.length > 0 && (
+              <div className="border-t border-border p-4 max-h-32 overflow-y-auto font-mono text-xs space-y-0.5">
+                {feedRunLog.map((line, i) => (
+                  <div key={i} className={line.startsWith("✗") ? "text-red-400" : "text-muted-foreground"}>{line}</div>
+                ))}
               </div>
             )}
           </div>

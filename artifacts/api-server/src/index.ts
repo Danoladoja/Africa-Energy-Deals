@@ -3,6 +3,7 @@ import cron from "node-cron";
 import { runSourceGroup, getSourceGroups } from "./services/scraper.js";
 import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
 import { runStartupMigrations } from "./migrate.js";
+import { ADAPTER_REGISTRY, runAdapter } from "./scraper/adapter-runner.js";
 
 const rawPort = process.env["PORT"];
 
@@ -45,6 +46,24 @@ async function start() {
 
       console.log(`[Scraper] "${groupName}" scheduled daily at ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} UTC`);
     });
+
+    // Schedule new DFI / RSS adapters — each has its own cron expression
+    for (const adapter of ADAPTER_REGISTRY) {
+      try {
+        cron.schedule(adapter.schedule, async () => {
+          console.log(`[Adapter] Scheduled run: ${adapter.key}`);
+          try {
+            const r = await runAdapter(adapter.key, "schedule");
+            console.log(`[Adapter] ${adapter.key} complete — inserted:${r.rowsInserted} updated:${r.rowsUpdated} flagged:${r.rowsFlagged}`);
+          } catch (err) {
+            console.error(`[Adapter] ${adapter.key} error:`, err);
+          }
+        });
+        console.log(`[Adapter] "${adapter.key}" scheduled: ${adapter.schedule}`);
+      } catch (err) {
+        console.warn(`[Adapter] Could not schedule "${adapter.key}": ${err}`);
+      }
+    }
 
     startNewsletterScheduler();
   });

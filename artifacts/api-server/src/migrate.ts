@@ -78,5 +78,43 @@ export async function runStartupMigrations(): Promise<void> {
   await runMigration("user_emails.newsletter_frequency", `ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS newsletter_frequency TEXT DEFAULT 'weekly'`);
   await runMigration("user_emails.last_newsletter_sent_at", `ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS last_newsletter_sent_at TIMESTAMP`);
 
+  // ── scraper_runs ─────────────────────────────────────────────────────────
+  await runMigration("scraper_runs.adapter_key", `ALTER TABLE scraper_runs ADD COLUMN IF NOT EXISTS adapter_key TEXT`);
+
+  // ── scraper_sources ───────────────────────────────────────────────────────
+  await runMigration("create scraper_sources", `
+    CREATE TABLE IF NOT EXISTS scraper_sources (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      adapter_type TEXT NOT NULL,
+      key TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      feed_url TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      created_by TEXT NOT NULL DEFAULT 'system'
+    )
+  `);
+
+  await runMigration("seed scraper_sources google alerts", `
+    INSERT INTO scraper_sources (adapter_type, key, label, feed_url, created_by) VALUES
+      ('google_alerts', 'rss:google_alerts:africa_energy_investment_mw',
+       'Africa energy investment MW',
+       'https://news.google.com/rss/search?q=%22Africa%22+%22energy%22+%22investment%22+%22MW%22&hl=en-US&gl=US&ceid=US:en',
+       'system'),
+      ('google_alerts', 'rss:google_alerts:solar_africa_project_finance',
+       'Solar Africa project finance',
+       'https://news.google.com/rss/search?q=%22solar%22+%22Africa%22+%22project+finance%22&hl=en-US&gl=US&ceid=US:en',
+       'system'),
+      ('google_alerts', 'rss:google_alerts:afrique_energie_investissement',
+       'Afrique énergie investissement (French)',
+       'https://news.google.com/rss/search?q=%22Afrique%22+%22%C3%A9nergie%22+%22investissement%22&hl=fr&gl=FR&ceid=FR:fr',
+       'system'),
+      ('google_alerts', 'rss:google_alerts:africa_energia_investimento',
+       'África energia investimento (Portuguese)',
+       'https://news.google.com/rss/search?q=%22%C3%81frica%22+%22energia%22+%22investimento%22&hl=pt&gl=PT&ceid=PT:pt',
+       'system')
+    ON CONFLICT (key) DO NOTHING
+  `);
+
   console.log("[Migrate] All startup migrations complete.");
 }

@@ -17,6 +17,7 @@ import chatRouter from "./chat.js";
 import newsletterRouter from "./newsletter.js";
 import reviewerAuthRouter from "./reviewer-auth.js";
 import adminReviewersRouter from "./admin-reviewers.js";
+import adaptersRouter from "./adapters.js";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(chatRouter);
 router.use(newsletterRouter);
 router.use(reviewerAuthRouter);
 router.use(adminReviewersRouter);
+router.use(adaptersRouter);
 
 export default router;
