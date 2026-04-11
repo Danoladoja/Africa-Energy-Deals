@@ -8,6 +8,7 @@ import {
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
   ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle, FlaskConical,
+  History,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -51,7 +52,10 @@ interface Newsletter { id: number; editionNumber: number; title: string; executi
 interface Subscriber { id: number; email: string; role: string; newsletterOptIn: boolean; newsletterFrequency: string | null; createdAt: string; lastNewsletterSentAt: string | null }
 
 type AdminSection = "overview" | "pipeline" | "queue" | "newsletter";
-type ReviewAction = "approve" | "reject";
+type QueueFilter = "pending" | "needs_source" | "rejected" | "all";
+interface QueueStats { pending: number; needs_source: number; rejected: number }
+interface AuditEntry { id: number; dealId: number; action: string; note: string | null; oldUrl: string | null; newUrl: string | null; testedStatus: number | null; responseTime: number | null; reviewerEmail: string; createdAt: string }
+interface UrlTestResult { reachable: boolean; httpStatus: number | null; responseTime: number }
 
 const TECH_COLORS: Record<string, string> = {
   Solar: "text-amber-400 bg-amber-400/10",
@@ -431,127 +435,465 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
   );
 }
 
-// ── Review Queue Section ───────────────────────────────────────────────────────
-function QueueSection({ pendingItems, pendingCount, setPendingItems, setPendingCount, loadQueue }: {
-  pendingItems: Project[];
-  pendingCount: number;
-  setPendingItems: React.Dispatch<React.SetStateAction<Project[]>>;
-  setPendingCount: React.Dispatch<React.SetStateAction<number>>;
-  loadQueue: () => Promise<void>;
+// ── Queue Item Row ──────────────────────────────────────────────────────────
+function formatAuditAction(entry: AuditEntry): string {
+  if (entry.action === "status_changed") {
+    return `Status: ${entry.note ?? "changed"} · by ${entry.reviewerEmail}`;
+  }
+  if (entry.action === "edited") {
+    const u = entry.newUrl ?? "?";
+    return `URL edited → ${u.length > 60 ? u.slice(0, 60) + "…" : u} · by ${entry.reviewerEmail}`;
+  }
+  if (entry.action === "tested") {
+    const ok = entry.testedStatus != null && entry.testedStatus < 400;
+    return `URL tested: ${ok ? `✓ ${entry.testedStatus}` : `✗ ${entry.testedStatus ?? "error"}`}${entry.responseTime != null ? ` · ${entry.responseTime}ms` : ""} · by ${entry.reviewerEmail}`;
+  }
+  return `${entry.action}${entry.note ? ` — ${entry.note}` : ""} · by ${entry.reviewerEmail}`;
+}
+
+function QueueItemRow({
+  project, isExpanded, onToggleExpand, urlEdit, urlTest, testing, saving,
+  auditLog, loadingAudit, actionInProgress, onSetUrlEdit, onTestUrl,
+  onSaveUrl, onMoveToPending, onStatusChange,
+}: {
+  project: Project; isExpanded: boolean; onToggleExpand: () => void;
+  urlEdit: string; urlTest: UrlTestResult | null; testing: boolean; saving: boolean;
+  auditLog: AuditEntry[] | undefined; loadingAudit: boolean; actionInProgress: boolean;
+  onSetUrlEdit: (v: string) => void; onTestUrl: () => void; onSaveUrl: () => void;
+  onMoveToPending: () => void; onStatusChange: (s: "approved" | "rejected") => void;
 }) {
-  const [reviewActions, setReviewActions] = useState<Record<number, "approve" | "reject" | "loading">>({});
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const rs = project.reviewStatus;
+  const canMoveToPending = rs === "rejected" || (rs === "needs_source" && urlTest?.reachable === true);
 
-  const filteredPending = sourceFilter === "all" ? pendingItems : pendingItems.filter(p => p.extractionSource === sourceFilter);
-  const uniqueSources = [...new Set(pendingItems.map(p => p.extractionSource).filter(Boolean))];
-
-  async function reviewItem(id: number, action: ReviewAction) {
-    setReviewActions(prev => ({ ...prev, [id]: "loading" }));
-    try {
-      await fetch(`${API}/scraper/review/${id}`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ action }) });
-      setReviewActions(prev => ({ ...prev, [id]: action }));
-      setPendingItems(prev => prev.filter(p => p.id !== id));
-      setPendingCount(c => Math.max(0, c - 1));
-    } catch {
-      setReviewActions(prev => { const next = { ...prev }; delete next[id]; return next; });
-    }
-  }
-
-  async function reviewAll(action: ReviewAction) {
-    try {
-      await fetch(`${API}/scraper/review-all`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ action }) });
-      setPendingItems([]); setPendingCount(0);
-    } catch { /* ignore */ }
-  }
+  const statusBadge = rs === "pending"
+    ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-yellow-400/15 text-yellow-400 border border-yellow-400/25 font-medium">pending</span>
+    : rs === "needs_source"
+    ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-orange-400/15 text-orange-400 border border-orange-400/25 font-medium">needs source</span>
+    : rs === "rejected"
+    ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-400/15 text-red-400 border border-red-400/25 font-medium">rejected</span>
+    : null;
 
   return (
-    <div className="p-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Review Queue</h1>
-          <p className="text-sm text-muted-foreground mt-1">AI-discovered items pending human verification</p>
+    <div className="border-b border-border last:border-0">
+      <div className="px-5 py-3.5 flex gap-3 items-start">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2 flex-wrap mb-1">
+            <span className="font-medium text-foreground text-sm leading-tight">{project.projectName}</span>
+            <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium shrink-0 ${TECH_COLORS[project.technology] ?? "text-muted-foreground bg-muted"}`}>{project.technology}</span>
+            {statusBadge}
+            <ConfidenceBadge score={project.confidenceScore} />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span>{project.country}</span>
+            {project.dealSizeUsdMn != null && <span>${project.dealSizeUsdMn.toFixed(0)}M</span>}
+            {project.capacityMw != null && <span>{project.capacityMw.toFixed(0)} MW</span>}
+            {project.extractionSource && <span className="text-primary/60">via {project.extractionSource}</span>}
+            <span>{ago(project.discoveredAt)}</span>
+          </div>
         </div>
-        <button onClick={loadQueue} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm">
-          <RefreshCw className="w-4 h-4" /> Refresh
+        <button onClick={onToggleExpand} className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
+          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileSearch className="w-4 h-4 text-primary" />
-              <h2 className="font-semibold text-foreground">Pending Items</h2>
-              {pendingCount > 0 && <span className="text-xs font-bold bg-yellow-400/20 text-yellow-400 px-2 py-0.5 rounded-full">{pendingCount}</span>}
+      {isExpanded && (
+        <div className="px-5 pb-5 space-y-4 border-t border-border/40 pt-4 bg-muted/10">
+          {project.description && <p className="text-xs text-muted-foreground leading-relaxed">{project.description}</p>}
+          {project.developer && <p className="text-xs text-muted-foreground">Developer: <span className="text-foreground/70">{project.developer}</span></p>}
+
+          {/* URL editor */}
+          <div className="space-y-2">
+            <span className="text-[11px] text-muted-foreground/60 uppercase tracking-wider font-medium">Source URL</span>
+            <div className="flex gap-2 items-start flex-wrap">
+              <input
+                type="url"
+                value={urlEdit}
+                onChange={e => onSetUrlEdit(e.target.value)}
+                placeholder="https://…"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors font-mono text-xs"
+              />
+              <button
+                onClick={onTestUrl}
+                disabled={!urlEdit.trim() || testing}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs font-medium disabled:opacity-40 shrink-0"
+              >
+                {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FlaskConical className="w-3.5 h-3.5" />}
+                Test
+              </button>
+              <button
+                onClick={onSaveUrl}
+                disabled={!urlEdit.trim() || saving}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 shrink-0"
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Save
+              </button>
             </div>
-            {pendingItems.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => reviewAll("approve")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-medium">
-                  <Check className="w-3.5 h-3.5" /> Approve All
-                </button>
-                <button onClick={() => reviewAll("reject")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium">
-                  <X className="w-3.5 h-3.5" /> Reject All
-                </button>
+            {urlTest && (
+              <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border ${urlTest.reachable ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
+                {urlTest.reachable ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                {urlTest.reachable ? "Reachable" : "Not reachable"}
+                {urlTest.httpStatus != null && <span className="opacity-70">· HTTP {urlTest.httpStatus}</span>}
+                <span className="opacity-70">· {urlTest.responseTime}ms</span>
               </div>
             )}
           </div>
-          {uniqueSources.length > 1 && (
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-              <button onClick={() => setSourceFilter("all")} className={`text-xs px-2 py-1 rounded-md transition-colors ${sourceFilter === "all" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>All</button>
-              {uniqueSources.map(src => (
-                <button key={src} onClick={() => setSourceFilter(src!)} className={`text-xs px-2 py-1 rounded-md transition-colors ${sourceFilter === src ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>{src}</button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {filteredPending.length === 0 ? (
+          {/* Action buttons */}
+          <div className="flex gap-2 flex-wrap">
+            {rs === "pending" && (
+              <>
+                <button
+                  disabled={actionInProgress}
+                  onClick={() => onStatusChange("approved")}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-medium disabled:opacity-40"
+                >
+                  {actionInProgress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Approve & Publish
+                </button>
+                <button
+                  disabled={actionInProgress}
+                  onClick={() => onStatusChange("rejected")}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium disabled:opacity-40"
+                >
+                  {actionInProgress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                  Reject
+                </button>
+              </>
+            )}
+            {(rs === "needs_source" || rs === "rejected") && (
+              <button
+                disabled={actionInProgress || !canMoveToPending}
+                onClick={onMoveToPending}
+                title={rs === "needs_source" && !urlTest?.reachable ? "Test a reachable URL first to unlock" : undefined}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {actionInProgress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                Move to pending
+              </button>
+            )}
+          </div>
+
+          {/* Audit trail */}
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">
+              <History className="w-3.5 h-3.5" /> History
+            </div>
+            {loadingAudit ? (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/40"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
+            ) : !auditLog || auditLog.length === 0 ? (
+              <p className="text-xs text-muted-foreground/40">No history yet</p>
+            ) : (
+              <div className="space-y-1.5">
+                {auditLog.slice(0, 10).map(entry => (
+                  <div key={entry.id} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <span className="text-muted-foreground/30 shrink-0 mt-0.5">·</span>
+                    <span className="flex-1 leading-relaxed">{formatAuditAction(entry)}</span>
+                    <span className="text-muted-foreground/40 shrink-0 font-mono">{ago(entry.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Review Queue Section ───────────────────────────────────────────────────────
+function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: number) => void }) {
+  function getInitialFilter(): QueueFilter {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get("status");
+    return (["pending", "needs_source", "rejected", "all"] as QueueFilter[]).includes(s as QueueFilter)
+      ? (s as QueueFilter)
+      : "pending";
+  }
+
+  const [filter, setFilterRaw] = useState<QueueFilter>(getInitialFilter);
+  const [stats, setStats] = useState<QueueStats>({ pending: 0, needs_source: 0, rejected: 0 });
+  const [items, setItems] = useState<Project[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [auditLogs, setAuditLogs] = useState<Record<number, AuditEntry[]>>({});
+  const [loadingAudit, setLoadingAudit] = useState<Record<number, boolean>>({});
+  const [urlEdits, setUrlEdits] = useState<Record<number, string>>({});
+  const [urlTests, setUrlTests] = useState<Record<number, UrlTestResult | null>>({});
+  const [testingUrl, setTestingUrl] = useState<Record<number, boolean>>({});
+  const [savingUrl, setSavingUrl] = useState<Record<number, boolean>>({});
+  const [actionsInProgress, setActionsInProgress] = useState<Record<number, boolean>>({});
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  }
+
+  function setFilter(f: QueueFilter) {
+    setFilterRaw(f);
+    setPage(1);
+    const url = new URL(window.location.href);
+    url.searchParams.set("status", f);
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/review/stats`, { headers: authHeaders() });
+      const data = await r.json() as { pending?: number; needs_source?: number; rejected?: number };
+      const s: QueueStats = { pending: data.pending ?? 0, needs_source: data.needs_source ?? 0, rejected: data.rejected ?? 0 };
+      setStats(s);
+      onPendingCountChange(s.pending);
+    } catch { /* ignore */ }
+  }, [onPendingCountChange]);
+
+  const fetchItems = useCallback(async (f: QueueFilter, p: number) => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/review/queue?status=${f}&page=${p}`, { headers: authHeaders() });
+      const data = await r.json() as { projects?: Project[]; pages?: number };
+      setItems(data.projects ?? []);
+      setTotalPages(Math.max(1, data.pages ?? 1));
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    fetchItems("pending", 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    fetchItems(filter, page);
+  }, [filter, page, fetchItems]);
+
+  async function refresh() {
+    setRefreshing(true);
+    await Promise.all([fetchStats(), fetchItems(filter, page)]);
+    setRefreshing(false);
+  }
+
+  async function fetchAudit(id: number) {
+    if (auditLogs[id] !== undefined) return;
+    setLoadingAudit(prev => ({ ...prev, [id]: true }));
+    try {
+      const r = await fetch(`${API}/review/${id}/url-history`, { headers: authHeaders() });
+      const data = await r.json() as { auditLog?: AuditEntry[] };
+      setAuditLogs(prev => ({ ...prev, [id]: data.auditLog ?? [] }));
+    } catch { /* ignore */ }
+    setLoadingAudit(prev => ({ ...prev, [id]: false }));
+  }
+
+  function invalidateAudit(id: number) {
+    setAuditLogs(prev => { const n = { ...prev }; delete n[id]; return n; });
+  }
+
+  function toggleExpand(id: number) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    fetchAudit(id);
+  }
+
+  async function handleTestUrl(projectId: number) {
+    const url = urlEdits[projectId] ?? (items.find(p => p.id === projectId)?.newsUrl ?? "");
+    if (!url.trim()) return;
+    setTestingUrl(prev => ({ ...prev, [projectId]: true }));
+    try {
+      const r = await fetch(`${API}/review/test-url`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ url: url.trim(), dealId: projectId }),
+      });
+      const result = await r.json() as { reachable?: boolean; httpStatus?: number | null; responseTime?: number };
+      setUrlTests(prev => ({ ...prev, [projectId]: { reachable: !!result.reachable, httpStatus: result.httpStatus ?? null, responseTime: result.responseTime ?? 0 } }));
+      invalidateAudit(projectId);
+      setTimeout(() => fetchAudit(projectId), 300);
+    } catch { /* ignore */ }
+    setTestingUrl(prev => ({ ...prev, [projectId]: false }));
+  }
+
+  async function handleSaveUrl(projectId: number) {
+    const url = urlEdits[projectId] ?? "";
+    if (!url.trim()) return;
+    setSavingUrl(prev => ({ ...prev, [projectId]: true }));
+    try {
+      await fetch(`${API}/review/${projectId}/url`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ newUrl: url.trim() }),
+      });
+      setItems(prev => prev.map(p => p.id === projectId ? { ...p, newsUrl: url.trim(), sourceUrl: url.trim() } : p));
+      invalidateAudit(projectId);
+      setTimeout(() => fetchAudit(projectId), 300);
+      showToast("URL saved");
+    } catch {
+      showToast("Failed to save URL", false);
+    }
+    setSavingUrl(prev => ({ ...prev, [projectId]: false }));
+  }
+
+  async function handleStatusChange(projectId: number, status: "approved" | "rejected" | "pending") {
+    setActionsInProgress(prev => ({ ...prev, [projectId]: true }));
+    try {
+      await fetch(`${API}/review/${projectId}/status`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      setItems(prev => prev.filter(p => p.id !== projectId));
+      await fetchStats();
+      const label = status === "approved" ? "Approved & published" : status === "rejected" ? "Rejected" : "Moved to pending";
+      showToast(label);
+    } catch {
+      showToast("Action failed", false);
+    }
+    setActionsInProgress(prev => { const n = { ...prev }; delete n[projectId]; return n; });
+  }
+
+  async function bulkApproveAll() {
+    try {
+      await fetch(`${API}/scraper/review-all`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ action: "approve" }),
+      });
+      setItems([]);
+      await fetchStats();
+      showToast("All pending items approved");
+    } catch { showToast("Bulk action failed", false); }
+  }
+
+  const FILTER_LABELS: Record<QueueFilter, string> = { pending: "Pending", needs_source: "Needs source", rejected: "Rejected", all: "All" };
+  const filterCount = (f: QueueFilter) =>
+    f === "pending" ? stats.pending
+    : f === "needs_source" ? stats.needs_source
+    : f === "rejected" ? stats.rejected
+    : stats.pending + stats.needs_source + stats.rejected;
+
+  return (
+    <div className="p-8 max-w-5xl">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium border ${toast.ok ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-red-500/15 border-red-500/30 text-red-400"}`}>
+          {toast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Review Queue</h1>
+          <p className="text-sm text-muted-foreground mt-1">Approve, fix sources, or recover rejected deals</p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm disabled:opacity-40"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+        </button>
+      </div>
+
+      {/* Filter tabs with live counts */}
+      <div className="flex gap-1.5 flex-wrap mb-5">
+        {(["pending", "needs_source", "rejected", "all"] as QueueFilter[]).map(f => {
+          const cnt = filterCount(f);
+          const active = filter === f;
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors border ${active ? "bg-primary/10 text-primary border-primary/25" : "text-muted-foreground hover:text-foreground border-transparent hover:border-border hover:bg-muted/40"}`}
+            >
+              {FILTER_LABELS[f]}
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center ${active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                {cnt}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Contextual hints */}
+      {filter === "needs_source" && stats.needs_source > 0 && (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-orange-500/8 border border-orange-500/20 mb-4 text-xs text-orange-300">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>These deals passed AI confidence checks but had no valid source URL. Paste a URL, test it, save it, then "Move to pending" to queue them for approval.</span>
+        </div>
+      )}
+      {filter === "rejected" && stats.rejected > 0 && (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-muted/30 border border-border mb-4 text-xs text-muted-foreground">
+          <RotateCcw className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Previously rejected deals. Expand any item and click "Move to pending" to reopen it for review.</span>
+        </div>
+      )}
+
+      {/* Bulk approve (pending filter only) */}
+      {filter === "pending" && items.length > 1 && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={bulkApproveAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-medium"
+          >
+            <Check className="w-3.5 h-3.5" /> Approve All Pending
+          </button>
+        </div>
+      )}
+
+      {/* Items list */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+          </div>
+        ) : items.length === 0 ? (
           <div className="px-6 py-14 text-center">
-            <CheckCircle2 className="w-10 h-10 text-green-400/40 mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm">{pendingCount === 0 ? "No items pending review — queue is clear" : "No items match the current filter"}</p>
+            <CheckCircle2 className="w-10 h-10 text-green-400/30 mx-auto mb-3" />
+            <p className="text-muted-foreground text-sm">
+              {filter === "pending" ? "No items pending review — queue is clear"
+               : filter === "needs_source" ? "No items awaiting a source URL"
+               : filter === "rejected" ? "No rejected items"
+               : "Nothing in the queue"}
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {filteredPending.map((project) => {
-              const action = reviewActions[project.id];
-              return (
-                <div key={project.id} className="px-6 py-4 flex gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 flex-wrap mb-1">
-                      <span className="font-medium text-foreground text-sm leading-tight">{project.projectName}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${TECH_COLORS[project.technology] ?? "text-muted-foreground bg-muted"}`}>{project.technology}</span>
-                      <ConfidenceBadge score={project.confidenceScore} />
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mb-1 flex-wrap">
-                      <span>{project.country}</span>
-                      {project.dealSizeUsdMn && <span>${project.dealSizeUsdMn.toFixed(0)}M</span>}
-                      {project.capacityMw && <span>{project.capacityMw.toFixed(0)} MW</span>}
-                      {project.extractionSource && <span className="text-primary/60">via {project.extractionSource}</span>}
-                      <span>{ago(project.discoveredAt)}</span>
-                    </div>
-                    {project.description && <p className="text-xs text-muted-foreground line-clamp-2 mb-1">{project.description}</p>}
-                    {project.developer && <p className="text-xs text-muted-foreground">Developer: <span className="text-foreground/70">{project.developer}</span></p>}
-                    {(project.sourceUrl || project.newsUrl) && (
-                      <a href={project.sourceUrl ?? project.newsUrl ?? "#"} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-0.5 flex items-center gap-1 truncate">
-                        <ExternalLink className="w-3 h-3 shrink-0" />{project.sourceUrl ?? project.newsUrl}
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-2 shrink-0 pt-0.5">
-                    {action === "loading" ? <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      : action === "approve" ? <span className="flex items-center gap-1 text-xs text-green-400"><CheckCircle2 className="w-4 h-4" />Approved</span>
-                      : action === "reject"  ? <span className="flex items-center gap-1 text-xs text-red-400"><XCircle className="w-4 h-4" />Rejected</span>
-                      : <>
-                          <button onClick={() => reviewItem(project.id, "approve")} className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors" title="Approve"><Check className="w-4 h-4" /></button>
-                          <button onClick={() => reviewItem(project.id, "reject")}  className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors"   title="Reject"><X className="w-4 h-4" /></button>
-                        </>
-                    }
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <div className="divide-y divide-border">
+              {items.map(project => (
+                <QueueItemRow
+                  key={project.id}
+                  project={project}
+                  isExpanded={expandedId === project.id}
+                  onToggleExpand={() => toggleExpand(project.id)}
+                  urlEdit={urlEdits[project.id] ?? (project.newsUrl ?? project.sourceUrl ?? "")}
+                  urlTest={urlTests[project.id] ?? null}
+                  testing={testingUrl[project.id] ?? false}
+                  saving={savingUrl[project.id] ?? false}
+                  auditLog={auditLogs[project.id]}
+                  loadingAudit={loadingAudit[project.id] ?? false}
+                  actionInProgress={actionsInProgress[project.id] ?? false}
+                  onSetUrlEdit={v => setUrlEdits(prev => ({ ...prev, [project.id]: v }))}
+                  onTestUrl={() => handleTestUrl(project.id)}
+                  onSaveUrl={() => handleSaveUrl(project.id)}
+                  onMoveToPending={() => handleStatusChange(project.id, "pending")}
+                  onStatusChange={status => handleStatusChange(project.id, status)}
+                />
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 px-5 py-3 border-t border-border">
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">← Prev</button>
+                <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
+                <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">Next →</button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1335,7 +1677,6 @@ export default function AdminDashboard() {
   const [section, setSectionRaw] = useState<AdminSection>(getInitialSection);
   const [sources, setSources] = useState<SourceGroup[]>([]);
   const [bySource, setBySource] = useState<Record<string, SourceStat>>({});
-  const [pendingItems, setPendingItems] = useState<Project[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   const [subscriberStats, setSubscriberStats] = useState<{ total: number; optedIn: number; optedOut: number; subscribers: Subscriber[] } | null>(null);
@@ -1369,9 +1710,9 @@ export default function AdminDashboard() {
 
   const loadQueue = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/scraper/queue?limit=100`, { headers: authHeaders() });
-      const data = await res.json();
-      setPendingItems(Array.isArray(data) ? data : []);
+      const res = await fetch(`${API}/review/stats`, { headers: authHeaders() });
+      const data = await res.json() as { pending?: number };
+      setPendingCount(data.pending ?? 0);
     } catch { /* ignore */ }
   }, []);
 
@@ -1414,7 +1755,7 @@ export default function AdminDashboard() {
           <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
         )}
         {section === "queue" && (
-          <QueueSection pendingItems={pendingItems} pendingCount={pendingCount} setPendingItems={setPendingItems} setPendingCount={setPendingCount} loadQueue={loadQueue} />
+          <QueueSection onPendingCountChange={setPendingCount} />
         )}
         {section === "newsletter" && (
           <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />

@@ -1,0 +1,107 @@
+# Replit Prompt — Admin Queue: Fix `needs_source` Blind Spot + Add Rejection Recovery
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** The recent admin surface audit (`ADMIN_SURFACE_AUDIT.md`) confirmed that the Admin Dashboard Queue tab and the AI Discovery page are functionally identical duplicates, and flagged two real bugs we need to fix **before** we consolidate:
+
+1. Projects with `reviewStatus = 'needs_source'` are invisible in both `/admin` and `/discovery`. Only the external Reviewer Portal (`/review`) can see or act on them. If no external reviewer is active, good candidates silently rot.
+2. There is no way to recover a project from `reviewStatus = 'rejected'` in the admin surfaces. A misclick is permanent unless someone goes to the Reviewer Portal.
+
+This prompt covers **only** those two fixes. The `/discovery` consolidation comes in a follow-up ticket — do not touch it yet.
+
+---
+
+## GOAL
+
+Bring the Admin Dashboard Queue tab (`/admin`, Queue section) up to feature parity with the Reviewer Portal for everything a project could get stuck on, so an internal admin can fully manage the pipeline without needing the external reviewer flow.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### 1. Status filter in the Admin Queue tab
+
+Add a filter control at the top of the Queue section that lets the admin switch between:
+
+- **Pending** (current default)
+- **Needs source** (new — projects with `reviewStatus = 'needs_source'`)
+- **Rejected** (new — projects with `reviewStatus = 'rejected'`)
+- **All** (new — shows everything non-approved)
+
+Implementation notes:
+- Use the same list component that renders the current Pending view — just parameterise it by status.
+- Show the count per bucket in the filter control (e.g., `Pending (7) · Needs source (3) · Rejected (12)`).
+- Keep the selected filter in the URL query string (`?status=needs_source`) so the view is shareable and survives refresh.
+
+### 2. URL editing + reachability testing (port from Reviewer Portal)
+
+For any project shown in the Queue — regardless of status — the admin should be able to:
+
+- Edit `newsUrl` and `news_url_2` inline
+- Click "Test URL" to fire the same reachability check the Reviewer Portal uses
+- See the reachability result (HTTP status, reachable yes/no, last checked timestamp)
+- Save the edited URL with a full audit trail entry (same table/fields the Reviewer Portal already writes to)
+
+Reuse the existing endpoints and logic from `/api/review/*` — do not duplicate. If the existing endpoints are reviewer-scoped, refactor them to accept an admin identity as well, and make sure the audit trail records **who** made the change (admin user vs. external reviewer).
+
+### 3. Move-back-to-pending action
+
+For any project in `rejected` or `needs_source`, expose a button labelled **"Move to pending"** that:
+
+- Sets `reviewStatus = 'pending'`
+- Clears any reject reason / rejection metadata
+- Writes an audit trail entry: `{ action: 'reopened', from: <prev_status>, by: <admin_user>, at: <timestamp> }`
+- Shows a confirmation toast on success
+
+For projects in `needs_source`, this action should only be enabled once the admin has saved a valid URL (use the reachability check as the gate — a URL that tests as reachable unlocks the button).
+
+### 4. Audit trail visibility
+
+Every project row in the Queue should have an expandable "History" panel showing the audit trail in reverse chronological order. Reuse whatever the Reviewer Portal already renders if it exists; otherwise build a simple timeline.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** delete `/discovery` or any `/api/scraper/*` routes. That's a separate follow-up.
+- Do **not** modify the Reviewer Portal (`/review`) or its API routes except for the minimal refactor needed to share URL editing/reachability logic with the admin surface.
+- Do **not** change the scraper's auto-approval thresholds (`≥0.85` → approved, `0.65–0.84` → pending, no valid URL → `needs_source`). Those stay as-is.
+- Do **not** change the `energy_projects` schema unless absolutely required. If you need a new field, explain why in the PR description first and wait for approval.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+Before declaring done, verify every one of these:
+
+1. Loading `/admin` and switching to the Queue tab shows a status filter with Pending / Needs source / Rejected / All, each with a live count.
+2. Selecting "Needs source" shows every project with `reviewStatus = 'needs_source'`, including ones the scraper created in the last 24 hours.
+3. On a needs-source project, I can paste a new URL into `newsUrl`, click "Test URL", see the reachability result, save, and the project moves (or can be moved) to `pending`.
+4. On a rejected project, I can click "Move to pending" and the project reappears in the Pending bucket.
+5. The audit trail on each project shows every status change and URL edit, with the correct actor (`admin:<email>` or `reviewer:<email>`) and timestamp.
+6. The Reviewer Portal (`/review`) still works exactly as before — no regressions.
+7. No new TypeScript errors, no new lint warnings, and the existing test suite passes.
+8. The URL query string reflects the active filter and survives refresh.
+
+---
+
+## DELIVERABLES
+
+1. A single PR against master with all the above changes.
+2. A short PR description that lists:
+   - Files touched
+   - New/changed API endpoints (if any)
+   - Any shared code extracted between admin and reviewer surfaces
+   - Screenshots of the four filter states
+3. A one-paragraph note at the bottom of the PR flagging anything you had to refactor or touch that wasn't explicitly in scope, and why.
+
+---
+
+## QUESTIONS TO ASK ME BEFORE STARTING (if any)
+
+If any of the following are unclear from the existing code, stop and ask before building:
+
+- Is there an existing admin-user identity on the server side I can attribute audit trail actions to, or do I need to add one?
+- Does the Reviewer Portal's URL reachability test hit a dedicated endpoint I can reuse, or is it inline in the reviewer route handler?
+- Is the audit trail stored in a dedicated table, or as a JSON column on `energy_projects`?
+
+Don't guess on any of these — a wrong guess creates technical debt we'll pay for later.
