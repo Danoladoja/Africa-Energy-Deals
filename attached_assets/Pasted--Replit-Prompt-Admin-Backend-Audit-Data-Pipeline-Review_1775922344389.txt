@@ -1,0 +1,161 @@
+# Replit Prompt — Admin Backend Audit: Data Pipeline + Review Queue vs. AI Discovery
+
+**Date:** April 11, 2026
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Goal:** Produce a rigorous, evidence-based feature comparison of two admin surfaces so we can decide whether to merge, keep both, or delete one.
+
+---
+
+## CONTEXT
+
+The admin backend currently exposes two surfaces that appear to overlap:
+
+1. **Data Pipeline + Review Queue**
+2. **AI Discovery**
+
+Before making any changes, I need a **read-only audit** that tells me exactly what each surface does, what it writes to the database, and where they actually overlap vs. where they are complementary.
+
+**DO NOT modify any code, routes, schema, or UI during this audit.** This is a pure investigation task. The deliverable is a markdown report.
+
+---
+
+## WHAT I NEED YOU TO DO
+
+Walk the codebase and produce a side-by-side feature matrix for both surfaces. For each surface, answer every question below with **file paths and line numbers** as evidence. No guessing — if something isn't clear from the code, say "unclear" and list what you'd need to verify.
+
+### 1. Entry points and UI
+
+For each surface:
+- Where is the admin route defined? (file + line)
+- What React/Next components render it? (file + line)
+- What buttons, forms, filters, and controls does the UI expose?
+- What does each control call? (API endpoint + handler function)
+- Are there any modals, drawers, or secondary views tied to the surface?
+
+### 2. Triggers
+
+For each surface, document every way work can be initiated:
+- Manual button click (which button → which endpoint)
+- Scheduled job / cron (file + schedule expression)
+- Webhook or external callback (endpoint + source)
+- Background worker or queue consumer
+- Any auto-run on deploy or on page load
+
+List the actual schedule/interval for anything automated.
+
+### 3. Data sources / inputs
+
+For each surface, what does it read from?
+- External APIs (name them — e.g., Claude, OpenAI, news APIs, RSS feeds, web scraping)
+- Database tables it queries
+- User-provided input (URLs, keywords, date ranges, filters)
+- Files or uploads
+- Config / environment variables
+
+### 4. Database writes
+
+This is the most important section. For each surface, list **every** table and field it writes, updates, or deletes. Pay special attention to:
+
+- `energy_projects` table — which columns does each surface touch?
+- `reviewStatus` — who sets it and to what values (`pending`, `approved`, `rejected`, etc.)?
+- `isAutoDiscovered` — who sets it and when?
+- `newsUrl` and `news_url_2` — who populates these?
+- Any other status flags, timestamps, or audit fields
+- Any other tables (newsletters, subscribers, logs, audit trails)
+
+Include the file + line where each write happens.
+
+### 5. Downstream effects
+
+For each surface, what happens *after* it writes?
+- Does it enqueue other jobs?
+- Does it trigger emails or notifications?
+- Does it invalidate caches?
+- Does it mark records for other processes to pick up?
+- Does it appear in any logs or metrics?
+
+### 6. Access control
+
+- Who can access each surface? (admin role, specific user IDs, etc.)
+- Are there different permission levels within a surface?
+
+---
+
+## FEATURE MATRIX (fill this in)
+
+Produce a table like this in the final report:
+
+| Capability | Data Pipeline + Review Queue | AI Discovery | Overlap? |
+|---|---|---|---|
+| Discovers new project candidates | yes/no — how | yes/no — how | same / different / complementary |
+| Writes to `energy_projects` | columns: ... | columns: ... | same rows / different rows |
+| Sets `reviewStatus` | ... | ... | ... |
+| Sets `isAutoDiscovered` | ... | ... | ... |
+| Populates `newsUrl` / `news_url_2` | ... | ... | ... |
+| Runs on a schedule | ... | ... | ... |
+| Manual trigger available | ... | ... | ... |
+| Uses Claude / LLM | ... | ... | ... |
+| Fetches external news/articles | ... | ... | ... |
+| Review/approval UI | ... | ... | ... |
+| Delete / reject action | ... | ... | ... |
+| Edit before approve | ... | ... | ... |
+| Bulk actions | ... | ... | ... |
+| Logs / audit trail | ... | ... | ... |
+
+Add rows for anything unique to one surface.
+
+---
+
+## KEY QUESTIONS TO ANSWER EXPLICITLY
+
+At the end of the report, give a direct answer to each of these:
+
+1. **Are these two surfaces doing the same job, or are they complementary?** My hypothesis is that "AI Discovery" finds new candidates and "Review Queue" triages them — which would make them a pipeline, not duplicates. Confirm or refute this with evidence.
+
+2. **Is there any capability in AI Discovery that Data Pipeline + Review Queue does not have?** List each one.
+
+3. **Is there any capability in Data Pipeline + Review Queue that AI Discovery does not have?** List each one.
+
+4. **Do they write to the same rows in `energy_projects`, or different rows?** If same rows, is there a risk of race conditions or one overwriting the other?
+
+5. **If we were to consolidate, which surface is the better "keeper" and why?** Consider: code quality, UI completeness, test coverage, most-recent-commit activity, fewest dependencies on other modules.
+
+6. **What would break if we deleted AI Discovery today?** List every import, route, cron, and downstream consumer.
+
+7. **What would break if we deleted Data Pipeline + Review Queue today?** Same list.
+
+---
+
+## DELIVERABLE
+
+Produce a single markdown file: `ADMIN_SURFACE_AUDIT.md` in the repo root.
+
+Structure:
+1. Executive summary (5 bullets max — the headline findings)
+2. Surface 1: Data Pipeline + Review Queue (sections 1–6 above)
+3. Surface 2: AI Discovery (sections 1–6 above)
+4. Feature matrix
+5. Answers to the 7 key questions
+6. Recommendation: `merge`, `keep both`, or `delete one` — with a one-paragraph justification
+
+**Evidence rule:** Every claim in the report must cite a file path and line number. No hand-waving.
+
+---
+
+## OUT OF SCOPE (do not do any of this)
+
+- Do not modify code
+- Do not change the database schema
+- Do not delete routes or components
+- Do not rename files
+- Do not run migrations
+- Do not deploy
+- Do not install or uninstall packages
+
+This is read-only investigation. When the report is done, I'll review it and decide the next step.
+
+---
+
+## WHY THIS MATTERS
+
+I suspect these surfaces duplicate work and want to consolidate, but I've been burned before by deleting "duplicates" that turned out to have a unique capability buried inside. The audit is the safety net. A rigorous feature matrix with citations lets me make the merge/delete decision with confidence instead of guessing.
