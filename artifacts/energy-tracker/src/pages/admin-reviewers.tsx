@@ -303,6 +303,7 @@ export default function AdminReviewersPage() {
   const { toast } = useToast();
   const [reviewers, setReviewers] = useState<Reviewer[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addName, setAddName] = useState("");
@@ -310,10 +311,20 @@ export default function AdminReviewersPage() {
 
   const loadReviewers = useCallback(async () => {
     setLoadingList(true);
+    setLoadError(null);
     try {
       const r = await adminFetch("/api/admin/reviewers");
+      if (!r.ok) {
+        const body = await r.text().catch(() => "");
+        let detail = "";
+        try { detail = JSON.parse(body).error ?? ""; } catch { detail = body.slice(0, 200); }
+        setLoadError(`HTTP ${r.status}${detail ? ` — ${detail}` : ""}`);
+        return;
+      }
       const data = await r.json();
       setReviewers(data.reviewers ?? []);
+    } catch (err) {
+      setLoadError(String(err));
     } finally {
       setLoadingList(false);
     }
@@ -394,6 +405,22 @@ export default function AdminReviewersPage() {
             </button>
           </div>
         </div>
+
+        {loadError && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-300 mb-1">Failed to load reviewers</p>
+                <p className="text-xs text-red-400/80 font-mono break-all">{loadError}</p>
+                <p className="text-xs text-muted-foreground mt-2">Deploy the latest API server to apply schema migrations, then retry.</p>
+              </div>
+              <button onClick={loadReviewers} className="shrink-0 px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium transition-colors">
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
 
         {showAdd && (
           <div className="bg-[#141924] rounded-2xl border border-[#00e676]/20 p-6 mb-6">

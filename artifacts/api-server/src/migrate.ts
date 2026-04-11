@@ -129,6 +129,16 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // ── reviewer column backfill (production schema drift repair) ─────────────
+  // These ALTER TABLE statements ensure columns added to the CREATE TABLE
+  // definition AFTER the initial production deployment are present.
+  // CREATE TABLE IF NOT EXISTS silently skips when the table already exists,
+  // so we must add missing columns explicitly and idempotently.
+  await runMigration("reviewers.created_by", `ALTER TABLE reviewers ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT 'system'`);
+  await runMigration("reviewers.suspended_at", `ALTER TABLE reviewers ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMP`);
+  await runMigration("reviewers.suspended_by", `ALTER TABLE reviewers ADD COLUMN IF NOT EXISTS suspended_by TEXT`);
+  await runMigration("reviewers.deleted_at", `ALTER TABLE reviewers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+
   await runMigration("create reviewer_magic_tokens", `
     CREATE TABLE IF NOT EXISTS reviewer_magic_tokens (
       id SERIAL PRIMARY KEY,
@@ -184,6 +194,31 @@ export async function runStartupMigrations(): Promise<void> {
       last_submission_at TIMESTAMP
     )
   `);
+
+  // ── contributor column backfill (production schema drift repair) ───────────
+  // Same reason as reviewers above: the table existed on production before
+  // these columns were added to the CREATE TABLE definition.
+  await runMigration("contributors.email_verified_at", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP`);
+  // slug: add nullable first, then backfill existing rows, then add UNIQUE constraint
+  await runMigration("contributors.slug", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS slug TEXT`);
+  await runMigration("contributors.slug backfill", `UPDATE contributors SET slug = 'user-' || id WHERE slug IS NULL`);
+  await runMigration("contributors.slug unique constraint", `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'contributors_slug_key'
+          AND conrelid = 'contributors'::regclass
+      ) THEN
+        ALTER TABLE contributors ADD CONSTRAINT contributors_slug_key UNIQUE (slug);
+      END IF;
+    END $$
+  `);
+  await runMigration("contributors.bio", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bio TEXT`);
+  await runMigration("contributors.is_public", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE`);
+  await runMigration("contributors.is_banned", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`);
+  await runMigration("contributors.current_tier", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS current_tier TEXT`);
+  await runMigration("contributors.last_submission_at", `ALTER TABLE contributors ADD COLUMN IF NOT EXISTS last_submission_at TIMESTAMP`);
 
   await runMigration("create contributor_magic_tokens", `
     CREATE TABLE IF NOT EXISTS contributor_magic_tokens (

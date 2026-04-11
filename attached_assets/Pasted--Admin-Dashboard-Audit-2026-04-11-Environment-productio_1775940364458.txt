@@ -1,0 +1,162 @@
+# Admin Dashboard Audit — 2026-04-11
+
+**Environment:** production (afrienergytracker.io)
+**Auditor:** automated browser probe + live network capture
+**Session:** authenticated as ADMINISTRATOR via `afrienergy_admin_token`
+
+---
+
+## TL;DR
+
+Three admin API endpoints are returning **HTTP 500** due to a failed SQL query against production Postgres. The frontend has **no per-tab error isolation**, so when the Reviewers tab triggers the 500, the unhandled promise rejection bricks the React tree and subsequent tab clicks appear to "hang" (no new content renders, no new network calls fire). Contributors survives in isolation only because it has its own React Query cache entry that was primed before the error state; everything else stays blank.
+
+**Root cause (backend):** schema drift — production `reviewers` and `contributors` tables are missing columns the ORM expects (most likely `deleted_at`, `suspended_at`, `suspended_by`, `created_by`, and contributor fields `email_verified_at`, `slug`, `is_public`, `bio`). Migration has not been applied to Railway Postgres.
+
+**Root cause (frontend):** a single failing React Query poisons the whole dashboard content area because there is no `<ErrorBoundary>` or `isError` guard scoping each admin tab.
+
+**Severity:** HIGH. Reviewer management, contributor management, and recent-submission triage are all unreachable. User-observed symptom: "everything works normally until you click on the Reviewers tab, afterwards all the pages above hangs and stops responding save for the Contributors page."
+
+---
+
+## Smoking Gun — captured network evidence
+
+Probe executed on the live admin tab with a valid bearer token:
+
+```
+500  670ms  /api/admin/reviewers
+  body: {"error":"Error: Failed query: select \"id\", \"email\", \"display_name\",
+         \"is_active\", \"created_at\", \"created_by\", \"suspended_at\",
+         \"suspended_by\", \"deleted_at\" from \"reviewers\"
+         where \"reviewers\".\"deleted_at\" is null
+         order by \"reviewers\".\"created_at\" desc
+         params: "}
+
+500  509ms  /api/admin/contributors
+  body: {"error":"Error: Failed query: select \"contributors\".\"id\",
+         \"contributors\".\"email\", \"contributors\".\"email_verified_at\",
+         \"contributors\".\"display_name\", \"contributors\".\"slug\",
+         \"contributors\".\"country\", \"contributors\".\"bio\",
+         \"contributors\".\"is_public\" ..."}
+
+500  375ms  /api/admin/contributors/recent-submissions
+  body: {"error":"Error: Failed query: select \"contributor_submissions\".\"id\",
+         \"contributor_submissions\".\"contributor_id\",
+         \"contributor_submissions\".\"project_name\",
+         \"contributor_submissions\".\"country\",
+         \"contributor_submissions\".\"sub_sector\", ..."}
+```
+
+The Postgres underlying error message is being **swallowed by the API server's error handler** (note: body ends at `params:` with nothing after it). The real cause — almost certainly something like `column "suspended_at" does not exist` or `relation "reviewers" does not exist` — lives only in the Railway service logs.
+
+---
+
+## Behavioral reproduction (matches user report)
+
+Observed click-by-click on tab 1387355089 (`/admin`):
+
+| Click order | Tab            | API calls fired                             | Result |
+|-------------|----------------|---------------------------------------------|--------|
+| 1           | Overview       | (none — client state tab)                   | blank / stale |
+| 2           | Data Pipeline  | (none)                                       | blank / stale |
+| 3           | Review Queue   | (none)                                       | blank / stale |
+| 4           | Newsletter     | (none)                                       | blank / stale |
+| 5           | Reviewers      | `/api/admin/reviewers` → **500**            | Reviewers tab dies |
+| 6           | Contributors   | `/api/admin/contributors` → **500**, `/api/admin/contributors/recent-submissions` → **500** | tab still partially renders (cached shell) |
+| 7           | any tab above  | (none fires)                                 | content area frozen on last state |
+
+This exactly matches: *"everything works normally until you click on the reviewers tab, afterwards all the pages above hangs and stops responding save for the contributors page."*
+
+Why Contributors appears to "still work": it is the only tab whose route component was mounted *after* Reviewers in the user's click path, so React Query runs its own fetch (which also 500s, but the component has its own try/catch/`isError` branch rendering an empty list). The tabs *above* Reviewers are client-state-switched panels that never re-fetch, so whatever React state got frozen at the moment the Reviewers query rejected stays on screen permanently.
+
+---
+
+## Secondary finding — Overview metrics are wrong
+
+Overview card reads:
+- `SOURCE GROUPS` = 0
+- `RECORDS INSERTED` = 0
+- `NEWSLETTERS SENT` = 0
+
+Known truth (from prior live audit of the same database in this session):
+- 298 projects exist in `energy_projects`
+- Newsletters 3 and 5 have `status = 'sent'` with `recipientCount = 13`
+- The scraper has run against 8+ DFI sources in the past 48h
+
+Either the Overview aggregation query is broken or it's reading from an unpopulated counter table. Lower severity than the 500s but should be checked once the 500s are fixed, since they may share a root cause (migration drift on the aggregation view/table).
+
+---
+
+## Fix recommendation
+
+### Backend — Cleanup PR A.1 (hotfix, ship immediately)
+
+1. **SSH into Railway Postgres and compare live schema to Drizzle schema:**
+   ```sh
+   railway run psql "$DATABASE_URL" -c "\d+ reviewers"
+   railway run psql "$DATABASE_URL" -c "\d+ contributors"
+   railway run psql "$DATABASE_URL" -c "\d+ contributor_submissions"
+   ```
+   Expected columns per the ORM query:
+   - `reviewers`: id, email, display_name, is_active, created_at, **created_by**, **suspended_at**, **suspended_by**, **deleted_at**
+   - `contributors`: id, email, **email_verified_at**, display_name, **slug**, country, bio, **is_public**, …
+   - `contributor_submissions`: id, contributor_id, project_name, country, sub_sector, …
+
+2. **Run pending migrations** on the Railway Postgres instance. The startup migration runner in `artifacts/api-server/src/db/migrate.ts` may have silently failed or been skipped — confirm via Railway logs:
+   ```sh
+   railway logs --service api-server | grep -i "migrat"
+   ```
+
+3. **If no migration file exists for these columns**, generate one:
+   ```sh
+   cd artifacts/api-server
+   npx drizzle-kit generate --name add_reviewer_suspension_and_contributor_profile_fields
+   ```
+   Then commit the generated SQL under `artifacts/api-server/drizzle/` and let the Railway deploy pick it up via `migrate.ts`.
+
+4. **Improve error handler** in `artifacts/api-server/src/middleware/errorHandler.ts` (or equivalent) so that Drizzle `PostgresError.cause` is forwarded into the JSON response body in non-production, and always written to Railway logs with full stack. Right now the frontend sees `"Failed query: … params: "` with no Postgres `code`/`message`/`hint`, which is unhelpful for debugging.
+
+### Frontend — Cleanup PR A.2 (same PR or next)
+
+1. **Wrap each admin tab panel in its own `<ErrorBoundary>`** in `artifacts/energy-tracker/src/pages/admin/AdminDashboard.tsx` (or wherever the tab switcher lives). A boundary per tab means a 500 on Reviewers cannot unmount or freeze sibling tabs.
+
+2. **Gate each tab render on its React Query `isError` state** with an inline retry button, e.g.:
+   ```tsx
+   if (reviewersQuery.isError) {
+     return <ErrorCard onRetry={reviewersQuery.refetch}
+                       detail="Reviewers API returned 500. Backend team has been pinged." />;
+   }
+   ```
+
+3. **Add a global React Query `onError` hook** that logs every 5xx to the browser console with the full endpoint, so future audits don't require injecting a fetch wrapper.
+
+### Verification checklist (post-deploy)
+
+- [ ] `curl -H "Authorization: Bearer $ADMIN" https://afrienergytracker.io/api/admin/reviewers` returns **200** with JSON array
+- [ ] Same for `/api/admin/contributors` and `/api/admin/contributors/recent-submissions`
+- [ ] Click Reviewers → Overview → Data Pipeline → Review Queue → Newsletter → Reviewers again: every tab renders its own content, no frozen state
+- [ ] Kill the reviewers endpoint (temporarily) and confirm only the Reviewers tab shows an error card — sibling tabs keep working
+- [ ] Overview card shows non-zero `SOURCE GROUPS`, `RECORDS INSERTED`, `NEWSLETTERS SENT`
+
+---
+
+## Working endpoints (confirmed healthy)
+
+These responded 200 during the audit and are not part of the incident:
+- `/api/watches/bell-count` — 200 on every page
+- `/api/admin/sources` — renders on `/admin/sources`
+- `/api/newsletter/list` — renders the Scraper/Newsletter tab
+- Public-site endpoints: `/api/projects`, `/api/insights/*`, `/api/map/*`
+
+---
+
+## Relationship to pending cleanup PRs
+
+This slots **before** PR D (Scraper Filter Hardening) in the queue. Suggested order:
+
+1. **PR A.1** (this hotfix) — migration + backend 500 fix
+2. **PR A.2** (this hotfix) — per-tab React error boundaries
+3. **PR B** — `/discovery` route deletion
+4. **PR C** — missing badges
+5. **PR D** — `Replit-Cleanup-D-Scraper-Filter-Hardening.md` (auto-purge + classifier hardening)
+
+PR D does not block and can ship independently, but fixing the admin dashboard first gives you visibility back into the Review Queue you'll need to verify PR D's effects.

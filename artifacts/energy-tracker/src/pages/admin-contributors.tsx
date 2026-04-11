@@ -61,6 +61,7 @@ export default function AdminContributorsPage() {
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [recentSubs, setRecentSubs] = useState<RecentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"contributors" | "submissions">("contributors");
   const [banLoading, setBanLoading] = useState<number | null>(null);
   const [reviewLoading, setReviewLoading] = useState<number | null>(null);
@@ -68,13 +69,25 @@ export default function AdminContributorsPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [contribs, subs] = await Promise.all([
-        fetch(`${API}/admin/contributors`, { headers: authHeaders() }).then((r) => r.json()),
-        fetch(`${API}/admin/contributors/recent-submissions`, { headers: authHeaders() }).then((r) => r.json()),
+      const [cRes, sRes] = await Promise.all([
+        fetch(`${API}/admin/contributors`, { headers: authHeaders() }),
+        fetch(`${API}/admin/contributors/recent-submissions`, { headers: authHeaders() }),
       ]);
+      if (!cRes.ok || !sRes.ok) {
+        const failed = !cRes.ok ? cRes : sRes;
+        const body = await failed.text().catch(() => "");
+        let detail = "";
+        try { detail = JSON.parse(body).error ?? ""; } catch { detail = body.slice(0, 200); }
+        setLoadError(`HTTP ${failed.status}${detail ? ` — ${detail}` : ""}`);
+        return;
+      }
+      const [contribs, subs] = await Promise.all([cRes.json(), sRes.json()]);
       setContributors(Array.isArray(contribs) ? contribs : []);
       setRecentSubs(Array.isArray(subs) ? subs : []);
+    } catch (err) {
+      setLoadError(String(err));
     } finally {
       setLoading(false);
     }
@@ -129,6 +142,22 @@ export default function AdminContributorsPage() {
           </button>
         </div>
 
+        {loadError && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-300 mb-1">Failed to load contributor data</p>
+                <p className="text-xs text-red-400/80 font-mono break-all">{loadError}</p>
+                <p className="text-xs text-muted-foreground mt-2">Deploy the latest API server to apply schema migrations, then retry.</p>
+              </div>
+              <button onClick={loadData} className="shrink-0 px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium transition-colors">
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-1 mb-6 bg-muted/30 rounded-lg p-1 w-fit">
           {(["contributors", "submissions"] as const).map((tab) => (
             <button
@@ -143,7 +172,7 @@ export default function AdminContributorsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : activeTab === "contributors" ? (
+        ) : loadError ? null : activeTab === "contributors" ? (
           <>
             <div className="mb-4">
               <input
