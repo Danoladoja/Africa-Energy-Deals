@@ -22,9 +22,15 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start() {
   // Run idempotent schema migrations before accepting connections.
-  // This ensures that columns added to the Drizzle schema are always present
-  // in PostgreSQL — on both the local dev DB and the Railway production DB.
-  await runStartupMigrations();
+  // A failed migration must NOT crash the server — it would cause Railway to
+  // enter an infinite crash-loop.  We log loudly and continue; the affected
+  // endpoints will 500 until the column is present, but every other endpoint
+  // keeps working and the column error is clearly visible in Railway logs.
+  try {
+    await runStartupMigrations();
+  } catch (migrationErr) {
+    console.error("[Migrate] FATAL migration error — server will still start but some endpoints may 500:", migrationErr);
+  }
 
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);

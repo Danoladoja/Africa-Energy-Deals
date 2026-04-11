@@ -27,16 +27,22 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
+// Postgres error codes that are safe to ignore — the object already exists.
+// 42701 = duplicate_column, 42P07 = duplicate_table, 42710 = duplicate_object (constraint)
+const PG_SAFE_CODES = new Set(["42701", "42P07", "42710"]);
+
 async function runMigration(description: string, statement: string): Promise<void> {
   try {
     await db.execute(sql.raw(statement));
     console.log(`[Migrate] ✓ ${description}`);
   } catch (err: any) {
-    // Column-already-exists errors are fine (IF NOT EXISTS handles most DBs, but belt-and-suspenders)
-    if (err?.message?.includes("already exists")) {
+    const code: string | undefined = err?.code ?? err?.cause?.code;
+    const message: string = err?.message ?? "";
+    const isSafe = (code && PG_SAFE_CODES.has(code)) || message.includes("already exists");
+    if (isSafe) {
       console.log(`[Migrate] ✓ ${description} (already exists)`);
     } else {
-      console.error(`[Migrate] ✗ ${description}:`, err?.message ?? err);
+      console.error(`[Migrate] ✗ ${description} [code=${code ?? "?"}]:`, message || err);
       throw err;
     }
   }
