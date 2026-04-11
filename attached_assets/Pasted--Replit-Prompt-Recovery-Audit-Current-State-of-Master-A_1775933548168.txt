@@ -1,0 +1,175 @@
+# Replit Prompt — Recovery Audit: Current State of Master After PR1a/PR1b/PR2/PR3
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** Four PRs (PR1a, PR1b, PR2, PR3) have been pushed to GitHub. **Three prerequisite PRs were never shipped first**: the Admin Queue Fixes PR (`needs_source` filter, URL editing, rejection recovery), the Reviewer Management PR (per-reviewer magic-link auth + `/admin/reviewers` page), and the `/discovery` deletion. PR2 was specced to reuse magic-link auth from the Reviewer Management PR, so whatever is in PR2 either (a) built its own auth path, (b) was stubbed out, or (c) is broken. We need to know which, and we need to know it before anything else changes.
+
+**This is a read-only audit. Do not modify any code, schema, routes, or UI. Do not open new PRs. Deliverable is a single markdown report.**
+
+---
+
+## GOAL
+
+Produce a complete, evidence-backed state-of-the-repo report covering all seven features, so we can decide what to fix, what to rewrite, and what to close.
+
+---
+
+## REPORTING SCOPE
+
+For each of the seven items below, answer every question with file paths and line numbers as evidence. If something is "not present," say so explicitly — no silent omissions.
+
+### Item 1 — Admin Queue Fixes
+
+- Does the Admin Dashboard Queue tab (`/admin`, Queue section) now have a status filter for Pending / Needs source / Rejected / All? File + line.
+- Can an admin edit `newsUrl` / `newsUrl2` on a project from the Queue tab? File + line.
+- Is there URL reachability testing exposed in the Queue tab? File + line.
+- Is there a "Move to pending" action for rejected and `needs_source` projects? File + line.
+- Is the audit trail visible on each project row? File + line.
+- **Verdict:** shipped / partial / not started.
+
+### Item 2 — Reviewer Management
+
+- Does `/admin/reviewers` exist as a route? File + line.
+- Is there a `reviewers` table in the schema? Migration file?
+- Is there a `reviewer_sessions` table? Migration file?
+- Is there a `reviewer_audit_log` table? Migration file?
+- Does the Reviewer Portal (`/review`) login still use a shared password, or has it been replaced with per-reviewer magic links? Show the login handler code.
+- Is there a suspend/reinstate/delete flow? File + line.
+- Are sessions invalidated when a reviewer is suspended? Show the revocation code.
+- Does suspending a reviewer return their in-flight projects to the unassigned pending bucket? File + line.
+- Is the `REVIEWER_PASSWORD` environment variable still referenced anywhere in code? Grep result.
+- **Verdict:** shipped / partial / not started.
+
+### Item 3 — `/discovery` deletion
+
+- Does the `/discovery` route still exist? File + line.
+- Are `/api/scraper/*` routes still in use, and by which surfaces?
+- Is there a redirect from `/discovery` to `/admin`?
+- **Verdict:** deleted / still present / partial.
+
+### Item 4 — PR1a (adapter foundation + first batch)
+
+- Does `BaseSourceAdapter` exist? File + line.
+- Does an adapter registry exist? File + line.
+- Is the existing World Bank adapter untouched (additive approach as agreed), or was it refactored onto the new base class?
+- Which adapters are present and registered? List each with its key, file, and schedule.
+  - Expected: `dfi:afdb`, `dfi:ifc`, `dfi:dfc`, `rss:apo`, `rss:google_alerts:*`
+- Is the `scraper_sources` table present? Migration file?
+- Is the `scraper_runs.adapterKey` column present? Migration file?
+- Does the Admin Pipeline "Source feeds" card exist with add / delete / toggle / run-now controls? File + line.
+- Does conditional-request caching (If-Modified-Since / ETag) work in the base class? File + line.
+- Is there per-adapter rate limiting? File + line.
+- For DFC specifically: is the adapter JSON-based, RSS-based, or HTML-based (Cheerio)? If HTML, is there a health-check that marks it unhealthy after two consecutive zero-row runs? File + line.
+- **Verdict:** shipped / partial / not started.
+
+### Item 5 — PR1b (adapter batch 2)
+
+- Are `dfi:proparco`, `dfi:fmo`, `dfi:bii` adapters present and registered? Files + lines.
+- For each: is it JSON, RSS, or HTML? Does each inherit cleanly from `BaseSourceAdapter` without requiring base class changes?
+- Did PR1b require any base class or shared helper changes? If yes, what and why?
+- **Verdict:** shipped / partial / not started.
+
+### Item 6 — PR2 (community submissions, profiles, basic badge tiers) — **HIGHEST RISK**
+
+This is the item most likely to be tangled because its prerequisite (Reviewer Management magic-link auth) never shipped.
+
+- Does `/contribute` exist as a public route? File + line.
+- Does `/contributors/<slug>` exist as a public route? File + line.
+- Does `/contributors/me` exist? File + line.
+- Does `/admin/contributors` exist? File + line.
+- Is the `contributors` table present? Migration file?
+- Is the `contributor_submissions` table present? Migration file?
+- Is the `contributor_badges` table present? Migration file?
+- Are `energy_projects.submittedByContributorId` and `energy_projects.communitySubmissionId` columns present? Migration file?
+
+**Auth question (this is the critical one):**
+
+- How does a contributor sign in to `/contribute`? Show the full login handler.
+- Is the auth mechanism magic-link, password, OAuth, or something else?
+- If magic-link: is it a **new, independent** magic-link system built inside PR2, or does it reuse code from a Reviewer Management implementation? Show where the token is generated, emailed, and validated.
+- How many distinct magic-link implementations now exist in the codebase? (Expected answer: 0 or 1. If 2 or more, flag it as duplication.)
+- Is there any shared auth utility module, or is contributor auth fully parallel to any reviewer auth?
+- Which Brevo sender email is used for the magic-link email?
+
+**Anti-abuse and badge questions:**
+
+- Is the honeypot field present on the submission form?
+- Are per-user and per-IP rate limits enforced? File + line.
+- Is the domain allowlist flagging in place? File + line.
+- Does the badge awarding job run on submission approval? File + line.
+- Which badges are implemented? List each with its awarding rule location.
+- **Verdict:** shipped / partial / not started, plus a separate verdict on **auth architecture:** clean / duplicated / conflicting.
+
+### Item 7 — PR3 (shareable badges, leaderboard, LinkedIn)
+
+- Do the badge image endpoints exist at `/api/badges/:contributorId/:badgeSlug.png`? File + line.
+- Which rendering library was chosen (Satori, @napi-rs/canvas, other)?
+- Does the `/contributors` leaderboard page exist with filters? File + line.
+- Is Open Graph / Twitter Card meta rendered on profile and badge pages? File + line.
+- Is the LinkedIn "Add to Profile" URL construction present for tier badges? File + line.
+- Does the share panel on the profile page render with live badge previews? File + line.
+- **Verdict:** shipped / partial / not started.
+
+---
+
+## DEPLOY STATE
+
+Separately from the code audit, tell me the deploy state of every item above:
+
+- Is the current `master` code actually running on Railway right now? Check the latest deploy status.
+- If the latest deploy failed or is stalled, what's the error? Check Railway build logs.
+- If the last successful deploy is not the current `master` tip, which commit is live, and what's missing from it?
+
+---
+
+## CONFLICT MATRIX
+
+Produce a matrix answering these specific questions about cross-PR conflicts:
+
+1. Are there now **two auth systems** in the codebase (one for reviewers, one for contributors)? If yes, show both and describe the differences.
+2. Is the Admin Dashboard Queue tab still missing the `needs_source` filter and rejection recovery, while community submissions with `source = 'community'` are now flowing into it? If yes, community submissions that fail URL validation will drop into `needs_source` and be invisible to the admin — flag this as a live regression.
+3. Is `/discovery` still present and functional, while PR2's community submissions feed into `/admin`? If yes, `/discovery` is now a partially-stale view of a pipeline it no longer fully represents.
+4. Did PR1a's adapter registry require any changes to how the existing World Bank adapter writes to `energy_projects`, and if yes, did those changes silently affect the community submission write path?
+5. Are there any **database migrations that were applied out of dependency order**? List the migration application order from the schema history.
+
+---
+
+## OPEN PRs VS. MERGED PRs
+
+For each of the seven items, tell me the Git state:
+
+- Is it on master?
+- Is it in an open PR? If so, what's the PR number and status (approved, changes requested, draft)?
+- Is it in a feature branch that was never opened as a PR?
+- Is it nowhere (not started)?
+
+---
+
+## DELIVERABLE
+
+A single markdown file `RECOVERY_AUDIT.md` in the repo root with the following sections:
+
+1. **Executive summary** — five bullets max, plain language
+2. **Item-by-item state** (items 1–7 above with all evidence)
+3. **Deploy state**
+4. **Conflict matrix**
+5. **Open PRs vs. merged PRs**
+6. **Recommended recovery plan** — your own read on what to fix first, what to rewrite, and what to close. Be direct. If you think PR2 needs to be reverted, say so. If you think the magic-link auth needs to be extracted into a shared module, say so.
+
+---
+
+## OUT OF SCOPE (do not do any of this)
+
+- Do not modify code.
+- Do not open new PRs.
+- Do not run migrations or roll back migrations.
+- Do not touch Railway env vars or redeploy.
+- Do not delete branches.
+- Do not "fix while you're in there."
+
+This is read-only. The recovery work happens after I see the report.
+
+---
+
+## WHY THIS MATTERS
+
+The PRs were shipped out of dependency order. The risk isn't that any single PR is wrong — it's that PR2 was built against a prerequisite (reviewer magic-link auth) that never existed, which means one of two things happened: (a) PR2 invented its own parallel auth system that now duplicates a piece of the codebase we'll have to ship later anyway, or (b) PR2 is half-done and broken in ways that aren't obvious yet. Either outcome is recoverable, but only if I can see the actual state of the tree. A rigorous audit with file/line citations is the only way to make that decision without guessing.
