@@ -1,7 +1,14 @@
 import { Request, Response, NextFunction } from "express";
-import { db, sessionsTable, userEmailsTable } from "@workspace/db";
-import { and, eq, ne } from "drizzle-orm";
+import { db, sessionsTable, userEmailsTable, reviewersTable, reviewerSessionsTable } from "@workspace/db";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { isValidAdminTokenAsync } from "./adminAuth.js";
+import crypto from "crypto";
+
+const COOKIE_NAME = "rv_sess";
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 export interface ReviewerRequest extends Request {
   reviewerEmail?: string;
@@ -13,6 +20,33 @@ export async function reviewerAuthMiddleware(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  // ── Path 1: httpOnly cookie session (new magic-link reviewers) ────────────
+  const cookieToken = (req as any).cookies?.[COOKIE_NAME];
+  if (cookieToken) {
+    try {
+      const tokenHash = hashToken(cookieToken);
+      const now = new Date();
+
+      const rows = await db
+        .select({ session: reviewerSessionsTable, reviewer: reviewersTable })
+        .from(reviewerSessionsTable)
+        .innerJoin(reviewersTable, eq(reviewerSessionsTable.reviewerId, reviewersTable.id))
+        .where(and(eq(reviewerSessionsTable.tokenHash, tokenHash), isNull(reviewerSessionsTable.revokedAt)))
+        .limit(1);
+
+      const row = rows[0];
+      if (row && row.session.expiresAt >= now && row.reviewer.isActive && row.reviewer.deletedAt === null) {
+        req.reviewerEmail = row.reviewer.email;
+        req.reviewerRole = "reviewer";
+        next();
+        return;
+      }
+    } catch {
+      // fall through to Bearer token check
+    }
+  }
+
+  // ── Path 2: Bearer token (admin or legacy user_emails-role reviewer) ──────
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
@@ -20,7 +54,6 @@ export async function reviewerAuthMiddleware(
   }
   const token = authHeader.slice(7);
 
-  // Allow admin tokens to access the review portal (DB-backed check survives restarts)
   if (await isValidAdminTokenAsync(token)) {
     req.reviewerEmail = "admin";
     req.reviewerRole = "admin";

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { getAdminToken } from "@/contexts/admin-auth";
 import { registerAdminSectionSetter } from "@/contexts/admin-section";
@@ -108,7 +109,7 @@ function OverviewSection({ sources, bySource, pendingCount, newsletters, subscri
         <p className="text-sm text-muted-foreground mt-1">Platform health at a glance</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         {cards.map(({ label, value, icon, color, onClick }) => (
           <button
             key={label}
@@ -122,6 +123,15 @@ function OverviewSection({ sources, bySource, pendingCount, newsletters, subscri
             <div className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">{typeof value === "number" ? value.toLocaleString() : value}</div>
           </button>
         ))}
+      </div>
+      <div className="flex items-center justify-end mb-8">
+        <Link href="/admin/reviewers">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+            <Users className="w-3.5 h-3.5" />
+            Manage Reviewers
+            <ChevronRight className="w-3 h-3" />
+          </div>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

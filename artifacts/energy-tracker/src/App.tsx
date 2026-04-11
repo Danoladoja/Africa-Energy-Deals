@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth";
 import { AuthProvider, useAuth } from "@/contexts/auth";
+import { ReviewerAuthProvider, useReviewerAuth } from "@/contexts/reviewer-auth";
 import { ThemeProvider } from "@/contexts/theme";
 import { ChatProvider } from "@/contexts/chat-context";
 import { AdminLockScreen } from "@/components/admin-lock-screen";
@@ -31,9 +32,11 @@ const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
 const AdminScraperPage  = lazy(() => import("@/pages/admin-scraper"));
 const AdminDashboard   = lazy(() => import("@/pages/admin-dashboard"));
 const ComparePage      = lazy(() => import("@/pages/compare"));
-const ReviewDashboard  = lazy(() => import("@/pages/review"));
-const ReviewQueue      = lazy(() => import("@/pages/review-queue"));
-const ReviewItem       = lazy(() => import("@/pages/review-item"));
+const ReviewDashboard      = lazy(() => import("@/pages/review"));
+const ReviewQueue          = lazy(() => import("@/pages/review-queue"));
+const ReviewItem           = lazy(() => import("@/pages/review-item"));
+const ReviewAuthCallback   = lazy(() => import("@/pages/review-auth-callback"));
+const AdminReviewersPage   = lazy(() => import("@/pages/admin-reviewers"));
 const InsightsPage     = lazy(() => import("@/pages/insights"));
 
 const queryClient = new QueryClient({
@@ -109,12 +112,14 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 function ReviewerRoute({ component: Component }: { component: React.ComponentType }) {
   const { isReviewer, isLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
+  const { isAuthenticated: isReviewerSession, isLoading: rvLoading } = useReviewerAuth();
   const [, navigate] = useLocation();
-  const canAccess = isReviewer || isAdmin;
+  const allLoading = isLoading || rvLoading;
+  const canAccess = isReviewer || isAdmin || isReviewerSession;
   useEffect(() => {
-    if (!isLoading && !canAccess) navigate("/");
-  }, [canAccess, isLoading, navigate]);
-  if (isLoading) return <PageLoader />;
+    if (!allLoading && !canAccess) navigate("/review");
+  }, [canAccess, allLoading, navigate]);
+  if (allLoading) return <PageLoader />;
   if (!canAccess) return null;
   return <Component />;
 }
@@ -220,14 +225,18 @@ function Router() {
           )}
         </Route>
         <Route path="/api-docs" component={ApiDocsPage} />
+        <Route path="/admin/reviewers">
+          {() => <AdminRoute component={AdminReviewersPage} />}
+        </Route>
         <Route path="/admin">
           {() => <AdminRoute component={AdminDashboard} />}
         </Route>
         <Route path="/admin/scraper">
           {() => <AdminRoute component={AdminDashboard} />}
         </Route>
+        <Route path="/review/auth" component={ReviewAuthCallback} />
         <Route path="/review">
-          {() => <ReviewerRoute component={ReviewDashboard} />}
+          {() => <ReviewDashboard />}
         </Route>
         <Route path="/review/queue/:id">
           {() => <ReviewerRoute component={ReviewItem} />}
@@ -249,12 +258,14 @@ function App() {
           <TooltipProvider>
             <AuthProvider>
               <AdminAuthProvider>
-                <ChatProvider>
-                  <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                    <GA4 />
-                    <Router />
-                  </WouterRouter>
-                </ChatProvider>
+                <ReviewerAuthProvider>
+                  <ChatProvider>
+                    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                      <GA4 />
+                      <Router />
+                    </WouterRouter>
+                  </ChatProvider>
+                </ReviewerAuthProvider>
               </AdminAuthProvider>
             </AuthProvider>
             <Toaster />

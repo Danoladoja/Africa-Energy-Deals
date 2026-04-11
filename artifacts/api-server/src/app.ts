@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { createRequire } from "module";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
@@ -51,7 +52,10 @@ app.use(cors({
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-API-Key", "Authorization"],
+  credentials: true,
 }));
+
+app.use(cookieParser());
 
 // Security headers
 app.use((_req: Request, res: Response, next: NextFunction) => {

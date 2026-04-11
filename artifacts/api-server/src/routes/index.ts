@@ -15,6 +15,8 @@ import seoRouter from "./seo.js";
 import reviewRouter from "./review.js";
 import chatRouter from "./chat.js";
 import newsletterRouter from "./newsletter.js";
+import reviewerAuthRouter from "./reviewer-auth.js";
+import adminReviewersRouter from "./admin-reviewers.js";
 
 const router: IRouter = Router();
 
@@ -34,5 +36,7 @@ router.use(seoRouter);
 router.use(reviewRouter);
 router.use(chatRouter);
 router.use(newsletterRouter);
+router.use(reviewerAuthRouter);
+router.use(adminReviewersRouter);
 
 export default router;

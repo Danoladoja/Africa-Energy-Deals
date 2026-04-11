@@ -1,0 +1,182 @@
+# Replit Prompt — Per-Reviewer Identity + Reviewer Management Page
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** The Reviewer Portal (`/review`) currently uses a single shared password for all reviewers. That's a vulnerability — anyone who ever had the password keeps access, actions can't be attributed to a real person, and rotating the password punishes everyone.
+
+We're replacing shared-password auth with **per-reviewer magic-link authentication**, managed from a new admin page.
+
+---
+
+## GOAL
+
+1. Every reviewer has their own identity (email address).
+2. Admin can add, suspend, and hard-delete reviewers from a dedicated admin page.
+3. Reviewers sign into `/review` via a magic link sent to their registered email — no passwords anywhere in the system.
+4. Suspending a reviewer immediately revokes their access and returns their in-flight work to the unassigned pending bucket.
+5. Every action (add/suspend/reinstate/delete, magic-link request, login) is recorded in an audit log.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### 1. Database schema
+
+Add a new `reviewers` table (or equivalent in your ORM):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid / serial | primary key |
+| `email` | string | unique, lowercased, indexed |
+| `displayName` | string | optional, admin-set |
+| `isActive` | boolean | default `true`; `false` = suspended |
+| `createdAt` | timestamp | |
+| `createdBy` | string | admin user who added them |
+| `suspendedAt` | timestamp | nullable |
+| `suspendedBy` | string | nullable |
+| `deletedAt` | timestamp | nullable — set on hard-delete |
+
+Add a `reviewer_sessions` table (or reuse your session store) to track active magic-link sessions:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `reviewerId` | fk → reviewers.id | |
+| `tokenHash` | string | hashed session token, never stored plaintext |
+| `issuedAt` | timestamp | |
+| `expiresAt` | timestamp | |
+| `revokedAt` | timestamp | nullable |
+
+Add a `reviewer_audit_log` table:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `reviewerId` | fk → reviewers.id | nullable for admin-side actions |
+| `action` | enum | `added`, `suspended`, `reinstated`, `deleted`, `magic_link_requested`, `magic_link_consumed`, `login`, `logout` |
+| `actor` | string | `admin:<email>` or `reviewer:<email>` |
+| `ipAddress` | string | optional |
+| `userAgent` | string | optional |
+| `metadata` | json | optional |
+| `createdAt` | timestamp | |
+
+Migration must be reversible. Write it as a proper migration file, not ad-hoc SQL.
+
+### 2. Magic-link auth flow
+
+Replace the shared-password login on `/review` with this flow:
+
+1. Reviewer visits `/review` — sees an email input form.
+2. Reviewer enters email, clicks "Send login link".
+3. Server looks up reviewer by email:
+   - If not found OR `isActive = false` OR `deletedAt IS NOT NULL`: respond with the **same** success message as the happy path. Do not leak whether the email exists. Do not send an email.
+   - If found and active: generate a cryptographically secure single-use token, store its hash in `reviewer_sessions` with a 15-minute expiry, and email the reviewer a link like `https://afrienergytracker.io/review/auth?token=<token>`.
+4. Reviewer clicks the link. Server validates the token: unused, not expired, reviewer still active. If valid: mark consumed, issue a longer-lived session cookie (suggest 7 days, httpOnly, secure, sameSite=lax), and redirect to `/review`.
+5. If invalid: show a clean error page and link to request a new link.
+
+**Use the existing Brevo transactional email setup** (`brief@afrienergytracker.io` or a new `noreply@afrienergytracker.io`) to send the magic link. Do not use Resend.
+
+**Token generation:** use `crypto.randomBytes(32).toString('base64url')` or equivalent. Store only the SHA-256 hash in the DB.
+
+**Rate limit:** max 5 magic-link requests per email per hour, and max 20 per IP per hour. Return the same success message when rate-limited.
+
+### 3. Admin reviewer management page
+
+Add a new admin route: `/admin/reviewers` (protected by existing admin auth).
+
+The page shows a table of all reviewers with columns:
+
+- Email
+- Display name
+- Status (Active / Suspended)
+- Created (date + admin who added them)
+- Last login
+- In-flight project count
+- Actions (Suspend / Reinstate / Delete)
+
+Controls:
+
+- **Add reviewer** button at the top — opens a modal with fields: email (required, validated), display name (optional). On submit, creates the reviewer row and sends a welcome email containing their first magic link.
+- **Suspend** button — flips `isActive` to `false`, sets `suspendedAt` and `suspendedBy`, revokes all active sessions for that reviewer (set `revokedAt` on every matching `reviewer_sessions` row), returns their in-flight projects to the unassigned pending bucket (see section 4), and writes an audit log entry.
+- **Reinstate** button (shown only for suspended reviewers) — flips `isActive` back to `true`, clears `suspendedAt` and `suspendedBy`, writes an audit log entry. Does NOT auto-reassign projects.
+- **Delete** button — **hidden behind a secondary menu or disclosure**. Clicking it opens a confirmation dialog that explains "This removes the reviewer permanently. Their audit trail history will be preserved but attributed to a deleted user. This cannot be undone." Requires typing the reviewer's email to confirm. On confirm: sets `deletedAt`, revokes all sessions, returns in-flight work, writes audit log entry.
+
+Each row should also have an expandable "History" panel showing that reviewer's audit log entries in reverse chronological order.
+
+### 4. In-flight work return-to-pending logic
+
+When a reviewer is suspended or deleted:
+
+1. Find every `energy_projects` row where that reviewer is currently the assigned reviewer OR is mid-edit (however the current Reviewer Portal tracks assignment — check the existing `/api/review/*` handlers).
+2. For each such row: clear the reviewer assignment, set `reviewStatus` back to `pending` if and only if it was in an in-progress state (do NOT touch rows already `approved` or `rejected`), and write an audit trail entry on the project: `{ action: 'unassigned_due_to_reviewer_suspension', reviewer: <email>, at: <timestamp> }`.
+3. Projects that were `needs_source` stay `needs_source` — just clear the assignment.
+
+### 5. Session invalidation on suspend/delete
+
+As soon as suspend or delete runs, every active session for that reviewer must be invalidated:
+
+- Set `revokedAt = now()` on every matching `reviewer_sessions` row.
+- Server-side session check (every request to `/review` and `/api/review/*`) must verify the session is not revoked and the reviewer is still active. If either fails, return 401 and clear the cookie.
+
+A suspended reviewer with an already-open browser tab must be locked out on the very next request — not when their cookie naturally expires.
+
+### 6. Remove the shared password
+
+- Delete the shared-password login handler, env var (`REVIEWER_PASSWORD` or whatever it's named), and any references.
+- Delete the password input from the `/review` login screen.
+- Note in the PR description that `REVIEWER_PASSWORD` should be removed from Railway env vars after merge.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** touch `/admin` Queue tab work (separate PR).
+- Do **not** delete `/discovery` (separate PR).
+- Do **not** change project review logic, scraper thresholds, or newsletter sending.
+- Do **not** build a password-fallback flow. Magic links only.
+- Do **not** add SSO, OAuth, or third-party auth providers.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `/review` shows an email input, not a password input.
+2. Submitting an unknown email returns a generic success message and sends no email.
+3. Submitting a valid reviewer email delivers a magic link via Brevo within 30 seconds.
+4. Clicking a fresh magic link logs the reviewer in; clicking an expired or used link shows a clean error.
+5. A reviewer's session survives a page refresh for up to 7 days.
+6. `/admin/reviewers` is accessible to admins only; non-admins get 403.
+7. Adding a reviewer creates the row and sends a welcome email with a magic link.
+8. Suspending a reviewer:
+   - Immediately kicks them out of any open `/review` tab (verified with two browsers).
+   - Moves all their in-flight projects back to unassigned pending.
+   - Writes audit log entries on both the reviewer and every affected project.
+9. Reinstating a suspended reviewer lets them log in again but does not restore their prior assignments.
+10. Hard-delete requires typing the email to confirm and is hidden from the primary UI.
+11. Rate-limit: 6th magic-link request in an hour from the same email gets the same success response as the 1st but sends no email.
+12. All tokens are stored hashed, never plaintext.
+13. `REVIEWER_PASSWORD` env var is unused by any code path.
+14. Existing tests pass; new tests cover add, suspend, reinstate, delete, magic-link issue + consume, session revocation, and in-flight return.
+
+---
+
+## DELIVERABLES
+
+1. Single PR against master.
+2. PR description listing:
+   - New tables + migration file
+   - New routes (admin + reviewer)
+   - Files touched
+   - Env vars to remove from Railway post-merge
+   - Screenshots: `/review` new login, `/admin/reviewers` list, add-reviewer modal, suspend confirmation, hard-delete confirmation
+3. A short section in the PR description titled "Security notes" covering: token generation method, hashing algorithm, session expiry, rate-limit values, and how session revocation is enforced.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING (if unclear from the code)
+
+1. Does the current Reviewer Portal already track per-reviewer assignment, or is it a shared pool? The in-flight return logic depends on this.
+2. Is there an existing session store I should extend, or should I add a new one for reviewer sessions specifically?
+3. What's the existing admin auth mechanism for `/admin/*` routes? I'll reuse it for `/admin/reviewers`.
+4. Is Brevo already wired for transactional sending from a `noreply@` or similar sender, or do I need to add a new verified sender?
+
+Don't guess on any of these — stop and ask.
