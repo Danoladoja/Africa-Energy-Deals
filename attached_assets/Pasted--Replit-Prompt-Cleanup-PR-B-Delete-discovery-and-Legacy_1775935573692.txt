@@ -1,0 +1,108 @@
+# Replit Prompt — Cleanup PR B: Delete `/discovery` and Legacy Scraper Routes (P2)
+
+**Repo:** AfriEnergy Tracker Replit monorepo
+**Priority:** Boring cleanup. Ship after Cleanup PR A (migration hotfix) is merged.
+**Context:** The `RECOVERY_AUDIT.md` confirmed that `/discovery` is still live: the page component, the route registration, the lazy import, and 14 legacy `/api/scraper/*` flat-function routes all remain. The Admin Dashboard Pipeline section (`/admin?section=pipeline`) is the canonical replacement. This PR deletes the old surface cleanly.
+
+**Scope is deliberately narrow.** This PR is a deletion, not a feature. If you find yourself adding functionality anywhere, stop.
+
+---
+
+## GOAL
+
+1. Remove the `/discovery` page, route, and lazy import.
+2. Remove the 14 legacy `/api/scraper/*` flat-function routes in `routes/scraper.ts`.
+3. Add a one-time redirect from `/discovery` → `/admin?section=pipeline` so stale bookmarks don't 404.
+4. Verify nothing else in the codebase still imports from the deleted files.
+
+---
+
+## SCOPE — WHAT TO DELETE
+
+### Frontend
+
+- `artifacts/energy-tracker/src/pages/discovery.tsx` — delete the file entirely.
+- `App.tsx:27` — remove the lazy import `const DiscoveryPage = lazy(() => import("@/pages/discovery"))`.
+- `App.tsx:213` — remove the `<Route path="/discovery">` registration.
+- Any import of `DiscoveryPage` elsewhere — remove.
+- Any reference to `/discovery` in the nav, sidebar, breadcrumbs, or links — remove. The nav item was already removed from `adminNavItems`, but search for any remaining references and clean them up.
+
+### Backend
+
+- `artifacts/api-server/src/routes/scraper.ts` — this file has 14 legacy endpoints. Confirm which (if any) are still consumed by the Admin Dashboard Pipeline section before deleting. The audit says `/admin?section=pipeline` uses the new adapter system via `routes/adapters.ts`, so the legacy flat-function `scraper.ts` routes should be unreferenced. **Before deleting, grep for every endpoint path and every exported function name** to confirm nothing else consumes them. If anything does, stop and ask.
+- If `scraper.ts` contains helper functions used by the new adapter system, extract them to a shared location before deleting the routes — do not delete code that's still called.
+- Any tests targeting the deleted endpoints — delete.
+
+### Redirect
+
+Add a one-line redirect rule in `App.tsx` (or wherever routing is centralised) so `/discovery` resolves to `/admin?section=pipeline` with a 301/302. Do this **before** deleting the page file, so the redirect tests pass. Then the page file can be removed because the route no longer points at it.
+
+Alternatively, if Wouter (or whatever router is in use) supports a redirect component, use that. The goal is a permanent redirect, not a page that rerenders.
+
+---
+
+## PRE-DELETE VERIFICATION (do this first)
+
+Before deleting anything, run these checks and include the output in the PR description:
+
+1. **Grep for `"/discovery"`** across the whole repo. Every match must be either the route registration (being removed), a link to replace with `/admin?section=pipeline`, or documentation to update.
+2. **Grep for `DiscoveryPage`** across the whole repo. Every match must be either the lazy import (being removed) or the route registration (being removed). Any third match is a problem.
+3. **For each legacy `/api/scraper/*` endpoint**, grep the frontend for references. Any surviving references mean that surface is still in use and you should stop and ask before deleting.
+4. **For each exported function in `routes/scraper.ts`**, grep the backend for imports. Any function imported by the new adapter system must be extracted to a shared module before the file is deleted.
+
+If any check turns up something unexpected, stop and list what you found in a comment instead of working around it.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** modify the new adapter system (`routes/adapters.ts`, `scraper/base.ts`, `adapters/*`).
+- Do **not** modify the Admin Dashboard Pipeline section UI unless it references the deleted endpoints.
+- Do **not** touch the reviewer or contributor auth systems.
+- Do **not** modify any migration.
+- Do **not** delete the World Bank adapter — it's still registered in the legacy scraper and has not been ported to the new system. Leave it alone.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `artifacts/energy-tracker/src/pages/discovery.tsx` no longer exists.
+2. `App.tsx` has no references to `DiscoveryPage` or `/discovery` as a routed page.
+3. Visiting `/discovery` in the browser redirects to `/admin?section=pipeline`.
+4. `routes/scraper.ts` is either deleted or reduced to only the exports that are still consumed by the new adapter system (explained in the PR description).
+5. The server starts without errors after the changes.
+6. The Admin Dashboard Pipeline section still loads and functions identically to before (filters, source feeds, run history, add/delete source feeds, run now).
+7. No test fails that wasn't already failing before the change.
+8. The PR description includes the grep output from all four pre-delete verification checks.
+
+---
+
+## VERIFICATION STEPS (required before PR is marked ready)
+
+1. Start the server. Confirm clean boot.
+2. Navigate to `/admin?section=pipeline`. Confirm every control works: Source feeds list, add feed, delete feed, toggle active, run now, run history.
+3. Navigate to `/discovery`. Confirm redirect to `/admin?section=pipeline`.
+4. Navigate to every other admin route. Confirm no 404s or broken imports.
+5. Trigger at least one scraper adapter run from the Pipeline section. Confirm it writes to `energy_projects` as expected.
+
+---
+
+## DELIVERABLES
+
+1. Single PR. Deletion-heavy diff.
+2. PR description listing:
+   - Files deleted
+   - Files modified
+   - Grep output from the four pre-delete checks
+   - Confirmation of the five verification steps
+3. A short **"What was in `/discovery` that's now in `/admin`"** section explaining, for the operator's benefit, which Pipeline section controls replace which old Discovery controls. One sentence per capability is fine.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING
+
+1. Are there any bookmarks, emails, or external links to `/discovery` that we know of? If yes, the redirect must ship first and be live for a few days before the page file is deleted.
+2. Does the Admin Dashboard Pipeline section currently call any of the legacy `/api/scraper/*` endpoints? The audit says no, but grep before deleting.
+3. Is the World Bank scraper still exposed via a legacy `/api/scraper/world-bank` route that's actively used? If yes, that specific route stays until World Bank is ported to the new adapter system. Flag it in the PR description.
+
+Don't guess.

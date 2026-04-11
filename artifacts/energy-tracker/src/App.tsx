@@ -24,7 +24,6 @@ const DevelopersIndex  = lazy(() => import("@/pages/developers"));
 const DeveloperProfile = lazy(() => import("@/pages/developer-profile"));
 const MapPage          = lazy(() => import("@/pages/map"));
 const VizStudio        = lazy(() => import("@/pages/viz-studio"));
-const DiscoveryPage    = lazy(() => import("@/pages/discovery"));
 const WatchesPage      = lazy(() => import("@/pages/watches"));
 const EmbedDeals       = lazy(() => import("@/pages/embed-deals"));
 const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
@@ -61,6 +60,14 @@ function PageLoader() {
       <div className="w-8 h-8 border-2 border-[#00e676]/30 border-t-[#00e676] rounded-full animate-spin" />
     </div>
   );
+}
+
+function DiscoveryRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/admin?section=pipeline", { replace: true });
+  }, []);
+  return null;
 }
 
 class ErrorBoundary extends Component<
@@ -210,9 +217,7 @@ function Router() {
         <Route path="/insights">
           {() => <AuthRoute component={InsightsPage} />}
         </Route>
-        <Route path="/discovery">
-          {() => <AdminRoute component={DiscoveryPage} />}
-        </Route>
+        <Route path="/discovery" component={DiscoveryRedirect} />
         <Route path="/watches">
           {() => <AuthRoute component={WatchesPage} />}
         </Route>
