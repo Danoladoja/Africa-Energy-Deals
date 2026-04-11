@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { LayoutDashboard, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
 export function AdminLockScreen() {
@@ -30,10 +30,10 @@ export function AdminLockScreen() {
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg shadow-black/10">
           <div className="flex flex-col items-center gap-4 mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
+              <LayoutDashboard className="w-8 h-8 text-primary" />
             </div>
             <div className="text-center">
-              <h1 className="font-display font-bold text-xl text-foreground">AI Discovery</h1>
+              <h1 className="font-display font-bold text-xl text-foreground">Admin Dashboard</h1>
               <p className="text-muted-foreground text-sm mt-1">
                 This section is restricted to admins.
               </p>
