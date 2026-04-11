@@ -93,6 +93,8 @@ export async function runStartupMigrations(): Promise<void> {
 
   // ── scraper_runs ─────────────────────────────────────────────────────────
   await runMigration("scraper_runs.adapter_key", `ALTER TABLE scraper_runs ADD COLUMN IF NOT EXISTS adapter_key TEXT`);
+  await runMigration("scraper_runs.rejected_non_energy_count", `ALTER TABLE scraper_runs ADD COLUMN IF NOT EXISTS rejected_non_energy_count INTEGER NOT NULL DEFAULT 0`);
+  await runMigration("scraper_runs.rejection_log", `ALTER TABLE scraper_runs ADD COLUMN IF NOT EXISTS rejection_log JSONB NOT NULL DEFAULT '[]'::jsonb`);
 
   // ── scraper_sources ───────────────────────────────────────────────────────
   await runMigration("create scraper_sources", `

@@ -37,6 +37,22 @@ export interface CandidateDraft {
   rawJson: Record<string, unknown> | null;
 }
 
+export interface RejectionEntry {
+  title: string;
+  sourceUrl?: string;
+  reason: string;
+  matchedKeywords: string[];
+  adapter: string;
+  rejectedAt: string;
+}
+
+export interface WriteResult {
+  inserted: boolean;
+  updated: boolean;
+  flagged: boolean;
+  rejected?: RejectionEntry;
+}
+
 export interface RunReport {
   adapterKey: string;
   startedAt: Date;
@@ -45,6 +61,8 @@ export interface RunReport {
   rowsInserted: number;
   rowsUpdated: number;
   rowsFlagged: number;
+  rowsRejected: number;
+  rejectionLog: RejectionEntry[];
   errors: string[];
   cached: boolean;
 }
@@ -190,7 +208,7 @@ export abstract class BaseSourceAdapter {
   }
 
   async run(
-    writeCandidate: (draft: CandidateDraft) => Promise<{ inserted: boolean; updated: boolean; flagged: boolean }>,
+    writeCandidate: (draft: CandidateDraft) => Promise<WriteResult>,
     triggeredBy: "manual" | "schedule" = "manual",
   ): Promise<RunReport> {
     const startedAt = new Date();
@@ -202,6 +220,8 @@ export abstract class BaseSourceAdapter {
       rowsInserted: 0,
       rowsUpdated: 0,
       rowsFlagged: 0,
+      rowsRejected: 0,
+      rejectionLog: [],
       errors: [],
       cached: false,
     };
@@ -236,6 +256,13 @@ export abstract class BaseSourceAdapter {
             if (res.inserted) report.rowsInserted++;
             if (res.updated) report.rowsUpdated++;
             if (res.flagged) report.rowsFlagged++;
+            if (res.rejected) {
+              report.rowsRejected++;
+              if (report.rejectionLog.length < 100) {
+                report.rejectionLog.push(res.rejected);
+              }
+              console.log(`[sector_gate.reject] adapter=${this.key} reason=${res.rejected.reason} title="${res.rejected.title}"`);
+            }
           } catch (e) {
             report.errors.push(String(e));
           }
@@ -255,10 +282,12 @@ export abstract class BaseSourceAdapter {
       recordsInserted: report.rowsInserted,
       recordsUpdated: report.rowsUpdated,
       flaggedForReview: report.rowsFlagged,
+      rejectedNonEnergyCount: report.rowsRejected,
+      rejectionLog: report.rejectionLog,
       errors: report.errors.length > 0 ? report.errors.join("\n") : null,
     }).where(eq(scraperRunsTable.id, runRow.id));
 
-    console.log(`[Adapter:${this.key}] Done — inserted:${report.rowsInserted} updated:${report.rowsUpdated} flagged:${report.rowsFlagged} errors:${report.errors.length}`);
+    console.log(`[Adapter:${this.key}] Done — inserted:${report.rowsInserted} updated:${report.rowsUpdated} flagged:${report.rowsFlagged} rejected:${report.rowsRejected} errors:${report.errors.length}`);
     return report;
   }
 }

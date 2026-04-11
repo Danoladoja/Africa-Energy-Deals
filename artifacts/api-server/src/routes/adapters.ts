@@ -3,6 +3,10 @@
  *
  * GET    /api/adapters                      — list all registered adapters
  * POST   /api/adapters/:key/run             — trigger a single adapter run (SSE)
+ * GET    /api/scraper/runs                  — recent scraper runs with rejection telemetry
+ * GET    /api/scraper/status                — pipeline status summary
+ * GET    /api/scraper/sources               — source groups list
+ * GET    /api/scraper/rejection-telemetry   — rejection summary from most recent runs
  * GET    /api/scraper/source-feeds          — list scraper_sources table
  * POST   /api/scraper/source-feeds          — add a new feed
  * DELETE /api/scraper/source-feeds/:id      — delete a feed
@@ -11,8 +15,8 @@
  */
 
 import { Router, type IRouter } from "express";
-import { db, scraperSourcesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, scraperSourcesTable, scraperRunsTable, projectsTable } from "@workspace/db";
+import { eq, desc, sql, count } from "drizzle-orm";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 import { getAdapterMeta, runAdapter } from "../scraper/adapter-runner.js";
 import { llmScoreCandidate, writeCandidate } from "../scraper/adapter-runner-helpers.js";
@@ -149,6 +153,133 @@ router.post("/scraper/source-feeds/:id/run", async (req, res) => {
     send({ stage: "error", message: String(err) });
   } finally {
     res.end();
+  }
+});
+
+// ── Scraper runs — recent history with rejection telemetry ────────────────────
+
+router.get("/scraper/runs", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100")), 500);
+    const runs = await db
+      .select()
+      .from(scraperRunsTable)
+      .orderBy(desc(scraperRunsTable.startedAt))
+      .limit(limit);
+
+    // Group by adapterKey for the bySource view expected by admin-scraper.tsx
+    const bySource: Record<string, {
+      lastRun: typeof runs[number] | null;
+      totalInserted: number;
+      totalUpdated: number;
+      totalFound: number;
+      totalFlagged: number;
+      totalRejected: number;
+      runCount: number;
+    }> = {};
+
+    for (const run of runs) {
+      const key = run.adapterKey ?? run.sourceName;
+      if (!bySource[key]) {
+        bySource[key] = { lastRun: run, totalInserted: 0, totalUpdated: 0, totalFound: 0, totalFlagged: 0, totalRejected: 0, runCount: 0 };
+      }
+      bySource[key].totalInserted += run.recordsInserted;
+      bySource[key].totalUpdated += run.recordsUpdated;
+      bySource[key].totalFound += run.recordsFound;
+      bySource[key].totalFlagged += run.flaggedForReview;
+      bySource[key].totalRejected += (run.rejectedNonEnergyCount ?? 0);
+      bySource[key].runCount++;
+    }
+
+    res.json({ runs, bySource });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Pipeline status ───────────────────────────────────────────────────────────
+
+router.get("/scraper/status", async (_req, res) => {
+  try {
+    const [pendingRow] = await db
+      .select({ pendingCount: count() })
+      .from(projectsTable)
+      .where(eq(projectsTable.reviewStatus, "pending"));
+    res.json({ pendingCount: pendingRow?.pendingCount ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Source groups (legacy compatibility shape) ────────────────────────────────
+
+router.get("/scraper/sources", async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        name: scraperRunsTable.sourceName,
+        adapterKey: scraperRunsTable.adapterKey,
+      })
+      .from(scraperRunsTable)
+      .orderBy(desc(scraperRunsTable.startedAt))
+      .limit(200);
+
+    const seen = new Map<string, { name: string; description: string; feedCount: number; isRunning: boolean }>();
+    for (const r of rows) {
+      const key = r.adapterKey ?? r.name;
+      if (!seen.has(key)) seen.set(key, { name: key, description: r.name, feedCount: 1, isRunning: false });
+    }
+    res.json(Array.from(seen.values()));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Rejection telemetry — summary of most recent runs ────────────────────────
+
+router.get("/scraper/rejection-telemetry", async (_req, res) => {
+  try {
+    // Most recent run per adapter that has at least one rejection
+    const recentRuns = await db
+      .select()
+      .from(scraperRunsTable)
+      .orderBy(desc(scraperRunsTable.startedAt))
+      .limit(50);
+
+    const totalFetched = recentRuns.slice(0, 10).reduce((s, r) => s + r.recordsFound, 0);
+    const totalRejected = recentRuns.slice(0, 10).reduce((s, r) => s + (r.rejectedNonEnergyCount ?? 0), 0);
+
+    // Collect all rejection entries from the 10 most recent runs
+    const allEntries: Array<{
+      title: string;
+      sourceUrl?: string;
+      reason: string;
+      matchedKeywords: string[];
+      adapter: string;
+      rejectedAt: string;
+    }> = [];
+
+    for (const run of recentRuns.slice(0, 10)) {
+      const log = Array.isArray(run.rejectionLog) ? run.rejectionLog as typeof allEntries : [];
+      allEntries.push(...log);
+    }
+
+    // Top 5 reasons
+    const reasonCounts: Record<string, number> = {};
+    for (const entry of allEntries) {
+      reasonCounts[entry.reason] = (reasonCounts[entry.reason] ?? 0) + 1;
+    }
+    const topReasons = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => ({ reason, count }));
+
+    // Sample entries (first 10)
+    const sample = allEntries.slice(0, 10);
+
+    res.json({ totalFetched, totalRejected, topReasons, sample });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
 });
 

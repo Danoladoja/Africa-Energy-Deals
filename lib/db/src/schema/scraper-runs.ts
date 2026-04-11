@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 export const scraperRunsTable = pgTable("scraper_runs", {
   id: serial("id").primaryKey(),
@@ -10,6 +10,8 @@ export const scraperRunsTable = pgTable("scraper_runs", {
   recordsInserted: integer("records_inserted").default(0).notNull(),
   recordsUpdated: integer("records_updated").default(0).notNull(),
   flaggedForReview: integer("flagged_for_review").default(0).notNull(),
+  rejectedNonEnergyCount: integer("rejected_non_energy_count").default(0).notNull(),
+  rejectionLog: jsonb("rejection_log").default([]).notNull(),
   errors: text("errors"),
   triggeredBy: text("triggered_by").default("schedule").notNull(),
 });

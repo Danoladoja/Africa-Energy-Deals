@@ -4,6 +4,9 @@ import { runSourceGroup, getSourceGroups } from "./services/scraper.js";
 import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
 import { runStartupMigrations } from "./migrate.js";
 import { ADAPTER_REGISTRY, runAdapter } from "./scraper/adapter-runner.js";
+import { db, projectsTable, scraperRunsTable } from "@workspace/db";
+import { lt, sql } from "drizzle-orm";
+import { PURGE_RETENTION_DAYS } from "@workspace/shared";
 
 const rawPort = process.env["PORT"];
 
@@ -66,6 +69,42 @@ async function start() {
     }
 
     startNewsletterScheduler();
+
+    // ── Daily auto-purge (03:00 UTC) ────────────────────────────────────────
+    // Enabled only when PURGE_ENABLED=true. Kill-switch lets us disable
+    // instantly if something looks wrong in the first 48 hours after deploy.
+    if (process.env["PURGE_ENABLED"] === "true") {
+      cron.schedule("0 3 * * *", async () => {
+        console.log("[Purge] Running daily auto-purge…");
+        try {
+          const rejectedCutoff = new Date(Date.now() - PURGE_RETENTION_DAYS.rejected * 24 * 60 * 60 * 1000);
+          const needsSourceCutoff = new Date(Date.now() - PURGE_RETENTION_DAYS.needsSource * 24 * 60 * 60 * 1000);
+          const scraperRunsCutoff = new Date(Date.now() - PURGE_RETENTION_DAYS.scraperRunsDays * 24 * 60 * 60 * 1000);
+
+          const { count: rejCount } = await db.delete(projectsTable)
+            .where(sql`${projectsTable.reviewStatus} = 'rejected' AND ${projectsTable.discoveredAt} < ${rejectedCutoff}`)
+            .returning({ count: sql<number>`count(*)` })
+            .then((rows) => rows[0] ?? { count: 0 });
+
+          const { count: nsCount } = await db.delete(projectsTable)
+            .where(sql`${projectsTable.reviewStatus} = 'needs_source' AND ${projectsTable.discoveredAt} < ${needsSourceCutoff}`)
+            .returning({ count: sql<number>`count(*)` })
+            .then((rows) => rows[0] ?? { count: 0 });
+
+          const { count: runCount } = await db.delete(scraperRunsTable)
+            .where(lt(scraperRunsTable.startedAt, scraperRunsCutoff))
+            .returning({ count: sql<number>`count(*)` })
+            .then((rows) => rows[0] ?? { count: 0 });
+
+          console.log(`[Purge] Done — rejected:${rejCount} needs_source:${nsCount} old_scraper_runs:${runCount}`);
+        } catch (err) {
+          console.error("[Purge] Error during daily purge:", err);
+        }
+      });
+      console.log(`[Purge] Auto-purge enabled — daily at 03:00 UTC (rejected>${PURGE_RETENTION_DAYS.rejected}d, needs_source>${PURGE_RETENTION_DAYS.needsSource}d)`);
+    } else {
+      console.log("[Purge] Auto-purge disabled (set PURGE_ENABLED=true to enable)");
+    }
   });
 }
 

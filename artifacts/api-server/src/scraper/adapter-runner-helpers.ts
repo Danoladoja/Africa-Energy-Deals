@@ -60,7 +60,7 @@ If this IS an Africa energy deal, return a single JSON object with:
   "confidence": number
 }
 
-Technology must be one of: Solar, Wind, Hydro, Battery & Storage, Hydrogen, Grid Expansion, Oil & Gas, Geothermal, Nuclear, Bioenergy, Clean Cooking, Coal.
+Technology must be one of: Solar, Wind, Hydro, Geothermal, Biomass, Nuclear, Oil & Gas, Transmission & Distribution, Battery Storage, Green Hydrogen, Coal.
 If NOT an Africa energy investment deal, return null.
 Return ONLY valid JSON, no markdown.`;
 

@@ -5,7 +5,7 @@ import {
   Database, Play, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
   AlertCircle, Check, X, ChevronDown, ChevronUp, Zap, TrendingUp,
   FileSearch, Activity, BarChart2, Filter, Download, Globe, Rss,
-  PlusCircle, Trash2, ToggleLeft, ToggleRight,
+  PlusCircle, Trash2, ToggleLeft, ToggleRight, Shield,
 } from "lucide-react";
 
 interface ScraperSource {
@@ -98,18 +98,22 @@ interface RunProgress {
 type ReviewAction = "approve" | "reject";
 
 const TECH_COLORS: Record<string, string> = {
-  Solar:               "text-amber-400 bg-amber-400/10",
-  Wind:                "text-blue-400 bg-blue-400/10",
-  Hydro:               "text-cyan-400 bg-cyan-400/10",
-  Geothermal:          "text-red-400 bg-red-400/10",
-  "Oil & Gas":         "text-orange-400 bg-orange-400/10",
-  "Grid Expansion":    "text-purple-400 bg-purple-400/10",
-  "Battery & Storage": "text-pink-400 bg-pink-400/10",
-  Hydrogen:            "text-sky-400 bg-sky-400/10",
-  Nuclear:             "text-violet-400 bg-violet-400/10",
-  Bioenergy:           "text-green-400 bg-green-400/10",
-  "Clean Cooking":     "text-amber-300 bg-amber-300/10",
-  Coal:                "text-stone-400 bg-stone-400/10",
+  Solar:                          "text-amber-400 bg-amber-400/10",
+  Wind:                           "text-blue-400 bg-blue-400/10",
+  Hydro:                          "text-cyan-400 bg-cyan-400/10",
+  Geothermal:                     "text-red-400 bg-red-400/10",
+  "Oil & Gas":                    "text-orange-400 bg-orange-400/10",
+  "Transmission & Distribution":  "text-purple-400 bg-purple-400/10",
+  "Battery Storage":              "text-pink-400 bg-pink-400/10",
+  "Green Hydrogen":               "text-sky-400 bg-sky-400/10",
+  Nuclear:                        "text-violet-400 bg-violet-400/10",
+  Biomass:                        "text-green-400 bg-green-400/10",
+  Coal:                           "text-stone-400 bg-stone-400/10",
+  // Legacy aliases (shown until backfill completes)
+  "Grid Expansion":               "text-purple-300 bg-purple-300/10",
+  "Battery & Storage":            "text-pink-300 bg-pink-300/10",
+  Hydrogen:                       "text-sky-300 bg-sky-300/10",
+  Bioenergy:                      "text-green-300 bg-green-300/10",
 };
 
 function ConfidenceBadge({ score }: { score: number | null }) {
@@ -147,25 +151,34 @@ export default function AdminScraperPage() {
   const [addingFeed, setAddingFeed] = useState(false);
   const [feedRunning, setFeedRunning] = useState<string | null>(null);
   const [feedRunLog, setFeedRunLog] = useState<string[]>([]);
+  const [rejectionTelemetry, setRejectionTelemetry] = useState<{
+    totalFetched: number;
+    totalRejected: number;
+    topReasons: { reason: string; count: number }[];
+    sample: { title: string; reason: string; matchedKeywords: string[]; adapter: string }[];
+  } | null>(null);
 
   async function loadData() {
     try {
-      const [sourcesRes, runsRes, statusRes, feedsRes] = await Promise.all([
+      const [sourcesRes, runsRes, statusRes, feedsRes, telemetryRes] = await Promise.all([
         fetch(`${API}/scraper/sources`, { headers: authHeaders() }),
         fetch(`${API}/scraper/runs?limit=100`, { headers: authHeaders() }),
         fetch(`${API}/scraper/status`, { headers: authHeaders() }),
         fetch(`${API}/scraper/source-feeds`, { headers: authHeaders() }),
+        fetch(`${API}/scraper/rejection-telemetry`, { headers: authHeaders() }),
       ]);
-      const [sourcesData, runsData, statusData, feedsData] = await Promise.all([
+      const [sourcesData, runsData, statusData, feedsData, telemetryData] = await Promise.all([
         sourcesRes.json(),
         runsRes.json(),
         statusRes.json(),
         feedsRes.json(),
+        telemetryRes.json(),
       ]);
       setSources(Array.isArray(sourcesData) ? sourcesData : []);
       setBySource(runsData.bySource ?? {});
       setPendingCount(statusData.pendingCount ?? 0);
       setScraperSources(Array.isArray(feedsData) ? feedsData : []);
+      if (telemetryData && !telemetryData.error) setRejectionTelemetry(telemetryData);
     } catch {
       // ignore
     } finally {
@@ -483,6 +496,57 @@ export default function AdminScraperPage() {
               </div>
             ))}
           </div>
+
+          {/* Rejection Telemetry Panel */}
+          {rejectionTelemetry && (rejectionTelemetry.totalRejected > 0 || rejectionTelemetry.topReasons.length > 0) && (
+            <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-rose-400" />
+                  <h2 className="font-semibold text-foreground">Sector Gate — Rejection Telemetry</h2>
+                  <span className="text-xs text-muted-foreground ml-1">Last 10 scraper runs</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span><span className="font-semibold text-foreground">{rejectionTelemetry.totalFetched.toLocaleString()}</span> fetched</span>
+                  <span><span className="font-semibold text-rose-400">{rejectionTelemetry.totalRejected.toLocaleString()}</span> rejected ({rejectionTelemetry.totalFetched > 0 ? Math.round(rejectionTelemetry.totalRejected / rejectionTelemetry.totalFetched * 100) : 0}%)</span>
+                </div>
+              </div>
+              <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Top rejection reasons */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Top Rejection Reasons</p>
+                  <div className="space-y-2">
+                    {rejectionTelemetry.topReasons.map(({ reason, count }) => {
+                      const pct = rejectionTelemetry.totalRejected > 0 ? Math.round(count / rejectionTelemetry.totalRejected * 100) : 0;
+                      return (
+                        <div key={reason} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-mono w-40 shrink-0">{reason}</span>
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-foreground tabular-nums w-8 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Sample rejected items */}
+                {rejectionTelemetry.sample.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Recent Rejections (sample)</p>
+                    <div className="space-y-2">
+                      {rejectionTelemetry.sample.slice(0, 5).map((item, i) => (
+                        <div key={i} className="text-xs">
+                          <p className="text-foreground truncate">{item.title}</p>
+                          <p className="text-rose-400/80 font-mono">{item.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Curated Data Sources */}
           <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">

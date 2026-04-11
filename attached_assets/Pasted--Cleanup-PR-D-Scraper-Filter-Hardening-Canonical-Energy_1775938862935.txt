@@ -1,0 +1,555 @@
+# Cleanup PR D — Scraper Filter Hardening (Canonical Energy Sector Gate)
+
+## Context
+
+We keep seeing non-energy items slip into the Data Pipeline. This PR hardens the scraper classifier with a **strict sector-match gate** that runs **before** any candidate is inserted into `energy_projects`. Items that fail the gate are rejected, logged with structured telemetry, and never touched again.
+
+---
+
+## Live Audit Findings (2026-04-11)
+
+Before drafting the rules, I audited the live Tracker Admin → Data Pipeline panel at `afrienergytracker.io/admin` (authenticated as ADMINISTRATOR, tab 1387355077). Findings below drive every rule in this PR. **Do not treat these as guesses — they are real titles pulled from the live Rejected/Needs Source/Pending buckets.**
+
+### Bug 1 — World Bank adapter defaults unclassifiable items to "Solar"
+
+The Rejected bucket currently holds ~90 items and **every single one is labeled "Solar"**, even though none of them are solar projects. Real titles observed:
+
+- `Kiira Motors EV Expansion` (electric vehicle manufacturing)
+- `Kiira Motors 450-Bus Electric Bus Deal`
+- `Spiro Electric Motorcycle Fleet`
+- `Nigeria AfDB Economic Governance and Energy Transition Loan` (budget support DPF)
+- `Senegal DPF` / `Cote d'Ivoire Private Investment and Productive Jobs DPF1` / `South Africa Infrastructure Modernization and Job Creation DPL`
+- `Integrated Social Protection for Resilience and Opportunity`
+- `Street-Connected Children and Adolescents Socio-Economic Inclusion`
+- `Skills for Employment and Economic Transformation Mozambique`
+- `DRC Skills for Economic Transformation`
+- `Generating Resilience Opportunities and Welfare for a Thriving Egypt (GROWTH) 2`
+- `Morocco Climate & Risk Finance Program`
+- `Blended Finance Platform for Resilient Infrastructure`
+- `Sudan Food and Nutrition Security`
+- `Housing Finance Lands and Sustainable Investments`
+- `Kinshasa Urban Transformation and Jobs Program`
+- `Support to Transparency in Energy Transition Minerals Development`
+- `Second Community Action for Landscape Management`
+
+**Root cause:** The World Bank API adapter (`services/scraper/adapters/worldbank*`) falls back to `technology = 'Solar'` when it cannot classify. This is the single largest source of contamination and is fixed by this PR: the adapter must return `null` sector for unclassifiable items, and the gate must reject any candidate whose sector is `null`.
+
+### Bug 2 — Geothermal projects mislabeled as "Bioenergy"
+
+In the Needs Source bucket, three clearly-geothermal projects are tagged `Bioenergy`:
+
+- `Menengai II Geothermal`
+- `Olkaria Expansion`
+- `Olkaria IV`
+
+The classifier's keyword matcher is collapsing `geothermal` into the biomass/bioenergy bucket. The sector keyword lists below must make `geothermal` a strong, exclusive match for Geothermal and ensure Biomass keywords do not accidentally swallow it.
+
+### Bug 3 — Sector name drift vs. canonical enum
+
+Live data contains sector labels that are **not** in the proposed canonical enum:
+
+- `Bioenergy` (proposed canonical: `Biomass`)
+- `Grid Expansion` (proposed canonical: `Transmission & Distribution`)
+
+**Decision required this PR:** update the extractors and any legacy rows to emit canonical names, rather than adding aliases. Aliases multiply the number of valid strings and make future cleanup harder. Treat the canonical enum as the only allowed output. Legacy rows with drifted names get rewritten in the backfill step.
+
+### Bug 4 — REIPPPP Bid Window 7 duplicated
+
+`REIPPPP Bid Window 7` appears at least 3x across Pending/other buckets. Not a classifier problem per se, but the audit surfaced it — flag in the backfill report for deduplication as a follow-up.
+
+### Bug 5 — Cancelled deals sitting in Pending
+
+`Adani Kenya Electricity Transmission Deal (Cancelled)` is in the Pending bucket tagged as `Grid Expansion`. Not this PR's job to fix status transitions, but the classifier should not block on it; it's flagged here so Daniel can decide to move it manually.
+
+### Failure-mode summary
+
+All the bad items share one of these patterns:
+
+1. **World Bank development policy / budget support loans** — "DPF", "DPL", "development policy financing", "budget support", "economic governance" — these are fiscal instruments, not projects.
+2. **Social protection / livelihoods / skills / welfare programs** — "social protection", "skills for employment", "GROWTH", "street-connected", "child welfare", "inclusion project".
+3. **Electric vehicles / e-mobility** — "electric vehicle", "electric bus", "motorcycle fleet", "EV manufactur" — demand-side transport, not generation.
+4. **Climate / risk finance programs without a named asset** — "climate & risk finance program", "blended finance platform", "carbon market".
+5. **General development programs** — "housing finance", "food and nutrition security", "landscape management", "urban transformation".
+6. **Transition minerals advocacy** — "transparency in energy transition minerals" — mining governance, not generation.
+
+Every rule in the Hard Rejection Patterns section below is grounded in one of these six patterns.
+
+---
+
+## Original Observed Failure Modes (kept for context)
+
+1. **Climate / ESG finance with no underlying energy asset** — carbon credit programs, sustainability bonds, green funds, general climate-finance news where no specific energy project is named.
+2. **Social / development programming** — youth empowerment, resilience, livelihoods, "just transition" advocacy pieces, community development grants.
+
+These items trigger on our DFI feeds because the feeds mention "green", "climate", "transition", "sustainable", "renewable", or name a DFI we already trust. They are not energy deal announcements and they must never land in `energy_projects`.
+
+---
+
+## Scope
+
+**In scope:**
+- Define a canonical `EnergySector` enum in shared constants. One source of truth.
+- Add a `classifyEnergySector(candidate)` function that returns a sector or `null`.
+- Insert a gate in the ingest path: if `classifyEnergySector` returns `null`, reject the candidate and log it. Do **not** insert into `energy_projects`.
+- Add structured rejection telemetry to `scraper_runs` (counter fields) and emit a line to the run log for each rejection.
+- Apply the gate to **every** adapter in `ADAPTER_REGISTRY`.
+- Backfill: one-time script to re-classify existing `energy_projects` rows and flag any that don't match the enum. Review-only. No deletes.
+
+**Out of scope:**
+- Rewriting adapters.
+- Touching the auto-approval confidence thresholds.
+- Touching `/discovery` (handled by PR B).
+- Touching badges (handled by PR C).
+- Creating a rejected-candidates DB table (we chose not to persist rejects to avoid storage growth; telemetry is enough to tune rules).
+- Changing the manual URL editing flow.
+
+---
+
+## Canonical Sector Enum
+
+Add to `lib/shared/src/energy-sectors.ts` (create file if it doesn't exist). Export from the package index.
+
+```ts
+// lib/shared/src/energy-sectors.ts
+
+/**
+ * Canonical list of energy sectors tracked by AfriEnergy Tracker.
+ * THIS IS THE ONLY PLACE new sectors should be added.
+ * Adding a sector requires a code change + PR, on purpose.
+ */
+export const ENERGY_SECTORS = [
+  'Solar',
+  'Wind',
+  'Hydro',
+  'Geothermal',
+  'Biomass',
+  'Nuclear',
+  'Oil & Gas',
+  'Transmission & Distribution',
+  'Battery Storage',
+  'Green Hydrogen',
+] as const;
+
+export type EnergySector = (typeof ENERGY_SECTORS)[number];
+
+export function isEnergySector(value: string): value is EnergySector {
+  return (ENERGY_SECTORS as readonly string[]).includes(value);
+}
+```
+
+**IMPORTANT:** Before finalizing this enum, run `SELECT DISTINCT technology FROM energy_projects ORDER BY 1;` against the Replit dev DB and reconcile the output against the list above. If a legitimate sector is missing, add it here. If a junk value is present in the DB (e.g. "Climate Finance", "Youth Empowerment"), that is the bug this PR exists to fix — do **not** add it to the enum.
+
+Update the `technology` column type on `energy_projects` if it is currently untyped `text`. Either:
+- Migrate the column to use a CHECK constraint against `ENERGY_SECTORS`, or
+- Leave the column as `text` but enforce the constraint in application code via Drizzle before insert.
+
+Pick whichever is less risky for existing data. If the DB already has junk values, option 2 is safer (no failing migration) and you can clean up values in the backfill step.
+
+---
+
+## Classification Gate
+
+Create `artifacts/api-server/src/services/sector-classifier.ts`.
+
+```ts
+import type { EnergySector } from '@afrienergy/shared';
+import { ENERGY_SECTORS } from '@afrienergy/shared';
+
+export interface SectorClassificationResult {
+  sector: EnergySector | null;
+  confidence: number;      // 0..1
+  matchedKeywords: string[];
+  rejectionReason?: string;
+}
+
+interface ScrapedCandidate {
+  title: string;
+  description?: string;
+  rawText?: string;        // Full article body if the adapter has it
+  sourceUrl?: string;
+  extractedTechnology?: string; // What the LLM/heuristic guessed
+}
+
+/**
+ * Strict sector match. Returns null if the candidate does not clearly
+ * belong to one of the canonical energy sectors.
+ *
+ * Rules applied in order:
+ * 1. Hard-reject on disqualifying patterns (climate finance with no asset,
+ *    social programming, policy-only announcements, conference news, etc.)
+ * 2. If extractedTechnology is already a canonical sector, accept.
+ * 3. Keyword-score each sector against the combined text. If the top sector
+ *    scores >= threshold AND no disqualifier triggered, accept.
+ * 4. Otherwise reject.
+ */
+export function classifyEnergySector(
+  candidate: ScrapedCandidate
+): SectorClassificationResult {
+  // ... see rules below
+}
+```
+
+### Hard Rejection Patterns (disqualifiers)
+
+All patterns below are grounded in **real titles** observed in the live Rejected / Needs Source buckets on 2026-04-11 (see Live Audit Findings above).
+
+If the **title** or **description** matches any of these patterns AND does not also explicitly name a generation asset (megawatts, a named power plant, a specific project), reject immediately:
+
+**Development finance / fiscal instruments** (reason: `dev_policy_financing`)
+- `/\bDPF\d?\b|\bDPL\d?\b/i` — Development Policy Financing / Loan codes
+- `/development policy (financing|loan|operation)/i`
+- `/budget support|economic governance|fiscal consolidation/i`
+- `/private investment and productive jobs/i`
+- `/infrastructure modernization and job creation/i`
+
+**Social programs / welfare** (reason: `social_programming`)
+- `/social protection|social inclusion|socio.economic inclusion/i`
+- `/skills for (employment|economic transformation)/i`
+- `/street.connected children|child welfare|adolescents/i`
+- `/resilience opportunities and welfare|GROWTH \d/i`
+- `/youth empowerment|just transition|livelihood|community development/i`
+- `/food (and|&) nutrition security/i`
+- `/landscape management|community action for landscape/i`
+- `/housing finance|lands and sustainable investments/i`
+- `/urban transformation|jobs program/i`
+
+**E-mobility / demand-side transport** (reason: `e_mobility_not_generation`)
+- `/electric vehicle|EV (manufactur|expansion|fleet)|e.mobility/i`
+- `/electric bus|bus (deal|fleet)/i`
+- `/motorcycle fleet|e.motorcycle/i`
+  - *Exception*: if the title also matches `/charging (station|infrastructure|hub)|grid.connected (EV|charging)/i`, do NOT reject — route to `Transmission & Distribution`.
+
+**Climate / ESG finance without a named asset** (reason: `climate_finance_no_asset`)
+- `/climate.{0,20}(risk )?finance (program|platform|facility|accelerator)/i`
+- `/blended finance platform|resilient infrastructure platform/i`
+- `/carbon credit|carbon market|carbon offset/i` when text names no specific project
+- `/sustainability bond|green bond/i` unless proceeds are explicitly tied to a named energy project
+- `/climate fund|climate finance accelerator/i` as a standalone topic
+
+**Minerals / transition metals advocacy** (reason: `minerals_advocacy`)
+- `/transition minerals|critical minerals|transparency in.{0,20}minerals/i`
+- `/mining|copper|cobalt|lithium|rare earth/i` unless the text is about a captive power plant serving the mine (look for `/captive (power|plant)|\d+\s*MW.*(mine|mining)/i`)
+
+**MOUs / policy / ceremony** (reason: `mou_no_deal` / `policy_only` / `conference` / `appointment_news`)
+- `/mou signed|memorandum of understanding/i` without a specific deal size or asset
+- `/policy|regulatory|white paper|feasibility study/i` as the primary topic
+- `/conference|summit|workshop|panel discussion|COP\d{2}/i`
+- `/appointment|new (ceo|cfo|vice president)|resignation|board (change|reshuffle)/i`
+
+Each rejection sets `rejectionReason` to the code in parentheses. Codes appear in telemetry and make rules tunable from the admin panel.
+
+### Sector Keyword Scoring
+
+For each canonical sector, maintain a keyword list. Score = count of keyword hits in combined title + description. Pick the sector with the highest score. If the highest score is `< 2`, reject with reason `"no_sector_signal"`. If two sectors tie above threshold, accept the one that matches `extractedTechnology` when present, otherwise reject with reason `"ambiguous_sector"`.
+
+Suggested starter keyword lists:
+
+- **Solar**: solar, PV, photovoltaic, concentrated solar, CSP, solar farm, solar plant, solar park
+- **Wind**: wind farm, wind turbine, wind power, offshore wind, onshore wind
+- **Hydro**: hydropower, hydroelectric, dam, run-of-river, pumped storage
+- **Geothermal**: geothermal, steam field, wellhead, Olkaria, Menengai (named Kenyan geothermal fields — high-confidence tokens)
+- **Biomass**: biomass, biogas, biofuel, waste-to-energy, bagasse
+- **Nuclear**: nuclear reactor, nuclear power plant, SMR, small modular reactor
+- **Oil & Gas**: LNG, gas field, oil field, upstream, FPSO, refinery, pipeline, crude oil (reject pure pipeline-infra if no deal attached — see disqualifiers)
+- **Transmission & Distribution**: transmission line, grid extension, substation, interconnector, HVDC, grid expansion
+- **Battery Storage**: battery storage, BESS, lithium-ion storage, grid-scale battery
+- **Green Hydrogen**: green hydrogen, electrolyzer, ammonia (green), H2 project
+
+**Geothermal vs. Biomass collision fix (Bug 2):** The classifier must match `geothermal` as an **exclusive** Geothermal token. If the text contains `geothermal`, score Biomass at zero for that candidate regardless of other matches. This prevents Olkaria/Menengai from being tagged "Bioenergy" as they currently are. Add a test case for `"Menengai II Geothermal"` asserting `Geothermal`, not `Biomass`.
+
+Keywords live in the same file so they're reviewable together. Do not move them into the DB.
+
+### Confidence Score
+
+Return `confidence = min(1, keywordHits / 4)`. Adapters that wrap this classifier can combine this signal with their own extraction confidence. Existing auto-approval thresholds (≥0.85 → approved, 0.65–0.84 → pending) continue to apply downstream.
+
+---
+
+## World Bank Adapter Fix (Classifier Defaulting Bug)
+
+**This is the single highest-impact fix in the PR.** The live audit showed ~90 items in the Rejected bucket, all labeled "Solar". None of them are solar. The cause is the World Bank adapter defaulting `technology` to `'Solar'` when extraction fails.
+
+Find the adapter under `artifacts/api-server/src/services/scraper/adapters/` (likely `worldbank.ts` or `worldbank-api.ts`). Locate the spot where `technology` is assigned and:
+
+1. Replace any `technology: 'Solar'` fallback with `technology: null` (or remove the field entirely — let the gate handle it downstream).
+2. Pass the candidate through `classifyEnergySector` before returning it.
+3. If the classifier returns `null`, return `null` from the adapter's per-item handler so the runner increments rejection telemetry instead of staging a broken row.
+
+**Audit every adapter for the same pattern.** Any `technology: '<hardcoded>'` fallback that is not derived from the actual text must be removed. Grep for:
+
+```
+grep -rn "technology:\s*['\"]" artifacts/api-server/src/services/scraper/adapters/
+```
+
+Anything that looks like a bare default string assignment rather than a computed value is a bug.
+
+---
+
+## Sector Name Reconciliation
+
+The live DB contains sector labels not in the canonical enum:
+
+| Live value | Canonical value |
+|---|---|
+| `Bioenergy` | `Biomass` |
+| `Grid Expansion` | `Transmission & Distribution` |
+
+**Decision:** update extractors to emit canonical names. Do **not** add aliases. Aliases multiply the valid-string surface area and create permanent ambiguity.
+
+Implementation:
+1. Search the adapters for hardcoded `'Bioenergy'` and `'Grid Expansion'` strings and replace with the canonical names.
+2. In the backfill script (below), rewrite any existing `energy_projects` rows whose `technology = 'Bioenergy'` to `'Biomass'` and `technology = 'Grid Expansion'` to `'Transmission & Distribution'`. This is the **one** mutation the backfill script is allowed to make. All other cleanup stays review-only.
+3. Add a unit test that asserts `isEnergySector('Bioenergy') === false` and `isEnergySector('Grid Expansion') === false` so future drift gets caught at build time.
+
+---
+
+## Auto-Purge of Rejected Items (No Clutter, No DB Bloat)
+
+**Rejected items must never occupy space in `energy_projects`.** The gate's job is to stop them at the door, not to stage them in a "Rejected" bucket the operator has to sweep later. The current ~90-item Rejected bucket is itself the clutter this PR exists to eliminate.
+
+### Rules
+
+1. **Pre-insert rejection (primary path):** When `classifyEnergySector` returns `null`, the candidate is dropped immediately. **No row is written to `energy_projects`.** The only record of it is:
+   - An increment to `scraper_runs.rejected_non_energy_count` for the current run
+   - An entry (title, URL, reason, adapter) in `scraper_runs.rejection_log` (bounded at 100 per run)
+   - A structured log line (`scraper.rejected` with the same fields) for Railway logs
+
+   That's it. No row in `energy_projects`, no row in any "rejected" table, no staging area.
+
+2. **Existing Rejected-bucket purge (one-time cleanup):** The ~90 World Bank adapter rows currently sitting in the admin's "Rejected" bucket must be hard-deleted as part of this PR's backfill script. Add a third allowed mutation to `backfill-sector-classification.ts`:
+
+   ```sql
+   DELETE FROM energy_projects
+   WHERE status = 'rejected'
+     AND classifyEnergySector(projectName || ' ' || COALESCE(description, '')) IS NULL;
+   ```
+
+   (Use a TypeScript loop, not raw SQL, so the same classifier function runs.) Log every deletion to the backfill report (title + id + reason) so Daniel has an auditable record of what was removed. Print a summary count at the end.
+
+3. **Ongoing auto-purge of stale Rejected/Needs-Source rows:** Add a lightweight cron or Railway scheduled job (reuse whatever pattern the project already has — do not introduce a new scheduler) that runs once per day and:
+   - Deletes any `energy_projects` row with `status IN ('rejected')` older than 7 days.
+   - Deletes any `energy_projects` row with `status = 'needs_source'` older than 30 days with no reviewer action.
+   - Logs counts to `scraper_runs` or a new `purge_runs` table (single row per run, cheap).
+
+   Configurable retention windows live in `lib/shared/src/constants.ts`:
+   ```ts
+   export const PURGE_RETENTION_DAYS = {
+     rejected: 7,
+     needsSource: 30,
+   } as const;
+   ```
+
+4. **Telemetry-log trimming:** `scraper_runs.rejection_log` is capped at 100 entries per run, and `scraper_runs` itself is purged to the last 90 days by the same daily job. Rejection telemetry is for **trend watching, not forensic retention**.
+
+5. **Admin UI:** The Data Pipeline tab's "Rejected" bucket becomes a **live view of the last 7 days only**, sourced from `scraper_runs.rejection_log` rather than `energy_projects`. The bucket should never again fill up with rows that need manual cleanup.
+
+### Rationale
+
+The current admin dashboard treats the Rejected bucket as a permanent ledger. That's how we ended up with 90 mislabeled "Solar" rows cluttering both the admin UI and the database. The correct model is: **rejection is a runtime event, not a stored entity**. Keep a short tail of telemetry for tuning, delete everything else.
+
+### Safety
+
+- All deletions are gated on `classifyEnergySector` returning `null` — no row with a real sector match is ever auto-deleted.
+- The daily purge runs in a single transaction per batch so a crash mid-run leaves the DB consistent.
+- A one-line feature flag `PURGE_ENABLED=true` (env var) lets Daniel disable the job instantly if anything looks wrong in the first 48 hours after deploy.
+
+---
+
+## Gate Integration
+
+Every adapter funnel in `artifacts/api-server/src/services/scraper/` must call `classifyEnergySector` before staging the candidate for insertion. The pipeline should look like:
+
+```
+fetch → parse → extract candidate → classifyEnergySector → [gate] → stage → insert
+```
+
+If `classifyEnergySector` returns `sector: null`:
+1. **Do not** create a row in `energy_projects`.
+2. **Do not** create a row in any review queue.
+3. Increment `scraper_runs.rejected_non_energy_count` for the current run.
+4. Append to `scraper_runs.rejection_log` (JSON array) a record of:
+   ```json
+   {
+     "title": "...",
+     "sourceUrl": "...",
+     "reason": "carbon_credit_no_asset",
+     "matchedKeywords": [],
+     "adapter": "dfi:afdb",
+     "rejectedAt": "2026-04-11T..."
+   }
+   ```
+5. Emit a structured log line: `sector_gate.reject` with the same fields.
+
+If `classifyEnergySector` returns a sector, store it on the staged candidate as the authoritative `technology` value and proceed with the existing flow.
+
+### New columns on `scraper_runs`
+
+Add to `lib/db/src/schema/scraper.ts` and to `migrate.ts`:
+
+```sql
+ALTER TABLE scraper_runs
+  ADD COLUMN IF NOT EXISTS rejected_non_energy_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rejection_log JSONB DEFAULT '[]'::jsonb;
+```
+
+Rejection log is **bounded**: append only up to 100 entries per run to prevent unbounded growth. After 100, increment the counter but drop the sample. This is telemetry, not a permanent rejection store.
+
+---
+
+## Admin Dashboard Surface
+
+Add a small panel to the admin Data Pipeline tab showing, for the most recent scraper run:
+
+- Total fetched
+- Total rejected (non-energy)
+- Top 5 rejection reasons with counts
+- "View sample" button that expands the first 10 entries from `rejection_log`
+
+This gives you a feedback loop for tuning. The panel is read-only.
+
+File: whichever file currently renders the Data Pipeline tab (check `artifacts/energy-tracker/src/pages/admin.tsx` or its child components).
+
+---
+
+## Backfill (One-Time, Review-Only)
+
+Create `artifacts/api-server/scripts/backfill-sector-classification.ts`:
+
+1. `SELECT id, projectName, description, technology FROM energy_projects;`
+2. **Sector name normalization (the one allowed mutation):**
+   - `UPDATE energy_projects SET technology = 'Biomass' WHERE technology = 'Bioenergy';`
+   - `UPDATE energy_projects SET technology = 'Transmission & Distribution' WHERE technology = 'Grid Expansion';`
+   - Log counts of both rewrites to the report.
+3. For each remaining row, run it through `classifyEnergySector`.
+4. If the result is `null` OR disagrees with the existing `technology` value, write the row to `/tmp/sector-backfill-report.json` with the classifier's opinion.
+5. Separately, detect duplicates by `projectName` (case-insensitive) and append a `duplicates` section to the report (surfaces the REIPPPP Bid Window 7 triple-count observed in the audit).
+6. **Do not mutate any rows beyond the two name-normalization UPDATEs above.** Everything else is a review-only audit pass.
+7. At the end, print a summary: total rows, name-drift fixes applied, rows flagged for review, duplicate groups found, breakdown by rejection reason.
+
+After the script runs, hand the report back to Daniel for review. Any rows he confirms as bad will be cleaned up manually via the admin Projects table UI (or a follow-up PR if volume is high). Expected to flag ~90 rows currently sitting in the Rejected bucket that are mislabeled "Solar" — these are the World Bank adapter defaults.
+
+---
+
+## Files to Touch
+
+New:
+- `lib/shared/src/energy-sectors.ts`
+- `artifacts/api-server/src/services/sector-classifier.ts`
+- `artifacts/api-server/src/services/sector-classifier.test.ts`
+- `artifacts/api-server/scripts/backfill-sector-classification.ts`
+
+Modified:
+- `lib/shared/src/index.ts` — export new module
+- `lib/db/src/schema/scraper.ts` — add two columns to `scraper_runs`
+- `artifacts/api-server/src/migrate.ts` — add `ALTER TABLE scraper_runs ADD COLUMN IF NOT EXISTS …` for both new columns
+- Every adapter file under `artifacts/api-server/src/services/scraper/adapters/` — insert gate call before staging
+- `artifacts/api-server/src/services/scraper/runner.ts` (or wherever the run loop lives) — initialize `rejection_log` to `[]` and bump counters
+- Whichever admin dashboard component renders the Data Pipeline panel — add the rejection telemetry widget
+
+Do **not** touch:
+- Confidence thresholds in auto-approval logic
+- Reviewer queue logic
+- Community contribution submission flow (that has its own `needsExtraScrutiny` path)
+- World Bank legacy scraper route (still unported, leave alone)
+
+---
+
+## Test Plan
+
+### Unit tests (`sector-classifier.test.ts`)
+
+**Every test title below is a real string observed in the live admin panel on 2026-04-11.** Do not replace them with synthetic examples.
+
+Positive cases (must classify correctly):
+1. `"Menengai II Geothermal"` → `Geothermal` *(regression test for Bug 2)*
+2. `"Olkaria IV"` → `Geothermal` *(regression test for Bug 2)*
+3. `"Olkaria Expansion"` → `Geothermal` *(regression test for Bug 2)*
+4. `"Shell Bonga North FID Offshore Nigeria"` → `Oil & Gas`
+5. `"Nachtigal Hydro Power Project"` → `Hydro`
+6. `"REIPPPP Bid Window 7"` → `Solar` *(assuming the bid window is solar — otherwise accept ambiguous_sector)*
+7. `"Scatec reaches financial close on 100 MW solar project in Egypt"` → `Solar`
+
+Negative cases (must return `null`) — **all from live Rejected bucket**:
+1. `"Kiira Motors EV Expansion"` — reason: `e_mobility_not_generation`
+2. `"Kiira Motors 450-Bus Electric Bus Deal"` — reason: `e_mobility_not_generation`
+3. `"Spiro Electric Motorcycle Fleet"` — reason: `e_mobility_not_generation`
+4. `"Nigeria AfDB Economic Governance and Energy Transition Loan"` — reason: `dev_policy_financing`
+5. `"Senegal DPF"` — reason: `dev_policy_financing`
+6. `"Cote d'Ivoire Private Investment and Productive Jobs DPF1"` — reason: `dev_policy_financing`
+7. `"South Africa Infrastructure Modernization and Job Creation DPL"` — reason: `dev_policy_financing`
+8. `"Integrated Social Protection for Resilience and Opportunity"` — reason: `social_programming`
+9. `"Street-Connected Children and Adolescents Socio-Economic Inclusion"` — reason: `social_programming`
+10. `"Skills for Employment and Economic Transformation Mozambique"` — reason: `social_programming`
+11. `"Generating Resilience Opportunities and Welfare for a Thriving Egypt (GROWTH) 2"` — reason: `social_programming`
+12. `"Morocco Climate & Risk Finance Program"` — reason: `climate_finance_no_asset`
+13. `"Blended Finance Platform for Resilient Infrastructure"` — reason: `climate_finance_no_asset`
+14. `"Sudan Food and Nutrition Security"` — reason: `social_programming`
+15. `"Housing Finance Lands and Sustainable Investments"` — reason: `social_programming`
+16. `"Kinshasa Urban Transformation and Jobs Program"` — reason: `social_programming`
+17. `"Support to Transparency in Energy Transition Minerals Development"` — reason: `minerals_advocacy`
+18. `"Second Community Action for Landscape Management"` — reason: `social_programming`
+
+Edge cases:
+1. A copper mine deal that explicitly includes a captive 50 MW solar plant → `Solar` (because the energy asset is named and sized)
+2. A green bond whose prospectus names a specific solar project → `Solar`
+3. An EV item that mentions grid-connected charging infrastructure → `Transmission & Distribution` (not rejected)
+4. An item matching two sectors weakly → `null` with reason `ambiguous_sector`
+5. `isEnergySector('Bioenergy')` → `false` *(drift guard)*
+6. `isEnergySector('Grid Expansion')` → `false` *(drift guard)*
+
+### Integration test
+
+Run the backfill script against the Replit dev DB. The expected output:
+- Clean energy deals flagged as `confirmed_match`
+- Non-energy items flagged with a rejection reason
+- Report written to `/tmp/sector-backfill-report.json`
+
+### Manual verification
+
+After deploy:
+1. Trigger one manual scraper run from admin.
+2. Check the Data Pipeline tab — the new rejection panel should render.
+3. `SELECT rejected_non_energy_count, jsonb_array_length(rejection_log) FROM scraper_runs ORDER BY id DESC LIMIT 1;` should show non-zero for at least one of the DFI sources if the feed currently contains climate-finance noise.
+4. Confirm that no new junk rows have landed in `energy_projects` since the deploy.
+
+---
+
+## Rollout Order
+
+This PR **must** land **after**:
+- Cleanup PR A (migration hotfix) — because PR A is the first deploy that creates all prerequisite tables on Railway.
+- Cleanup PR B (/discovery deletion) — to avoid merge conflicts in adapter files.
+- Cleanup PR C (missing badges) — unrelated but keeps the sequencing clean.
+
+Ship PR D as a standalone merge after C. Do not couple it to any earlier PR.
+
+---
+
+## Definition of Done
+
+- [ ] `lib/shared/src/energy-sectors.ts` exists and exports `ENERGY_SECTORS`, `EnergySector`, `isEnergySector`
+- [ ] `sector-classifier.ts` implemented with all hard-reject rules and keyword scoring
+- [ ] **World Bank adapter no longer defaults `technology` to `'Solar'`** (Bug 1 fix verified by grep)
+- [ ] **Geothermal keyword matches exclusively as Geothermal, not Biomass** (Bug 2 fix, regression test passes)
+- [ ] **No adapter emits `'Bioenergy'` or `'Grid Expansion'`** (Bug 3 fix — canonical names only)
+- [ ] Every adapter in `ADAPTER_REGISTRY` calls the gate before staging
+- [ ] Unit tests pass (all 18 negative cases from the live audit + all positive/edge cases)
+- [ ] `scraper_runs` has two new columns, migration runs cleanly on both Replit dev and Railway prod
+- [ ] Admin Data Pipeline tab shows the rejection telemetry panel
+- [ ] Backfill script executed once; Bioenergy→Biomass and Grid Expansion→T&D rewrites applied; report saved; flagged rows reviewed by Daniel
+- [ ] One manual scraper run post-deploy confirms rejections are being counted and no non-energy rows have landed
+- [ ] Post-deploy verification: `SELECT COUNT(*) FROM energy_projects WHERE technology = 'Solar'` shows a drop of ~90 compared to pre-deploy (the World Bank defaults are now rejected)
+- [ ] **Auto-purge job deployed and running**: daily cron deletes `rejected` rows older than 7 days and stale `needs_source` rows older than 30 days
+- [ ] **Existing 90-item Rejected bucket hard-deleted** by the backfill script, with the deletions logged to the report
+- [ ] `PURGE_ENABLED` env var wired up as a kill switch
+- [ ] Admin "Rejected" bucket now sources from `scraper_runs.rejection_log` (last 7 days only), not from `energy_projects`
+- [ ] No touch to confidence thresholds, reviewer queue, contributor flow, or badges
+
+---
+
+## Non-Goals / Follow-Ups (Not This PR)
+
+- Machine-learning classifier. Keyword + disqualifier rules are intentional — they're auditable and tunable by a human.
+- Multi-sector projects (e.g. hybrid solar + storage). Pick the dominant sector via highest keyword score for now. Multi-sector support can come in a later PR.
+- Language support beyond English. All DFI feeds we ingest today are English.
+- Confidence threshold retuning. Stays as-is (≥0.85 → approved, 0.65–0.84 → pending).
