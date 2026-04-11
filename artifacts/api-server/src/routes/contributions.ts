@@ -574,7 +574,7 @@ router.post("/admin/contributor-submissions/:id/review", adminAuthMiddleware, as
       if (sub.linkedProjectId) {
         await db.update(projectsTable).set({ reviewStatus: "approved" }).where(eq(projectsTable.id, sub.linkedProjectId));
       }
-      await awardBadges(sub.contributorId);
+      await awardBadges(sub.contributorId, id);
     } else {
       await db.update(contributorSubmissionsTable).set({ status: "rejected", reviewedAt: now, reviewedBy: reviewerEmail ?? "admin", rejectionReason: rejectionReason ?? null }).where(eq(contributorSubmissionsTable.id, id));
       if (sub.linkedProjectId) {

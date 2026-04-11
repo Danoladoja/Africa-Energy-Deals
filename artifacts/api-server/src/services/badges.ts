@@ -2,10 +2,14 @@
  * Badge awarding service.
  * Called after every contributor_submissions approval.
  * Idempotent — existing badges are never re-awarded.
+ *
+ * awardBadges(contributorId, justApprovedSubmissionId?)
+ *   - justApprovedSubmissionId: the ID of the submission that was just approved.
+ *     Required for scoop detection. Safe to omit — scoop check is skipped when absent.
  */
 
-import { db, contributorsTable, contributorSubmissionsTable, contributorBadgesTable } from "@workspace/db";
-import { eq, and, count, countDistinct, sql } from "drizzle-orm";
+import { db, contributorsTable, contributorSubmissionsTable, contributorBadgesTable, projectsTable } from "@workspace/db";
+import { eq, and, count, countDistinct } from "drizzle-orm";
 
 const TIER_RULES: { slug: string; threshold: number }[] = [
   { slug: "bronze",   threshold: 1   },
@@ -15,6 +19,8 @@ const TIER_RULES: { slug: string; threshold: number }[] = [
 ];
 
 const TIER_ORDER = ["bronze", "silver", "gold", "platinum"];
+
+const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 
 async function hasBadge(contributorId: number, badgeSlug: string): Promise<boolean> {
   const rows = await db
@@ -36,7 +42,7 @@ async function award(contributorId: number, badgeSlug: string, metadata?: Record
   console.log(`[Badges] Awarded ${badgeSlug} to contributor ${contributorId}`);
 }
 
-export async function awardBadges(contributorId: number): Promise<void> {
+export async function awardBadges(contributorId: number, justApprovedSubmissionId?: number): Promise<void> {
   try {
     const [stats] = await db
       .select({ approvedCount: count() })
@@ -142,6 +148,73 @@ export async function awardBadges(contributorId: number): Promise<void> {
 
     if ((countryStats?.distinctCountries ?? 0) >= 5) {
       await award(contributorId, "cross_border", { countries: countryStats.distinctCountries });
+    }
+
+    // ── corroborator — 10+ approved with both URLs from trusted domains ──────
+    // needsExtraScrutiny = false means both URLs were on the trusted domain allowlist.
+    // The flag is set once at submission time and never changed.
+    const [corrStats] = await db
+      .select({ corroboratorCount: count() })
+      .from(contributorSubmissionsTable)
+      .where(
+        and(
+          eq(contributorSubmissionsTable.contributorId, contributorId),
+          eq(contributorSubmissionsTable.status, "approved"),
+          eq(contributorSubmissionsTable.needsExtraScrutiny, false),
+        ),
+      );
+
+    if ((corrStats?.corroboratorCount ?? 0) >= 10) {
+      await award(contributorId, "corroborator", {
+        approvedCorroboratedCount: corrStats?.corroboratorCount,
+      });
+    }
+
+    // ── scoop — community submission predated scraper discovery by 48h+ ──────
+    // Two qualifying scenarios (checked with OR):
+    //   A. The linked energy_projects row has communitySubmissionId === this submission's id.
+    //      This means the community submission created the project — scrapers never found it
+    //      independently. The community reporter was first by definition.
+    //   B. The submission's createdAt predates the project's discoveredAt by 48+ hours.
+    //      This applies when a scraper later found the same deal. In this model both would
+    //      produce separate energy_projects rows; this branch handles future merge/dedup flows.
+    //
+    // Only one scoop badge is ever awarded per contributor (first qualifying submission wins).
+    if (justApprovedSubmissionId !== undefined) {
+      const [sub] = await db
+        .select({
+          id: contributorSubmissionsTable.id,
+          linkedProjectId: contributorSubmissionsTable.linkedProjectId,
+          createdAt: contributorSubmissionsTable.createdAt,
+        })
+        .from(contributorSubmissionsTable)
+        .where(eq(contributorSubmissionsTable.id, justApprovedSubmissionId))
+        .limit(1);
+
+      if (sub?.linkedProjectId) {
+        const [ep] = await db
+          .select({
+            id: projectsTable.id,
+            communitySubmissionId: projectsTable.communitySubmissionId,
+            discoveredAt: projectsTable.discoveredAt,
+          })
+          .from(projectsTable)
+          .where(eq(projectsTable.id, sub.linkedProjectId))
+          .limit(1);
+
+        if (ep) {
+          const isCommunityCreated = ep.communitySubmissionId === justApprovedSubmissionId;
+          const leadMs = ep.discoveredAt && sub.createdAt
+            ? ep.discoveredAt.getTime() - sub.createdAt.getTime()
+            : 0;
+          const isTimingScoop = !isCommunityCreated && leadMs >= FORTY_EIGHT_HOURS_MS;
+
+          if (isCommunityCreated || isTimingScoop) {
+            const leadDays = isTimingScoop ? Math.round(leadMs / (24 * 60 * 60 * 1000)) : null;
+            await award(contributorId, "scoop", { projectId: ep.id, leadDays });
+          }
+        }
+      }
     }
 
   } catch (err) {

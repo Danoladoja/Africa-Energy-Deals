@@ -14,7 +14,7 @@ const BADGE_INFO: Record<string, { label: string; color: string; desc: string }>
   first_light: { label: "First Light", color: "text-yellow-300", desc: "First community deal ever approved" },
   multi_sector: { label: "Multi-Sector", color: "text-blue-400", desc: "Approved across 3+ sub-sectors" },
   cross_border: { label: "Cross-Border", color: "text-green-400", desc: "Approved across 5+ countries" },
-  corroborator: { label: "Corroborator", color: "text-teal-400", desc: "10 submissions with verified sources" },
+  corroborator: { label: "Corroborator", color: "text-teal-400", desc: "10 approved submissions with both source URLs from trusted publications" },
   scoop: { label: "Scoop", color: "text-purple-400", desc: "First to report a deal" },
 };
 

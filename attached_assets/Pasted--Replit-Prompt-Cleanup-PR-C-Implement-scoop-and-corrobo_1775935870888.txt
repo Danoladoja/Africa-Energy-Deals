@@ -1,0 +1,111 @@
+# Replit Prompt — Cleanup PR C: Implement `scoop` and `corroborator` Badges (P3)
+
+**Repo:** AfriEnergy Tracker Replit monorepo (`artifacts/api-server/src/services/badges.ts`)
+**Priority:** Ship after Cleanup PRs A and B are merged.
+**Context:** The `RECOVERY_AUDIT.md` found that two badges (`scoop` and `corroborator`) are referenced in the badge info maps on `contributor-badge.tsx` and `contributor-profile.tsx` — meaning users will see them listed on the site — but `services/badges.ts` has no awarding logic for either. They will never be earned until this is added. This PR adds the two awarding rules.
+
+**Scope is deliberately tiny.** This PR touches only `services/badges.ts` (plus any tests).
+
+---
+
+## GOAL
+
+Make `scoop` and `corroborator` badges actually awardable, following the same idempotent pattern the other narrative badges use.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### Badge 1 — `corroborator`
+
+**Rule:** Award when a contributor has at least 10 approved submissions where **both** `newsUrl` and `newsUrl2` resolved to trusted domains at submission time.
+
+**Implementation approach:**
+
+- The `contributor_submissions.needsExtraScrutiny` flag is set to `true` whenever one or both URLs were outside the trusted domain allowlist. The inverse — `needsExtraScrutiny = false` — means both URLs were on the allowlist.
+- Query: count `contributor_submissions` where `contributorId = :contributor` AND `status = 'approved'` AND `needsExtraScrutiny = false`.
+- If count ≥ 10 and the contributor does not already have the `corroborator` badge (`hasBadge()` guard), insert a new `contributor_badges` row with `badgeSlug = 'corroborator'`, `awardedAt = now()`, and `metadata = { approvedCorroboratedCount: <count> }`.
+
+Add this as a new branch in `awardBadges()` after the existing narrative badge checks.
+
+### Badge 2 — `scoop`
+
+**Rule:** Award on approval of a community submission whose deal predates any scraper-sourced mention of the same project by at least 48 hours.
+
+**Implementation approach:**
+
+- When `awardBadges()` is called with the contributor of a newly-approved submission, find the `energy_projects` row linked to that submission via `communitySubmissionId`.
+- Look at that project's `discoveredAt` (or equivalent first-seen timestamp).
+- Compare it to the submission's `createdAt`.
+- If the submission's `createdAt` is earlier than the project's `discoveredAt` by at least 48 hours, this submission is a "scoop" — the contributor reported the deal before the scraper system found it.
+- Also valid: if the `energy_projects` row was **created** by this community submission (i.e., no scraper ever found it), that is also a scoop regardless of timestamps.
+- If either condition is true and the contributor does not already have the `scoop` badge, insert a new `contributor_badges` row with `badgeSlug = 'scoop'`, `awardedAt = now()`, and `metadata = { projectId: <id>, leadDays: <days> }`.
+
+**Design note:** `scoop` is the first narrative badge whose rule depends on the specific submission being approved, not just the contributor's aggregate stats. `awardBadges()` currently takes only `contributorId`. You will need to extend the signature to accept the approved submission ID as well: `awardBadges(contributorId, justApprovedSubmissionId?)`. Update the call site in `contributions.ts:577` to pass the submission ID.
+
+If a contributor has multiple scoops, the badge is still awarded only once (first wins). Do **not** award one `scoop` per qualifying submission — this is a narrative badge, not a tier.
+
+### Info map alignment
+
+Confirm the `scoop` and `corroborator` entries in the badge info maps (`contributor-badge.tsx`, `contributor-profile.tsx`) match the actual awarding rules. If the existing descriptions are inaccurate (e.g., describe different criteria), update them to match the implementation.
+
+### Tests
+
+Add tests for both badges:
+
+- `corroborator`: contributor with 9 `needsExtraScrutiny=false` approvals — not awarded. Contributor with 10 — awarded exactly once. Contributor with 15 — still awarded once (idempotent). Contributor with 10 approvals where 2 have `needsExtraScrutiny=true` — not awarded (only 8 qualify).
+- `scoop`: approved submission that predates project `discoveredAt` by 72 hours — awarded. Approved submission that predates by 24 hours — not awarded. Approved submission that created a brand-new project — awarded. Contributor with an existing `scoop` badge earning a second qualifying submission — still only one badge (idempotent).
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** change the tier badges (bronze/silver/gold/platinum).
+- Do **not** change the other narrative badges (`first_light`, `country_specialist_*`, `multi_sector`, `cross_border`).
+- Do **not** change the trusted domains list.
+- Do **not** change the submission approval flow beyond passing the submission ID to `awardBadges()`.
+- Do **not** touch migrations.
+- Do **not** touch the magic-link auth systems.
+- Do **not** delete `/discovery`.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `services/badges.ts` has awarding logic for both `scoop` and `corroborator`.
+2. `awardBadges()` signature accepts an optional `justApprovedSubmissionId` parameter.
+3. The call site in `contributions.ts` passes the submission ID.
+4. Both badges use the existing `hasBadge()` guard to prevent duplicate awards.
+5. Tests cover the scenarios listed above.
+6. Manually approving a qualifying submission in the `/admin/contributors` surface produces the expected badge in the contributor's profile.
+7. Existing badges still work unchanged (regression check via existing tests).
+
+---
+
+## VERIFICATION STEPS
+
+1. Run the badge tests. All pass.
+2. In a local DB, seed: a contributor with 10 approved submissions, all with `needsExtraScrutiny = false`. Call `awardBadges()`. Confirm `corroborator` was awarded.
+3. In a local DB, seed: a community submission dated 2026-01-01, linked to an `energy_projects` row with `discoveredAt = 2026-01-05`. Approve the submission. Confirm `scoop` was awarded.
+4. In a local DB, seed: a contributor with the `scoop` badge already. Approve another qualifying submission. Confirm only one `scoop` badge exists.
+
+---
+
+## DELIVERABLES
+
+1. Single PR touching `services/badges.ts`, the `contributions.ts` call site, the two info maps, and tests.
+2. PR description listing:
+   - The awarding rule for each badge in plain language
+   - The signature change to `awardBadges()`
+   - Confirmation that existing badges still work
+   - Screenshot of a test contributor profile showing both new badges after seeding the qualifying data
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING
+
+1. Does `energy_projects` have a `discoveredAt` column, or is the first-seen timestamp stored elsewhere (e.g., `createdAt`, or on `scraper_runs`)? The `scoop` rule depends on knowing the project's first scraper mention.
+2. If a community submission creates a brand-new project (no prior scraper discovery), is there a clean signal that "this project was created by a community submission" — e.g., `energy_projects.source = 'community'` or similar? The `scoop` rule's "new project" branch depends on this.
+3. Is `needsExtraScrutiny` set exactly once at submission time and never updated, or can it change later? If it can change, the `corroborator` query needs to use a snapshot taken at approval time, not the current value.
+
+Don't guess.
