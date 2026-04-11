@@ -1,0 +1,108 @@
+# Replit Prompt — PR1b: DFI Adapters Batch 2 (Proparco, FMO, BII)
+
+**Repo:** `Danoladoja/Africa-Energy-Deals` (master branch)
+**Context:** PR1a landed the `BaseSourceAdapter` base class, three DFI adapters (AfDB, IFC, DFC), RSS adapter, APO Group, and Google Alerts. This PR adds three more DFI adapters using the exact same pattern established in PR1a. It should be a small, mechanical PR — the proof that the abstraction works.
+
+Depends on PR1a being merged.
+
+---
+
+## GOAL
+
+Add three more DFI adapters by inheriting from `BaseSourceAdapter` and registering them. No base class changes. No schema changes. No new UI. Just three adapter files plus registry entries plus tests.
+
+If this PR requires touching any shared infrastructure (base class, rate limiter, cache layer, admin UI, schema), **stop and flag it** — that's a signal the PR1a abstraction has a gap and we need to fix the base rather than work around it in the adapter.
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### Adapter 1 — `DFIProparcoAdapter`
+
+- Institution: Proparco (French DFI, AFD Group)
+- Source: Proparco public project disclosure list
+- Filter: energy sector, African countries
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:proparco`
+- Inherits from `BaseSourceAdapter`
+
+### Adapter 2 — `DFIFMOAdapter`
+
+- Institution: FMO (Dutch entrepreneurial development bank)
+- Source: FMO public project disclosure
+- Filter: energy sector, African countries
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:fmo`
+- Inherits from `BaseSourceAdapter`
+
+### Adapter 3 — `DFIBIIAdapter`
+
+- Institution: British International Investment (formerly CDC)
+- Source: BII public portfolio list
+- Filter: energy sector, African countries
+- Schedule: daily
+- `defaultConfidence`: `0.90`
+- Key: `dfi:bii`
+- Inherits from `BaseSourceAdapter`
+
+### Registry and tests
+
+- Register all three in the adapter registry.
+- Write happy-path + failure-path tests for each, following the pattern from the PR1a tests.
+- No base class changes. No new shared helpers.
+
+---
+
+## STOP CONDITIONS
+
+You **must** stop and ask before proceeding if any of the following are true:
+
+1. A DFI source requires an API key or registration. Do not sign up on behalf of the project.
+2. A DFI source blocks programmatic access or has no usable disclosure endpoint. Document what you found and ask whether to skip, defer, or use a scraping fallback.
+3. Normalising a DFI's response requires a new field on `CandidateDraft` that doesn't exist yet. That's a signal the base shape is incomplete and we should add it deliberately, not ad-hoc.
+4. Any adapter needs behaviour that the `BaseSourceAdapter` doesn't provide (new retry rules, a different auth header mechanism, etc.). That's a signal the base class needs extension — flag it and wait for a decision before forking behaviour inside the adapter.
+
+---
+
+## OUT OF SCOPE
+
+- No base class changes.
+- No new shared helpers.
+- No new UI.
+- No new tables.
+- No changes to the RSS adapter, World Bank adapter, or anything touched in PR1a.
+- No community submissions, badges, leaderboards.
+- No reviewer auth changes.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. Running `npm run scraper:run -- --adapter=dfi:proparco` pulls fresh Proparco rows and writes candidates with `source = 'dfi:proparco'`.
+2. Same for `dfi:fmo` and `dfi:bii`.
+3. All three adapters appear in the Admin Pipeline scraper run history.
+4. Tests for each adapter pass.
+5. Existing tests (from PR1a and earlier) still pass with zero modifications.
+6. The PR diff is overwhelmingly three new adapter files + three registry entries + three test files. If the diff touches more than that, explain why in the PR description.
+7. PR description lists any new env vars needed on Railway for these three sources (likely none, but confirm).
+
+---
+
+## DELIVERABLES
+
+1. Small, mechanical PR against master.
+2. PR description listing:
+   - The three new adapter files
+   - Registry diff
+   - Any stop-condition findings and how they were resolved
+3. A one-line confirmation in the PR description: **"PR1a abstraction held — zero base class or shared helper changes required."** If you can't honestly write that line, flag the gap instead.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING
+
+1. Has PR1a been merged and deployed? If not, stop — this PR depends on it.
+2. Is there a documented example in PR1a's description showing the exact diff for adding a new adapter? (PR1a should have included a worked Proparco example.) Use it as the template.
+3. Do Proparco, FMO, or BII require API registration? If yes, stop and ask.
