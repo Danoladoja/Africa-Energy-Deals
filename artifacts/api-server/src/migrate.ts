@@ -9,6 +9,19 @@
  *  - Always use ADD COLUMN IF NOT EXISTS (idempotent, safe to run repeatedly).
  *  - Never DROP or RENAME columns here — do that manually after confirming no data loss.
  *  - Add new entries at the bottom of the relevant table section.
+ *
+ * Migration order (dependency-safe):
+ *  1. energy_projects column additions
+ *  2. newsletters column additions
+ *  3. user_emails column additions
+ *  4. scraper_runs column additions
+ *  5. CREATE TABLE scraper_sources
+ *  6. CREATE TABLE reviewers + reviewer_magic_tokens + reviewer_sessions + reviewer_audit_log
+ *  7. CREATE TABLE contributors + contributor_magic_tokens + contributor_sessions
+ *     + contributor_submissions + contributor_badges
+ *  8. ALTER TABLE energy_projects ADD COLUMN submitted_by_contributor_id (FK → contributors)
+ *  9. ALTER TABLE energy_projects ADD COLUMN community_submission_id (FK → contributor_submissions)
+ * 10. Seed scraper_sources rows
  */
 
 import { db } from "@workspace/db";
@@ -95,9 +108,63 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
-  // ── community contributions ───────────────────────────────────────────────
-  await runMigration("energy_projects.submitted_by_contributor_id", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS submitted_by_contributor_id INTEGER`);
-  await runMigration("energy_projects.community_submission_id", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS community_submission_id INTEGER`);
+  // ── reviewer tables ───────────────────────────────────────────────────────
+  // These must exist before any /api/reviewer-auth/* or /api/review/* route is hit.
+  // They were created via Drizzle push in the initial dev setup but were previously
+  // absent from this startup runner, meaning fresh deployments would crash on first use.
+
+  await runMigration("create reviewers", `
+    CREATE TABLE IF NOT EXISTS reviewers (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      display_name TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      created_by TEXT NOT NULL,
+      suspended_at TIMESTAMP,
+      suspended_by TEXT,
+      deleted_at TIMESTAMP
+    )
+  `);
+
+  await runMigration("create reviewer_magic_tokens", `
+    CREATE TABLE IF NOT EXISTS reviewer_magic_tokens (
+      id SERIAL PRIMARY KEY,
+      reviewer_id INTEGER NOT NULL REFERENCES reviewers(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await runMigration("create reviewer_sessions", `
+    CREATE TABLE IF NOT EXISTS reviewer_sessions (
+      id SERIAL PRIMARY KEY,
+      reviewer_id INTEGER NOT NULL REFERENCES reviewers(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      issued_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP
+    )
+  `);
+
+  await runMigration("create reviewer_audit_log", `
+    CREATE TABLE IF NOT EXISTS reviewer_audit_log (
+      id SERIAL PRIMARY KEY,
+      reviewer_id INTEGER,
+      action TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      metadata JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // ── contributor tables ────────────────────────────────────────────────────
+  // Placed after reviewer tables. The two energy_projects FK columns are added
+  // below, after their respective parent tables exist.
 
   await runMigration("create contributors", `
     CREATE TABLE IF NOT EXISTS contributors (
@@ -172,6 +239,77 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // ── energy_projects FK columns (must follow parent table creation) ─────────
+  // On a fresh DB these ADD COLUMN statements create the columns with inline FK
+  // constraints. On the existing DB the columns already exist as bare INTEGERs
+  // (ADD COLUMN IF NOT EXISTS is a no-op when the column is present), so the
+  // DO blocks below add the FK constraints separately.
+
+  await runMigration("energy_projects.submitted_by_contributor_id", `
+    ALTER TABLE energy_projects
+      ADD COLUMN IF NOT EXISTS submitted_by_contributor_id INTEGER REFERENCES contributors(id)
+  `);
+
+  await runMigration("energy_projects.submitted_by_contributor_id fkey (existing db)", `
+    DO $$
+    DECLARE
+      orphan_count INTEGER;
+    BEGIN
+      SELECT COUNT(*) INTO orphan_count
+      FROM energy_projects ep
+      WHERE ep.submitted_by_contributor_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM contributors c WHERE c.id = ep.submitted_by_contributor_id
+        );
+
+      IF orphan_count > 0 THEN
+        RAISE WARNING '[Migrate] Skipping FK energy_projects_submitted_by_contributor_id_fkey: % orphaned row(s) found. Fix orphans manually before re-running.', orphan_count;
+      ELSIF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'energy_projects_submitted_by_contributor_id_fkey'
+          AND conrelid = 'energy_projects'::regclass
+      ) THEN
+        ALTER TABLE energy_projects
+          ADD CONSTRAINT energy_projects_submitted_by_contributor_id_fkey
+          FOREIGN KEY (submitted_by_contributor_id) REFERENCES contributors(id);
+        RAISE NOTICE '[Migrate] Added FK energy_projects_submitted_by_contributor_id_fkey';
+      END IF;
+    END $$
+  `);
+
+  await runMigration("energy_projects.community_submission_id", `
+    ALTER TABLE energy_projects
+      ADD COLUMN IF NOT EXISTS community_submission_id INTEGER REFERENCES contributor_submissions(id)
+  `);
+
+  await runMigration("energy_projects.community_submission_id fkey (existing db)", `
+    DO $$
+    DECLARE
+      orphan_count INTEGER;
+    BEGIN
+      SELECT COUNT(*) INTO orphan_count
+      FROM energy_projects ep
+      WHERE ep.community_submission_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM contributor_submissions cs WHERE cs.id = ep.community_submission_id
+        );
+
+      IF orphan_count > 0 THEN
+        RAISE WARNING '[Migrate] Skipping FK energy_projects_community_submission_id_fkey: % orphaned row(s) found. Fix orphans manually before re-running.', orphan_count;
+      ELSIF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'energy_projects_community_submission_id_fkey'
+          AND conrelid = 'energy_projects'::regclass
+      ) THEN
+        ALTER TABLE energy_projects
+          ADD CONSTRAINT energy_projects_community_submission_id_fkey
+          FOREIGN KEY (community_submission_id) REFERENCES contributor_submissions(id);
+        RAISE NOTICE '[Migrate] Added FK energy_projects_community_submission_id_fkey';
+      END IF;
+    END $$
+  `);
+
+  // ── seed scraper_sources ──────────────────────────────────────────────────
   await runMigration("seed scraper_sources google alerts", `
     INSERT INTO scraper_sources (adapter_type, key, label, feed_url, created_by) VALUES
       ('google_alerts', 'rss:google_alerts:africa_energy_investment_mw',

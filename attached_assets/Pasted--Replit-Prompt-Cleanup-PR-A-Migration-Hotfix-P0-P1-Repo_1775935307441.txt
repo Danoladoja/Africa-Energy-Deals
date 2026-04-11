@@ -1,0 +1,153 @@
+# Replit Prompt — Cleanup PR A: Migration Hotfix (P0 + P1)
+
+**Repo:** AfriEnergy Tracker Replit monorepo (`artifacts/api-server`, `lib/db`)
+**Priority:** URGENT — ship this before anything else. This is a hotfix, not a feature PR.
+**Context:** The `RECOVERY_AUDIT.md` you produced flagged that four reviewer tables are missing from the startup migration runner. They exist in the current Replit DB because Drizzle push created them during development, but any fresh deployment will boot successfully, pass all migrations, and then hard-crash on the first reviewer route hit because the tables don't actually exist. This PR closes that gap. It also fixes the FK declaration order issue flagged as P1.
+
+**Scope is deliberately tiny.** This PR touches only `artifacts/api-server/src/migrate.ts`. Do not modify schema files, route handlers, UI, or anything else. If you find yourself editing a second file, stop and ask.
+
+---
+
+## GOAL
+
+1. Make fresh deployments survive a first reviewer route hit by adding the four missing `CREATE TABLE IF NOT EXISTS` statements to `migrate.ts`.
+2. Move the `energy_projects.submitted_by_contributor_id` and `energy_projects.community_submission_id` `ALTER TABLE` statements to run **after** the `contributors` table is created, and add `REFERENCES contributors(id)` to enforce the FK at the DB level.
+3. Verify the migration is idempotent (running it twice on an already-populated DB is a no-op).
+
+---
+
+## SCOPE — WHAT TO BUILD
+
+### Change 1 — Add reviewer tables to `migrate.ts`
+
+Add `CREATE TABLE IF NOT EXISTS` statements for all four reviewer tables, matching the Drizzle schema definitions in `lib/db/src/schema/reviewers.ts`:
+
+1. `reviewers`
+2. `reviewer_magic_tokens`
+3. `reviewer_sessions`
+4. `reviewer_audit_log`
+
+Place these **before** any contributor table entries. Reviewers have no dependency on contributors.
+
+Match column types, nullability, defaults, indexes, and unique constraints exactly as the Drizzle schema declares them. If any Drizzle column has a database-level default (e.g., `now()`, `gen_random_uuid()`), include it in the raw SQL.
+
+For any indexes or unique constraints that Drizzle creates, add matching `CREATE INDEX IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS` lines immediately after the relevant `CREATE TABLE` block.
+
+### Change 2 — Reorder FK-dependent `ALTER TABLE` statements
+
+In the current migration order:
+
+1. `scraper_runs.adapter_key` column added
+2. `CREATE TABLE scraper_sources`
+3. `energy_projects.submitted_by_contributor_id` column added ← **problem: contributors doesn't exist yet**
+4. `energy_projects.community_submission_id` column added
+5. `CREATE TABLE contributors`
+6. ...
+
+Reorder so:
+
+1. `scraper_runs.adapter_key` column
+2. `CREATE TABLE scraper_sources`
+3. `CREATE TABLE reviewers` (new from Change 1)
+4. `CREATE TABLE reviewer_magic_tokens` (new)
+5. `CREATE TABLE reviewer_sessions` (new)
+6. `CREATE TABLE reviewer_audit_log` (new)
+7. `CREATE TABLE contributors`
+8. `CREATE TABLE contributor_magic_tokens`
+9. `CREATE TABLE contributor_sessions`
+10. `CREATE TABLE contributor_submissions`
+11. `CREATE TABLE contributor_badges`
+12. `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS submitted_by_contributor_id INTEGER REFERENCES contributors(id)`
+13. `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS community_submission_id INTEGER REFERENCES contributor_submissions(id)`
+14. Seed `scraper_sources` rows
+
+The two `ALTER TABLE` statements at steps 12–13 must now include `REFERENCES ...` clauses so the FK is enforced at the DB level.
+
+### Change 3 — Idempotency check
+
+Every statement already uses `IF NOT EXISTS` — verify nothing new breaks that. Do not add any statement that would fail on a second run.
+
+---
+
+## SPECIAL CONCERN — existing rows in the current Replit DB
+
+The current DB already has `submitted_by_contributor_id` and `community_submission_id` as bare INTEGER columns (no FK). Adding a `REFERENCES` constraint to an existing column on an existing DB is done via `ALTER TABLE ... ADD CONSTRAINT ...`, not by re-running `ADD COLUMN`. The migration needs to handle both cases:
+
+- **Fresh DB:** column created with `REFERENCES` inline.
+- **Existing DB:** column already exists without `REFERENCES`; add a separate `ADD CONSTRAINT IF NOT EXISTS` (or check via `pg_constraint` lookup — Postgres does not support `IF NOT EXISTS` on `ADD CONSTRAINT` directly).
+
+Handle this with a conditional DO block:
+
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'energy_projects_submitted_by_contributor_id_fkey'
+  ) THEN
+    ALTER TABLE energy_projects
+      ADD CONSTRAINT energy_projects_submitted_by_contributor_id_fkey
+      FOREIGN KEY (submitted_by_contributor_id) REFERENCES contributors(id);
+  END IF;
+END $$;
+```
+
+Same pattern for `community_submission_id`. Before running the DO block, verify that every existing value in the columns references a real row in the parent table — if any row has an orphaned FK, the constraint addition will fail. Add a pre-check query and log the orphan count; if non-zero, do **not** add the constraint, just log a warning and proceed. Do not silently delete orphaned rows.
+
+---
+
+## OUT OF SCOPE
+
+- Do **not** modify schema files (`lib/db/src/schema/*`). Drizzle schema is already correct.
+- Do **not** modify any route handler.
+- Do **not** modify any UI.
+- Do **not** delete `/discovery` — that's Cleanup PR B.
+- Do **not** implement missing badges — that's Cleanup PR C.
+- Do **not** extract the shared magic-link utility — that's a separate future refactor.
+- Do **not** touch the scraper, adapters, reviewer auth logic, or contributor auth logic.
+
+---
+
+## ACCEPTANCE CRITERIA
+
+1. `migrate.ts` contains `CREATE TABLE IF NOT EXISTS` statements for all four reviewer tables, matching the Drizzle schema exactly (column types, nullability, defaults, indexes, unique constraints).
+2. The reviewer table statements run before any contributor table statements.
+3. `energy_projects.submitted_by_contributor_id` and `energy_projects.community_submission_id` `ALTER TABLE` statements run after `CREATE TABLE contributors` and `CREATE TABLE contributor_submissions`.
+4. FK constraints are enforced at the DB level for both columns, added via a conditional DO block that is safe to run on the existing Replit DB.
+5. Running `migrate.ts` on the current live DB produces zero changes (no-op) and does not throw.
+6. Running `migrate.ts` on a freshly created empty DB creates every table in correct dependency order, including all four reviewer tables.
+7. Hitting `POST /api/reviewer-auth/request` on a freshly migrated empty DB succeeds instead of throwing "relation does not exist."
+8. Any orphaned rows in `submitted_by_contributor_id` or `community_submission_id` (referencing non-existent contributors/submissions) are logged with a warning but not deleted; the constraint is not added in that case.
+
+---
+
+## VERIFICATION STEPS (required before PR is marked ready)
+
+1. Run `migrate.ts` against the current live Replit DB. Confirm no changes, no errors.
+2. Create a fresh empty Postgres schema. Run `migrate.ts` against it. Confirm every expected table exists, with every expected column, index, and constraint.
+3. On the fresh DB, insert a test reviewer row, request a magic link, and verify the magic token row is created in `reviewer_magic_tokens`.
+4. On the fresh DB, insert a test contributor and submission, then try inserting an `energy_projects` row with an invalid `submitted_by_contributor_id`. Confirm the FK blocks it.
+5. Capture the output of each step above and include it in the PR description.
+
+---
+
+## DELIVERABLES
+
+1. Single PR touching only `migrate.ts` (plus any test file if one exists for migrations).
+2. PR description listing:
+   - Exact tables and constraints added
+   - Confirmation that the live DB migration was a no-op
+   - Confirmation that a fresh DB migration produces the full expected schema
+   - Output from the four verification steps above
+3. A short **"Before / After"** section showing the old migration order vs. the new one.
+
+---
+
+## QUESTIONS TO ASK BEFORE STARTING
+
+1. Does `migrate.ts` run on every server boot, or only via an explicit command? This determines whether the idempotency requirement is critical.
+2. Is there an existing test harness for migrations? If yes, add test cases there. If not, manual verification per section above is fine.
+3. Is the Drizzle schema for reviewers stable, or is there an outstanding migration that hasn't been pushed? Check before copying column definitions into raw SQL.
+4. Are there any existing rows in `energy_projects` with non-null `submitted_by_contributor_id` pointing at contributors that don't exist? If yes, surface the count before adding the FK constraint.
+
+Don't guess on any of these.
