@@ -9,7 +9,7 @@
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "echo 0 | drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "node fix-tokens.cjs && echo 0 | drizzle-kit push --force --config ./drizzle.config.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
