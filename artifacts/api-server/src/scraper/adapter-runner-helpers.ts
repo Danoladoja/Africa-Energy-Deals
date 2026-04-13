@@ -96,6 +96,22 @@ Return ONLY valid JSON, no markdown.`;
   }
 }
 
+/**
+ * Normalize a project name for robust deduplication:
+ * - lowercase
+ * - strip common filler suffixes (phase 1/2/3, project, development, etc.)
+ * - remove special chars except hyphens
+ * - collapse whitespace
+ */
+export function normalizeProjectName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\b(phase\s*[1-9]|phase\s*i{1,3}v?|project|development|initiative|programme|program)\b/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function writeCandidate(
   candidate: CandidateDraft,
   adapterKey: string,
@@ -104,10 +120,13 @@ export async function writeCandidate(
   if (!name || name.length < 5) return { inserted: false, updated: false, flagged: false };
   if (candidate.confidence < 0.65) return { inserted: false, updated: false, flagged: false };
 
-  // Fix 1: Fuzzy name match (pg_trgm similarity > 0.75) replaces exact-name check
+  // Task 4: Normalize before comparing — catches "Phase 2" variants, typos, etc.
+  const normalizedName = normalizeProjectName(name);
+
+  // Fix 1: Fuzzy match on normalized_name (falls back to project_name for older rows)
   const fuzzyMatch = await db.execute(sql`
     SELECT id FROM energy_projects
-    WHERE similarity(project_name, ${name}) > 0.75
+    WHERE similarity(COALESCE(normalized_name, lower(project_name)), ${normalizedName}) > 0.75
     LIMIT 1
   `);
 
@@ -157,6 +176,7 @@ export async function writeCandidate(
   try {
     await db.insert(projectsTable).values({
       projectName: name,
+      normalizedName,
       country: candidate.country,
       region: inferRegionBasic(candidate.country),
       technology: candidate.technology,

@@ -355,10 +355,31 @@ export async function runStartupMigrations(): Promise<void> {
     END $$
   `);
 
+  // ── normalized_name column for deduplication ────────────────────────────────
+  await runMigration("energy_projects.normalized_name", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS normalized_name TEXT`);
+
+  // One-time backfill: normalize existing project names (lowercase + strip filler words + clean whitespace)
+  await runMigration("energy_projects.normalized_name backfill", `
+    UPDATE energy_projects
+    SET normalized_name = TRIM(regexp_replace(
+      regexp_replace(
+        lower(project_name),
+        '\\y(project|phase [1-3]|phase ii?i?|development|initiative|programme|program)\\y',
+        '', 'gi'
+      ),
+      '\\s+', ' ', 'g'
+    ))
+    WHERE normalized_name IS NULL
+  `);
+
   // ── deduplication indexes ─────────────────────────────────────────────────
   await runMigration("idx_ep_name_trgm GIN index", `
     CREATE INDEX IF NOT EXISTS idx_ep_name_trgm
       ON energy_projects USING GIN (project_name gin_trgm_ops)
+  `);
+  await runMigration("idx_ep_normalized_name_trgm GIN index", `
+    CREATE INDEX IF NOT EXISTS idx_ep_normalized_name_trgm
+      ON energy_projects USING GIN (normalized_name gin_trgm_ops)
   `);
 
   // ── seed scraper_sources ──────────────────────────────────────────────────

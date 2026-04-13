@@ -67,6 +67,9 @@ export const projectsTable = pgTable("energy_projects", {
   // ── Community Submissions ─────────────────────────────────────────────────
   submittedByContributorId: integer("submitted_by_contributor_id"),
   communitySubmissionId: integer("community_submission_id"),
+
+  // ── Deduplication ─────────────────────────────────────────────────────────
+  normalizedName: text("normalized_name"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });

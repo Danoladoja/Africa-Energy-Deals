@@ -130,6 +130,58 @@ router.get("/projects/:id", async (req, res) => {
   }
 });
 
+// ── Rate limiter for /projects/similar (10 req/min per IP) ───────────────────
+const similarRateLimiter = new Map<string, number[]>();
+function allowSimilarRequest(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const prev = (similarRateLimiter.get(ip) ?? []).filter(t => now - t < windowMs);
+  if (prev.length >= 10) return false;
+  similarRateLimiter.set(ip, [...prev, now]);
+  return true;
+}
+
+// GET /api/projects/similar?name=X&country=Y — public fuzzy name search (10/min per IP)
+router.get("/projects/similar", async (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "unknown").split(",")[0].trim();
+  if (!allowSimilarRequest(ip)) {
+    return res.status(429).json({ error: "Too many requests. Please wait a moment." });
+  }
+
+  const name = String(req.query.name ?? "").trim();
+  const country = String(req.query.country ?? "").trim();
+  if (name.length < 3) {
+    return res.json({ similar: [] });
+  }
+
+  try {
+    const results = await db.execute(
+      country
+        ? sql`
+          SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+                 ROUND((similarity(project_name, ${name}) * 100)::numeric, 0) AS score
+          FROM energy_projects
+          WHERE country ILIKE ${country}
+            AND similarity(project_name, ${name}) > 0.3
+          ORDER BY similarity(project_name, ${name}) DESC
+          LIMIT 3
+        `
+        : sql`
+          SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+                 ROUND((similarity(project_name, ${name}) * 100)::numeric, 0) AS score
+          FROM energy_projects
+          WHERE similarity(project_name, ${name}) > 0.4
+          ORDER BY similarity(project_name, ${name}) DESC
+          LIMIT 3
+        `
+    );
+    res.json({ similar: results.rows });
+  } catch (err) {
+    console.error("[/projects/similar]", err);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // GET valid technology categories
 router.get("/technologies", (_req, res) => {
   res.json({ technologies: VALID_TECHNOLOGIES });

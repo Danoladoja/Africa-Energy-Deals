@@ -27,6 +27,7 @@ import {
   ListTodo,
   Newspaper,
   AlertCircle,
+  GitMerge,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,12 +59,13 @@ const watchesNavItem = { name: "My Watches", href: "/watches", icon: Bell };
 const adminNavItems: { name: string; href: string; icon: React.ElementType }[] = [];
 
 const adminDashboardSections = [
-  { id: "overview",      label: "Overview",         icon: LayoutDashboard, href: "/admin?section=overview" },
-  { id: "pipeline",      label: "Data Pipeline",    icon: Database,        href: "/admin?section=pipeline" },
-  { id: "queue",         label: "Review Queue",     icon: ListTodo,        href: "/admin?section=queue" },
-  { id: "newsletter",    label: "Newsletter",       icon: Newspaper,       href: "/admin?section=newsletter" },
-  { id: "reviewers",     label: "Reviewers",        icon: ShieldCheck,     href: "/admin/reviewers" },
-  { id: "contributors",  label: "Contributors",     icon: Users,           href: "/admin/contributors" },
+  { id: "overview",      label: "Overview",          icon: LayoutDashboard, href: "/admin?section=overview" },
+  { id: "pipeline",      label: "Data Pipeline",     icon: Database,        href: "/admin?section=pipeline" },
+  { id: "queue",         label: "Review Queue",      icon: ListTodo,        href: "/admin?section=queue" },
+  { id: "newsletter",    label: "Newsletter",        icon: Newspaper,       href: "/admin?section=newsletter" },
+  { id: "duplicates",    label: "Duplicate Scanner", icon: GitMerge,        href: "/admin?section=duplicates" },
+  { id: "reviewers",     label: "Reviewers",         icon: ShieldCheck,     href: "/admin/reviewers" },
+  { id: "contributors",  label: "Contributors",      icon: Users,           href: "/admin/contributors" },
 ] as const;
 
 // Reviewer portal sections (visible to reviewers + admins on /review/* pages)

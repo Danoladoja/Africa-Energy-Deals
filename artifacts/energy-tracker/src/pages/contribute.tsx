@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useLocation } from "wouter";
 import { Loader2, CheckCircle2, AlertCircle, ExternalLink, Zap, Users, Award } from "lucide-react";
@@ -250,6 +250,32 @@ function SubmissionForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Similar project detection
+  interface SimilarProject { id: number; project_name: string; country: string; technology: string | null; deal_size_usd_mn: number | null; review_status: string; score: number }
+  const [similarProjects, setSimilarProjects] = useState<SimilarProject[]>([]);
+  const [similarLoading, setSimilarLoading] = useState(false);
+  const similarDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (similarDebounce.current) clearTimeout(similarDebounce.current);
+    if (form.projectName.length < 4) { setSimilarProjects([]); return; }
+    similarDebounce.current = setTimeout(async () => {
+      setSimilarLoading(true);
+      try {
+        const params = new URLSearchParams({ name: form.projectName });
+        if (form.country) params.set("country", form.country);
+        const res = await fetch(`${API}/projects/similar?${params}`);
+        const data = await res.json();
+        setSimilarProjects((data.similar ?? []).filter((p: SimilarProject) => p.score >= 50));
+      } catch {
+        setSimilarProjects([]);
+      } finally {
+        setSimilarLoading(false);
+      }
+    }, 500);
+    return () => { if (similarDebounce.current) clearTimeout(similarDebounce.current); };
+  }, [form.projectName, form.country]);
+
   function setField(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -379,6 +405,44 @@ function SubmissionForm({
             </select>
           </div>
         </div>
+
+        {/* Similar project warning — fires after name + country are entered */}
+        {(similarLoading || similarProjects.length > 0) && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-sm font-semibold text-amber-400">Similar existing projects</span>
+              {similarLoading && <Loader2 className="w-3 h-3 animate-spin text-amber-400" />}
+            </div>
+            {!similarLoading && (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  These projects already exist in our database. Please check they are not the same project before submitting.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {similarProjects.map(p => (
+                    <a
+                      key={p.id}
+                      href={`/deals/${p.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background border border-border hover:border-amber-500/30 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{p.project_name}</p>
+                        <p className="text-xs text-muted-foreground">{p.country}{p.technology ? ` · ${p.technology}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-semibold text-amber-400">{p.score}% match</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="text-xs font-medium text-muted-foreground block mb-1">Short description <span className="text-red-400">*</span></label>
