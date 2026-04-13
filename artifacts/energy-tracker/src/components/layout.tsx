@@ -440,7 +440,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Go To App button */}
             <div className="px-4 pb-3">
-              <Link href="/" className="block">
+              <Link href="/deals" className="block">
                 <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
                   <span className="text-sm font-semibold">Go To App</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -682,7 +682,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
                     {/* Go To App */}
                     <div className="mt-4 px-1">
-                      <Link href="/" onClick={() => setMobileMenuOpen(false)}>
+                      <Link href="/deals" onClick={() => setMobileMenuOpen(false)}>
                         <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
                           <span className="text-base font-semibold">Go To App</span>
                           <ArrowRight className="w-5 h-5" />
