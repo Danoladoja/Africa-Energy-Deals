@@ -132,9 +132,9 @@ export default function ReviewItem() {
       }
     } catch {
       navigate(`/review/queue?status=${statusFilter}`);
+    } finally {
+      setAdvancing(false);
     }
-    // Note: setAdvancing(false) intentionally omitted — component either
-    // navigates away or falls back to queue; the overlay clears on unmount.
   };
 
   async function handleTestUrl() {
