@@ -461,12 +461,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {theme === "dark" ? "Light" : "Dark"}
                 </button>
               </div>
-              {isAdmin && (
-                <button onClick={adminLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
-                  <LogOut className="w-4 h-4" />
-                  Sign out of admin
-                </button>
-              )}
               {!isAdmin && isReviewer && (
                 <button onClick={handleUserLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
                   <LogOut className="w-4 h-4" />
@@ -690,11 +684,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
                       </button>
                     </div>
-                    {isAdmin && (
-                      <button onClick={() => { adminLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
-                        <LogOut className="w-5 h-5" />Sign out of admin
-                      </button>
-                    )}
                     {!isAdmin && isReviewer && (
                       <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
                         <LogOut className="w-5 h-5" />Sign out
