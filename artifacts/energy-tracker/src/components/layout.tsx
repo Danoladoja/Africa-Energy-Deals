@@ -26,11 +26,13 @@ import {
   Trophy,
   ListTodo,
   Newspaper,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminAuth } from "@/contexts/admin-auth";
 import { useAuth, authedFetch } from "@/contexts/auth";
+import { useReviewerAuth } from "@/contexts/reviewer-auth";
 import { changeAdminSection } from "@/contexts/admin-section";
 import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "./email-gate-modal";
@@ -64,10 +66,11 @@ const adminDashboardSections = [
   { id: "contributors",  label: "Contributors",     icon: Users,           href: "/admin/contributors" },
 ] as const;
 
-// Reviewer nav items (visible to reviewers + admins)
-const reviewerNavItems = [
-  { name: "Review Portal",   href: "/review",    icon: ClipboardList },
-];
+// Reviewer portal sections (visible to reviewers + admins on /review/* pages)
+const reviewerPortalSections = [
+  { id: "pending",        label: "Review Pending Deals",    icon: ListTodo,     href: "/review/queue?status=pending" },
+  { id: "needs_source",   label: "Fix Missing Source URLs", icon: AlertCircle,  href: "/review/queue?status=needs_source" },
+] as const;
 
 type NavItemType = { name: string; href: string; icon: React.ElementType; badge?: string };
 
@@ -262,6 +265,87 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ReviewerNavDropdown() {
+  const [location] = useLocation();
+  const isOnReview = location.startsWith("/review");
+  const [open, setOpen] = useState(isOnReview);
+
+  useEffect(() => {
+    if (isOnReview) setOpen(true);
+  }, [isOnReview]);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all ${
+          isOnReview
+            ? "bg-primary/10 text-primary"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        }`}
+      >
+        <ClipboardList className="w-5 h-5 shrink-0" />
+        <span className="flex-1 text-left">Reviewer Dashboard</span>
+        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-1 ml-9 space-y-0.5">
+          {reviewerPortalSections.map(s => {
+            const isActive = location + window.location.search === s.href ||
+              (s.id === "pending" && location === "/review/queue" && !window.location.search.includes("status=")) ||
+              window.location.href.includes(s.href.replace("/review/queue", "/energy-tracker/review/queue"));
+            return (
+              <Link key={s.id} href={s.href}>
+                <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60"
+                }`}>
+                  <s.icon className="w-4 h-4 shrink-0" />
+                  {s.label}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileReviewerNavDropdown({ onClose }: { onClose: () => void }) {
+  const [location] = useLocation();
+  const isOnReview = location.startsWith("/review");
+  const [open, setOpen] = useState(isOnReview);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-colors ${
+          isOnReview ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
+        }`}
+      >
+        <ClipboardList className="w-5 h-5 shrink-0" />
+        <span className="text-base font-medium flex-1 text-left">Reviewer Dashboard</span>
+        <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-1 ml-9 space-y-0.5">
+          {reviewerPortalSections.map(s => (
+            <Link key={s.id} href={s.href} onClick={onClose}>
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-colors cursor-pointer text-foreground/60 hover:bg-white/5 hover:text-foreground">
+                <s.icon className="w-5 h-5 shrink-0" />
+                {s.label}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -269,6 +353,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
+  const { isAuthenticated: isReviewerSession, logout: reviewerSessionLogout } = useReviewerAuth();
   const { theme, toggleTheme } = useTheme();
   const [location, navigate] = useLocation();
 
@@ -320,14 +405,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* ── Unified privileged sidebar (Admin + Reviewer) ── */}
-        {(isAdmin || isReviewer) ? (
+        {(isAdmin || isReviewer || isReviewerSession) ? (
           <>
             <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-              {/* Role badge — always "Reviewer" in this portal context */}
+              {/* Role badge */}
               <div className="flex items-center gap-2 px-4 mb-4 py-2 rounded-xl bg-primary/8 border border-primary/15">
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                  Reviewer
+                  {isAdmin && !location.startsWith("/review") ? "Administrator" : "Reviewer"}
                 </span>
               </div>
 
@@ -337,10 +422,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <NavItem key={item.href} item={item} />
               ))}
 
-              {/* Review Portal — always visible */}
-              {reviewerNavItems.map((item) => (
-                <NavItem key={item.href} item={item} />
-              ))}
+              {/* Reviewer Dashboard — always visible */}
+              <ReviewerNavDropdown />
             </nav>
 
             {/* Go To App button */}
@@ -353,7 +436,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
 
-            {/* Footer — identical for both roles */}
+            {/* Footer */}
             <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs text-sidebar-foreground/50 font-medium">
@@ -377,7 +460,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {!isAdmin && isReviewer && (
                 <button onClick={handleUserLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
                   <LogOut className="w-4 h-4" />
-                  Sign out of reviewer
+                  Sign out
+                </button>
+              )}
+              {!isAdmin && !isReviewer && isReviewerSession && (
+                <button onClick={() => { reviewerSessionLogout(); navigate("/review"); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
+                  <LogOut className="w-4 h-4" />
+                  Sign out
                 </button>
               )}
             </div>
@@ -552,14 +641,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
-                {(isAdmin || isReviewer) ? (
+                {(isAdmin || isReviewer || isReviewerSession) ? (
                   /* ── Unified privileged mobile nav ── */
                   <>
-                    {/* Role badge — always "Reviewer" in portal context */}
+                    {/* Role badge */}
                     <div className="flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl bg-primary/8 border border-primary/15">
                       <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                       <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                        Reviewer
+                        {isAdmin && !location.startsWith("/review") ? "Administrator" : "Reviewer"}
                       </span>
                     </div>
 
@@ -568,12 +657,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {isAdmin && !location.startsWith("/review") && adminNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
-                    {/* Review Portal — always visible */}
-                    {reviewerNavItems.map((item) => (
-                      <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
-                    ))}
 
-                    {/* Go To App — identical for both */}
+                    {/* Reviewer Dashboard — always visible */}
+                    <MobileReviewerNavDropdown onClose={() => setMobileMenuOpen(false)} />
+
+                    {/* Go To App */}
                     <div className="mt-4 px-1">
                       <Link href="/" onClick={() => setMobileMenuOpen(false)}>
                         <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
@@ -583,7 +671,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </Link>
                     </div>
 
-                    {/* Footer — identical for both */}
+                    {/* Footer */}
                     <div className="flex items-center justify-between px-4 py-3 mt-4 rounded-xl bg-sidebar-accent/50">
                       <span className="text-sm text-sidebar-foreground/60 font-medium">
                         {theme === "dark" ? "Dark mode" : "Light mode"}
@@ -599,7 +687,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     )}
                     {!isAdmin && isReviewer && (
                       <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
-                        <LogOut className="w-5 h-5" />Sign out of reviewer
+                        <LogOut className="w-5 h-5" />Sign out
+                      </button>
+                    )}
+                    {!isAdmin && !isReviewer && isReviewerSession && (
+                      <button onClick={() => { reviewerSessionLogout(); navigate("/review"); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign out
                       </button>
                     )}
                   </>
