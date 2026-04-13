@@ -365,7 +365,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
-  const { isAuthenticated: isReviewerSession, logout: reviewerSessionLogout } = useReviewerAuth();
+  const { isAuthenticated: isReviewerSession, logout: reviewerSessionLogout, reviewer } = useReviewerAuth();
   const { theme, toggleTheme } = useTheme();
   const [location, navigate] = useLocation();
 
@@ -464,16 +464,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
               {!isAdmin && isReviewer && (
-                <button onClick={handleUserLogout} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
+                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
               {!isAdmin && !isReviewer && isReviewerSession && (
-                <button onClick={() => { reviewerSessionLogout(); navigate("/review"); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors w-full">
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{reviewer?.email ?? "Reviewer"}</span>
+                  <button onClick={() => { reviewerSessionLogout(); navigate("/review"); }} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
           </>
