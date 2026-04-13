@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useParams, useSearch } from "wouter";
+import { useEffect, useState, useRef } from "react";
+import { Link, useParams, useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuth, reviewerFetch } from "@/contexts/auth";
 import { useAdminAuth } from "@/contexts/admin-auth";
@@ -7,7 +7,7 @@ import { useReviewerAuth } from "@/contexts/reviewer-auth";
 import {
   ClipboardList, ArrowLeft, ExternalLink, CheckCircle2,
   AlertCircle, Clock, RefreshCw, Globe, Loader2,
-  XCircle, Trash2, User
+  XCircle, Trash2, User, ChevronRight, ListTodo
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -58,11 +58,18 @@ export default function ReviewItem() {
   const { id } = useParams<{ id: string }>();
   const search = useSearch();
   const statusFilter = new URLSearchParams(search).get("from") ?? "pending";
+  const [, navigate] = useLocation();
   const { isReviewer, isLoading: authLoading } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useAdminAuth();
   const { isAuthenticated: isReviewerSession, isLoading: rvLoading } = useReviewerAuth();
   const canAccess = isReviewer || isAdmin || isReviewerSession;
   const isAuthLoading = authLoading || adminLoading || rvLoading;
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const apiFetch = (url: string, init?: RequestInit) =>
     isReviewerSession
@@ -77,23 +84,57 @@ export default function ReviewItem() {
   const [testLoading, setTestLoading] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingUrl, setSavingUrl] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const [queueRemaining, setQueueRemaining] = useState<number | null>(null);
 
   const loadData = () => {
     setLoading(true);
     apiFetch(`/api/review/${id}`)
       .then((r) => r.json())
       .then((d) => {
+        if (!mountedRef.current) return;
         setData(d);
         setNewUrl(d.project.sourceUrl ?? "");
       })
       .catch(() => toast.error("Failed to load deal"))
-      .finally(() => setLoading(false));
+      .finally(() => { if (mountedRef.current) setLoading(false); });
+  };
+
+  const loadQueueCount = async () => {
+    try {
+      const r = await apiFetch(`/api/review/queue?status=${statusFilter}&page=1`);
+      const d = await r.json();
+      if (mountedRef.current) {
+        // Remaining = total minus current project
+        setQueueRemaining(Math.max(0, (d.total ?? 1) - 1));
+      }
+    } catch {}
   };
 
   useEffect(() => {
     if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
+    loadQueueCount();
   }, [isAuthLoading, canAccess, id]);
+
+  const advanceToNext = async () => {
+    setAdvancing(true);
+    try {
+      const r = await apiFetch(`/api/review/queue?status=${statusFilter}&page=1`);
+      const d = await r.json();
+      const next = (d.projects ?? []).find((p: { id: number }) => p.id !== parseInt(id));
+      if (next) {
+        navigate(`/review/item/${next.id}?from=${statusFilter}`);
+      } else {
+        toast("Queue complete — great work!", { icon: "🎉" });
+        navigate(`/review/queue?status=${statusFilter}`);
+      }
+    } catch {
+      navigate(`/review/queue?status=${statusFilter}`);
+    }
+    // Note: setAdvancing(false) intentionally omitted — component either
+    // navigates away or falls back to queue; the overlay clears on unmount.
+  };
 
   async function handleTestUrl() {
     const urlToTest = newUrl || data?.project.sourceUrl;
@@ -128,6 +169,7 @@ export default function ReviewItem() {
       toast.success("Source URL updated");
       setUrlNote("");
       loadData();
+      loadQueueCount();
     } catch {
       toast.error("Failed to update URL");
     } finally {
@@ -146,16 +188,23 @@ export default function ReviewItem() {
       if (!r.ok) throw new Error("Failed");
       const labels: Record<string, string> = {
         approved: "Approved ✓",
-        needs_source: "Marked as needs source",
-        pending: "Set to pending",
+        needs_source: "Flagged — needs source URL",
+        pending: "Reset to pending",
         rejected: "Rejected",
         binned: "Moved to bin",
       };
       toast.success(labels[status] ?? "Updated");
-      loadData();
+      if (status !== "pending") {
+        // Auto-advance to the next project in queue
+        await advanceToNext();
+      } else {
+        // "Reset to pending" stays on this project
+        loadData();
+        loadQueueCount();
+        setSavingStatus(false);
+      }
     } catch {
       toast.error("Failed to update status");
-    } finally {
       setSavingStatus(false);
     }
   }
@@ -197,14 +246,30 @@ export default function ReviewItem() {
 
   return (
     <Layout>
+      {/* Auto-advance overlay */}
+      {advancing && (
+        <div className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm font-medium text-foreground">Loading next deal…</p>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-6">
-          <Link href="/review"><div className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors"><ClipboardList className="w-4 h-4" />Review Portal</div></Link>
-          <span className="text-muted-foreground">/</span>
-          <Link href={`/review/queue?status=${statusFilter}`}><div className="text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors flex items-center gap-1"><ArrowLeft className="w-3 h-3" />Queue</div></Link>
-          <span className="text-muted-foreground">/</span>
-          <span className="text-sm font-medium text-foreground truncate max-w-[240px]" title={project.projectName}>{project.projectName}</span>
+        {/* Breadcrumb + queue progress */}
+        <div className="flex items-center justify-between gap-2 mb-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Link href="/review"><div className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors"><ClipboardList className="w-4 h-4" />Review Portal</div></Link>
+            <span className="text-muted-foreground">/</span>
+            <Link href={`/review/queue?status=${statusFilter}`}><div className="text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors flex items-center gap-1"><ArrowLeft className="w-3 h-3" />Queue</div></Link>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={project.projectName}>{project.projectName}</span>
+          </div>
+          {queueRemaining !== null && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/8 border border-primary/15 text-xs font-medium text-primary shrink-0">
+              <ListTodo className="w-3 h-3" />
+              {queueRemaining === 0 ? "Last in queue" : `${queueRemaining} remaining`}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -399,9 +464,19 @@ export default function ReviewItem() {
                 </div>
               )}
 
-              <p className="mt-3 text-[10px] text-muted-foreground/60 leading-relaxed">
-                <strong>Reject</strong> — flags the project as rejected.<br />
-                <strong>Bin</strong> — hides from review portal; admin has final say.
+              <div className="border-t border-border/60 my-1" />
+
+              <button
+                onClick={advanceToNext}
+                disabled={savingStatus || advancing}
+                className="w-full py-2 rounded-xl border border-border/50 text-muted-foreground text-xs font-medium hover:bg-muted/30 hover:text-foreground transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {advancing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
+                Skip to next
+              </button>
+
+              <p className="mt-2 text-[10px] text-muted-foreground/50 leading-relaxed">
+                Approve / Flag / Reject / Bin automatically loads the next deal. <strong>Mark Pending</strong> stays here. <strong>Skip</strong> advances without deciding.
               </p>
             </div>
 
