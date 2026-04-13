@@ -463,7 +463,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {theme === "dark" ? "Light" : "Dark"}
                 </button>
               </div>
-              {!isAdmin && isReviewer && (
+              {isReviewer && (
                 <div className="flex items-center gap-3">
                   <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
                   <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
@@ -472,7 +472,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               )}
-              {!isAdmin && !isReviewer && isReviewerSession && (
+              {!isReviewer && isReviewerSession && (
                 <div className="flex items-center gap-3">
                   <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
                   <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{reviewer?.email ?? "Reviewer"}</span>
@@ -692,12 +692,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
                       </button>
                     </div>
-                    {!isAdmin && isReviewer && (
+                    {isReviewer && (
                       <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
                         <LogOut className="w-5 h-5" />Sign out
                       </button>
                     )}
-                    {!isAdmin && !isReviewer && isReviewerSession && (
+                    {!isReviewer && isReviewerSession && (
                       <button onClick={() => { reviewerSessionLogout(); navigate("/review"); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
                         <LogOut className="w-5 h-5" />Sign out
                       </button>
