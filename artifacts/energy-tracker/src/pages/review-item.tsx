@@ -7,7 +7,7 @@ import { useReviewerAuth } from "@/contexts/reviewer-auth";
 import {
   ClipboardList, ArrowLeft, ExternalLink, CheckCircle2,
   AlertCircle, Clock, RefreshCw, Globe, Loader2,
-  XCircle, Trash2, User, ChevronRight, ListTodo
+  XCircle, Trash2, User, ChevronRight, ListTodo, Pencil, ChevronDown, Save
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,13 +18,17 @@ interface ProjectDetail {
   technology: string;
   region: string;
   dealSizeUsdMn: number | null;
+  capacityMw: number | null;
   status: string;
+  dealStage: string | null;
+  developer: string | null;
+  investors: string | null;
+  financiers: string | null;
   reviewStatus: string;
   approvedBy: string | null;
   confidenceScore: number | null;
   sourceUrl: string | null;
   description: string | null;
-  investors: string | null;
   extractionSource: string | null;
   createdAt: string;
 }
@@ -87,6 +91,24 @@ export default function ReviewItem() {
   const [advancing, setAdvancing] = useState(false);
   const [queueRemaining, setQueueRemaining] = useState<number | null>(null);
 
+  // Edit details panel
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [editFields, setEditFields] = useState({
+    projectName: "",
+    country: "",
+    region: "",
+    technology: "",
+    dealSizeUsdMn: "",
+    capacityMw: "",
+    status: "",
+    dealStage: "",
+    developer: "",
+    investors: "",
+    financiers: "",
+    description: "",
+  });
+
   const loadData = () => {
     setLoading(true);
     apiFetch(`/api/review/${id}`)
@@ -95,6 +117,21 @@ export default function ReviewItem() {
         if (!mountedRef.current) return;
         setData(d);
         setNewUrl(d.project.sourceUrl ?? "");
+        const p = d.project as ProjectDetail;
+        setEditFields({
+          projectName: p.projectName ?? "",
+          country: p.country ?? "",
+          region: p.region ?? "",
+          technology: p.technology ?? "",
+          dealSizeUsdMn: p.dealSizeUsdMn != null ? String(p.dealSizeUsdMn) : "",
+          capacityMw: p.capacityMw != null ? String(p.capacityMw) : "",
+          status: p.status ?? "",
+          dealStage: p.dealStage ?? "",
+          developer: p.developer ?? "",
+          investors: p.investors ?? "",
+          financiers: p.financiers ?? "",
+          description: p.description ?? "",
+        });
       })
       .catch(() => toast.error("Failed to load deal"))
       .finally(() => { if (mountedRef.current) setLoading(false); });
@@ -114,6 +151,7 @@ export default function ReviewItem() {
   useEffect(() => {
     setAdvancing(false);
     setSavingStatus(false);
+    setEditOpen(false);
     if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
     loadQueueCount();
@@ -176,6 +214,39 @@ export default function ReviewItem() {
       toast.error("Failed to update URL");
     } finally {
       setSavingUrl(false);
+    }
+  }
+
+  async function handleSaveDetails() {
+    setSavingDetails(true);
+    try {
+      const body: Record<string, unknown> = {
+        projectName: editFields.projectName,
+        country: editFields.country,
+        region: editFields.region,
+        technology: editFields.technology,
+        status: editFields.status,
+        dealStage: editFields.dealStage || null,
+        developer: editFields.developer || null,
+        investors: editFields.investors || null,
+        financiers: editFields.financiers || null,
+        description: editFields.description || null,
+        dealSizeUsdMn: editFields.dealSizeUsdMn !== "" ? parseFloat(editFields.dealSizeUsdMn) : null,
+        capacityMw: editFields.capacityMw !== "" ? parseFloat(editFields.capacityMw) : null,
+      };
+      const r = await apiFetch(`/api/review/${id}/details`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Failed");
+      toast.success("Project details saved");
+      setEditOpen(false);
+      loadData();
+    } catch {
+      toast.error("Failed to save details");
+    } finally {
+      setSavingDetails(false);
     }
   }
 
@@ -335,6 +406,185 @@ export default function ReviewItem() {
 
               {project.extractionSource && (
                 <p className="text-xs text-muted-foreground mt-3">Source group: {project.extractionSource}</p>
+              )}
+            </div>
+
+            {/* Edit Project Details card */}
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <button
+                onClick={() => setEditOpen(o => !o)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors text-left"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Pencil className="w-4 h-4 text-primary" />
+                  Edit Project Details
+                </span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${editOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {editOpen && (
+                <div className="px-5 pb-5 border-t border-border/60">
+                  <p className="text-xs text-muted-foreground mt-4 mb-4">
+                    Correct any AI-extracted field before approving. Changes are logged to the audit trail.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    {/* Project Name — full width */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-muted-foreground mb-1">Project Name</label>
+                      <input
+                        type="text"
+                        value={editFields.projectName}
+                        onChange={e => setEditFields(f => ({ ...f, projectName: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Country</label>
+                      <input
+                        type="text"
+                        value={editFields.country}
+                        onChange={e => setEditFields(f => ({ ...f, country: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Region</label>
+                      <input
+                        type="text"
+                        value={editFields.region}
+                        onChange={e => setEditFields(f => ({ ...f, region: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Sector / Technology</label>
+                      <input
+                        type="text"
+                        value={editFields.technology}
+                        onChange={e => setEditFields(f => ({ ...f, technology: e.target.value }))}
+                        placeholder="e.g. Solar, Wind, Hydro"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Project Status</label>
+                      <select
+                        value={editFields.status}
+                        onChange={e => setEditFields(f => ({ ...f, status: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <option value="">— select —</option>
+                        <option value="Announced">Announced</option>
+                        <option value="Under Construction">Under Construction</option>
+                        <option value="Operational">Operational</option>
+                        <option value="Commissioned">Commissioned</option>
+                        <option value="Suspended">Suspended</option>
+                        <option value="Unknown">Unknown</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Deal Size (USD Mn)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={editFields.dealSizeUsdMn}
+                        onChange={e => setEditFields(f => ({ ...f, dealSizeUsdMn: e.target.value }))}
+                        placeholder="e.g. 150"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Capacity (MW)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={editFields.capacityMw}
+                        onChange={e => setEditFields(f => ({ ...f, capacityMw: e.target.value }))}
+                        placeholder="e.g. 100"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Deal Stage</label>
+                      <select
+                        value={editFields.dealStage}
+                        onChange={e => setEditFields(f => ({ ...f, dealStage: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <option value="">— select —</option>
+                        <option value="Announced">Announced</option>
+                        <option value="Mandated">Mandated</option>
+                        <option value="Financial Close">Financial Close</option>
+                        <option value="Construction">Construction</option>
+                        <option value="Commissioned">Commissioned</option>
+                        <option value="Suspended">Suspended</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Developer</label>
+                      <input
+                        type="text"
+                        value={editFields.developer}
+                        onChange={e => setEditFields(f => ({ ...f, developer: e.target.value }))}
+                        placeholder="e.g. Acme Energy Ltd"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    {/* Investors — full width */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-muted-foreground mb-1">Investors / Financiers</label>
+                      <input
+                        type="text"
+                        value={editFields.investors}
+                        onChange={e => setEditFields(f => ({ ...f, investors: e.target.value }))}
+                        placeholder="e.g. AfDB, IFC, Standard Bank"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    {/* Description — full width */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-muted-foreground mb-1">Description</label>
+                      <textarea
+                        rows={3}
+                        value={editFields.description}
+                        onChange={e => setEditFields(f => ({ ...f, description: e.target.value }))}
+                        placeholder="Brief description of the project…"
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveDetails}
+                      disabled={savingDetails}
+                      className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {savingDetails ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={() => setEditOpen(false)}
+                      disabled={savingDetails}
+                      className="px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 

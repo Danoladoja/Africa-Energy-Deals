@@ -232,6 +232,59 @@ router.patch("/review/:id/url", async (req: ReviewerRequest, res) => {
   }
 });
 
+// PATCH /api/review/:id/details — update editable project fields
+router.patch("/review/:id/details", async (req: ReviewerRequest, res) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const allowed = [
+      "projectName", "country", "region", "technology",
+      "dealSizeUsdMn", "capacityMw", "status", "dealStage",
+      "developer", "investors", "financiers", "description",
+    ] as const;
+
+    const body = req.body as Record<string, unknown>;
+    const updates: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (key in body) {
+        const val = body[key];
+        // Empty string → null for nullable fields; keep 0 for numbers
+        updates[key] = val === "" ? null : val;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No valid fields provided" });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, id))
+      .limit(1);
+
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.update(projectsTable).set(updates as any).where(eq(projectsTable.id, id));
+
+    // Audit trail — non-blocking
+    db.insert(urlAuditTable).values({
+      dealId: id,
+      action: "details_edited",
+      note: `Fields updated: ${Object.keys(updates).join(", ")}`,
+      reviewerEmail: req.reviewerEmail ?? "unknown",
+    }).catch(() => {});
+
+    const [updated] = await db.select().from(projectsTable).where(eq(projectsTable.id, id)).limit(1);
+    res.json({ success: true, project: updated });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // POST /api/review/test-url — test if a URL is reachable
 router.post("/review/test-url", async (req: ReviewerRequest, res) => {
   try {
