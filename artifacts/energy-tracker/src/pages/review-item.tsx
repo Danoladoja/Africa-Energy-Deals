@@ -124,7 +124,7 @@ export default function ReviewItem() {
       const d = await r.json();
       const next = (d.projects ?? []).find((p: { id: number }) => p.id !== parseInt(id));
       if (next) {
-        navigate(`/review/item/${next.id}?from=${statusFilter}`);
+        navigate(`/review/queue/${next.id}?from=${statusFilter}`);
       } else {
         toast("Queue complete — great work!", { icon: "🎉" });
         navigate(`/review/queue?status=${statusFilter}`);
