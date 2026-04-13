@@ -3,9 +3,11 @@ import { Link, useParams, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuth, reviewerFetch } from "@/contexts/auth";
 import { useAdminAuth } from "@/contexts/admin-auth";
+import { useReviewerAuth } from "@/contexts/reviewer-auth";
 import {
   ClipboardList, ArrowLeft, ExternalLink, CheckCircle2,
-  AlertCircle, Clock, RefreshCw, Globe, Loader2
+  AlertCircle, Clock, RefreshCw, Globe, Loader2,
+  XCircle, Trash2, User
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,6 +20,7 @@ interface ProjectDetail {
   dealSizeUsdMn: number | null;
   status: string;
   reviewStatus: string;
+  approvedBy: string | null;
   confidenceScore: number | null;
   sourceUrl: string | null;
   description: string | null;
@@ -57,8 +60,14 @@ export default function ReviewItem() {
   const statusFilter = new URLSearchParams(search).get("from") ?? "pending";
   const { isReviewer, isLoading: authLoading } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useAdminAuth();
-  const canAccess = isReviewer || isAdmin;
-  const isAuthLoading = authLoading || adminLoading;
+  const { isAuthenticated: isReviewerSession, isLoading: rvLoading } = useReviewerAuth();
+  const canAccess = isReviewer || isAdmin || isReviewerSession;
+  const isAuthLoading = authLoading || adminLoading || rvLoading;
+
+  const apiFetch = (url: string, init?: RequestInit) =>
+    isReviewerSession
+      ? fetch(url, { ...init, credentials: "include" })
+      : reviewerFetch(url, init);
 
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +80,7 @@ export default function ReviewItem() {
 
   const loadData = () => {
     setLoading(true);
-    reviewerFetch(`/api/review/${id}`)
+    apiFetch(`/api/review/${id}`)
       .then((r) => r.json())
       .then((d) => {
         setData(d);
@@ -92,7 +101,7 @@ export default function ReviewItem() {
     setTestLoading(true);
     setTestResult(null);
     try {
-      const r = await reviewerFetch("/api/review/test-url", {
+      const r = await apiFetch("/api/review/test-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlToTest, dealId: parseInt(id) }),
@@ -110,7 +119,7 @@ export default function ReviewItem() {
     if (!newUrl.trim()) { toast.error("URL cannot be empty"); return; }
     setSavingUrl(true);
     try {
-      const r = await reviewerFetch(`/api/review/${id}/url`, {
+      const r = await apiFetch(`/api/review/${id}/url`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newUrl: newUrl.trim(), note: urlNote || undefined }),
@@ -129,14 +138,20 @@ export default function ReviewItem() {
   async function handleSetStatus(status: string) {
     setSavingStatus(true);
     try {
-      const r = await reviewerFetch(`/api/review/${id}/status`, {
+      const r = await apiFetch(`/api/review/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!r.ok) throw new Error("Failed");
-      const label = status === "approved" ? "Approved" : status === "needs_source" ? "Marked as needs source" : "Set to pending";
-      toast.success(label);
+      const labels: Record<string, string> = {
+        approved: "Approved ✓",
+        needs_source: "Marked as needs source",
+        pending: "Set to pending",
+        rejected: "Rejected",
+        binned: "Moved to bin",
+      };
+      toast.success(labels[status] ?? "Updated");
       loadData();
     } catch {
       toast.error("Failed to update status");
@@ -202,10 +217,17 @@ export default function ReviewItem() {
                   <h1 className="text-lg font-bold text-foreground leading-tight">{project.projectName}</h1>
                   <p className="text-sm text-muted-foreground mt-1">{project.country} · {project.region}</p>
                 </div>
-                <div className="shrink-0 ml-3">
+                <div className="shrink-0 ml-3 flex flex-col items-end gap-1.5">
                   {project.reviewStatus === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20">Pending</span>}
                   {project.reviewStatus === "needs_source" && <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-400/10 text-red-400 border border-red-400/20">Needs Source</span>}
                   {project.reviewStatus === "approved" && <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">Approved</span>}
+                  {project.reviewStatus === "rejected" && <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">Rejected</span>}
+                  {project.reviewStatus === "binned" && <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">Binned</span>}
+                  {project.reviewStatus === "approved" && project.approvedBy && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/8 text-emerald-500/70 border border-emerald-500/15">
+                      <User className="w-2.5 h-2.5" />{project.approvedBy}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -346,7 +368,41 @@ export default function ReviewItem() {
                   {savingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
                   Mark Pending
                 </button>
+
+                <div className="border-t border-border/60 my-1" />
+
+                <button
+                  onClick={() => handleSetStatus("rejected")}
+                  disabled={savingStatus || project.reviewStatus === "rejected"}
+                  className="w-full py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-semibold hover:bg-rose-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleSetStatus("binned")}
+                  disabled={savingStatus || project.reviewStatus === "binned"}
+                  className="w-full py-2.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-400 text-sm font-semibold hover:bg-slate-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  title="Temporarily removes from review portal. Admin reviews the bin."
+                >
+                  {savingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Bin
+                </button>
               </div>
+
+              {project.reviewStatus === "approved" && project.approvedBy && (
+                <div className="mt-4 pt-3 border-t border-border/60">
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-500/70">
+                    <User className="w-3 h-3" />
+                    <span>Approved by <span className="font-medium">{project.approvedBy}</span></span>
+                  </div>
+                </div>
+              )}
+
+              <p className="mt-3 text-[10px] text-muted-foreground/60 leading-relaxed">
+                <strong>Reject</strong> — flags the project as rejected.<br />
+                <strong>Bin</strong> — hides from review portal; admin has final say.
+              </p>
             </div>
 
             {/* URL audit log */}

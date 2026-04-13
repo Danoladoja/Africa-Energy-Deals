@@ -3,7 +3,8 @@ import { Link, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuth, reviewerFetch } from "@/contexts/auth";
 import { useAdminAuth } from "@/contexts/admin-auth";
-import { ChevronLeft, ChevronRight, ExternalLink, CircleDot, AlertCircle, CheckCircle2, ClipboardList } from "lucide-react";
+import { useReviewerAuth } from "@/contexts/reviewer-auth";
+import { ChevronLeft, ChevronRight, ExternalLink, CircleDot, AlertCircle, CheckCircle2, ClipboardList, XCircle, Trash2 } from "lucide-react";
 import { SECTOR_COLORS } from "@/utils/chart-colors";
 
 interface QueueProject {
@@ -31,6 +32,8 @@ function statusBadge(status: string) {
   if (status === "pending") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20"><CircleDot className="w-3 h-3" />Pending</span>;
   if (status === "needs_source") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-400/10 text-red-400 border border-red-400/20"><AlertCircle className="w-3 h-3" />Needs Source</span>;
   if (status === "approved") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-400/10 text-emerald-400 border border-emerald-400/20"><CheckCircle2 className="w-3 h-3" />Approved</span>;
+  if (status === "rejected") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3 h-3" />Rejected</span>;
+  if (status === "binned") return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20"><Trash2 className="w-3 h-3" />Binned</span>;
   return <span className="text-xs text-muted-foreground">{status}</span>;
 }
 
@@ -51,12 +54,16 @@ function confidenceBar(score: number | null) {
 export default function ReviewQueue() {
   const { isReviewer, isLoading: authLoading } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useAdminAuth();
-  const canAccess = isReviewer || isAdmin;
-  const isLoading = authLoading || adminLoading;
+  const { isAuthenticated: isReviewerSession, isLoading: rvLoading } = useReviewerAuth();
+  const canAccess = isReviewer || isAdmin || isReviewerSession;
+  const isLoading = authLoading || adminLoading || rvLoading;
   const search = useSearch();
   const params = new URLSearchParams(search);
   const statusFilter = params.get("status") ?? "pending";
   const pageParam = parseInt(params.get("page") ?? "1");
+
+  const apiFetch = (url: string) =>
+    isReviewerSession ? fetch(url, { credentials: "include" }) : reviewerFetch(url);
 
   const [data, setData] = useState<QueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,12 +72,12 @@ export default function ReviewQueue() {
   useEffect(() => {
     if (isLoading || !canAccess) { setLoading(false); return; }
     setLoading(true);
-    reviewerFetch(`/api/review/queue?status=${statusFilter}&page=${pageParam}`)
+    apiFetch(`/api/review/queue?status=${statusFilter}&page=${pageParam}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => setError("Failed to load queue"))
       .finally(() => setLoading(false));
-  }, [isLoading, canAccess, statusFilter, pageParam]);
+  }, [isLoading, canAccess, statusFilter, pageParam, isReviewerSession]);
 
   if (isLoading || loading) {
     return (
@@ -98,7 +105,11 @@ export default function ReviewQueue() {
     pending: "Pending Review",
     needs_source: "Needs Source URL",
     approved: "Approved",
+    rejected: "Rejected",
+    binned: "Bin",
   };
+
+  const allStatuses = ["pending", "needs_source", "approved", "rejected", "binned"];
 
   return (
     <Layout>
@@ -114,15 +125,21 @@ export default function ReviewQueue() {
           <span className="text-sm font-medium text-foreground">{statusLabels[statusFilter] ?? statusFilter}</span>
         </div>
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-bold text-foreground">{statusLabels[statusFilter] ?? statusFilter}</h1>
             {data && <p className="text-sm text-muted-foreground mt-0.5">{data.total.toLocaleString()} deals</p>}
           </div>
-          <div className="flex gap-2">
-            {["pending", "needs_source", "approved"].map((s) => (
+          <div className="flex gap-2 flex-wrap">
+            {allStatuses.map((s) => (
               <Link key={s} href={`/review/queue?status=${s}`}>
-                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  statusFilter === s
+                    ? s === "rejected" ? "bg-rose-500 text-white"
+                    : s === "binned" ? "bg-slate-500 text-white"
+                    : "bg-primary text-primary-foreground"
+                    : "bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}>
                   {statusLabels[s]}
                 </div>
               </Link>

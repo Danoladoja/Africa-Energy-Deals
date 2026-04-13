@@ -12,12 +12,16 @@ import {
   ArrowRight,
   Mail,
   LogOut,
+  XCircle,
+  Trash2,
 } from "lucide-react";
 
 interface Stats {
   pending: number;
   needs_source: number;
   approved: number;
+  rejected: number;
+  binned: number;
 }
 
 function MagicLinkLoginForm() {
@@ -176,6 +180,22 @@ export default function ReviewDashboard() {
       bg: "bg-emerald-400/10 border-emerald-400/20",
       status: "approved",
     },
+    {
+      label: "Rejected",
+      value: stats?.rejected ?? 0,
+      icon: XCircle,
+      color: "text-rose-400",
+      bg: "bg-rose-500/10 border-rose-500/20",
+      status: "rejected",
+    },
+    {
+      label: "Bin",
+      value: stats?.binned ?? 0,
+      icon: Trash2,
+      color: "text-slate-400",
+      bg: "bg-slate-500/10 border-slate-500/20",
+      status: "binned",
+    },
   ];
 
   return (
@@ -212,7 +232,7 @@ export default function ReviewDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {statCards.map((card) => (
             <Link key={card.status} href={`/review/queue?status=${card.status}`}>
               <div className={`p-5 rounded-2xl border ${card.bg} hover:ring-1 hover:ring-primary/30 transition-all cursor-pointer group`}>

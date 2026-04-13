@@ -270,7 +270,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { isAuthenticated, email, logout: userLogout, isReviewer } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
 
   // Global keyboard shortcut: Cmd+K / Ctrl+K to open AI assistant
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -323,21 +323,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {(isAdmin || isReviewer) ? (
           <>
             <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-              {/* Role badge — same style, label differs */}
+              {/* Role badge — always "Reviewer" in this portal context */}
               <div className="flex items-center gap-2 px-4 mb-4 py-2 rounded-xl bg-primary/8 border border-primary/15">
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                  {isAdmin ? "Administrator" : "Reviewer"}
+                  Reviewer
                 </span>
               </div>
 
-              {/* Admin-only items */}
-              {isAdmin && <AdminNavDropdown />}
-              {isAdmin && adminNavItems.map((item) => (
+              {/* Admin panel — only visible on admin pages, not in reviewer portal */}
+              {isAdmin && !location.startsWith("/review") && <AdminNavDropdown />}
+              {isAdmin && !location.startsWith("/review") && adminNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
 
-              {/* Review Portal — always visible to both admins and reviewers */}
+              {/* Review Portal — always visible */}
               {reviewerNavItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
@@ -555,20 +555,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {(isAdmin || isReviewer) ? (
                   /* ── Unified privileged mobile nav ── */
                   <>
-                    {/* Role badge — same style for both */}
+                    {/* Role badge — always "Reviewer" in portal context */}
                     <div className="flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl bg-primary/8 border border-primary/15">
                       <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                       <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                        {isAdmin ? "Administrator" : "Reviewer"}
+                        Reviewer
                       </span>
                     </div>
 
-                    {/* Admin-only items */}
-                    {isAdmin && <MobileAdminNavDropdown onClose={() => setMobileMenuOpen(false)} />}
-                    {isAdmin && adminNavItems.map((item) => (
+                    {/* Admin panel — hidden on review pages */}
+                    {isAdmin && !location.startsWith("/review") && <MobileAdminNavDropdown onClose={() => setMobileMenuOpen(false)} />}
+                    {isAdmin && !location.startsWith("/review") && adminNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
-                    {/* Review Portal — always visible to both */}
+                    {/* Review Portal — always visible */}
                     {reviewerNavItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}

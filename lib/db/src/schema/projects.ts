@@ -56,6 +56,10 @@ export const projectsTable = pgTable("energy_projects", {
   // Climate finance classification: "Mitigation" | "Adaptation" | "Cross-Cutting" | "Non-Climate"
   climateFinanceTag: text("climate_finance_tag"),
 
+  // ── Review Accountability ─────────────────────────────────────────────────
+  approvedBy: text("approved_by"),
+  binnedAt: timestamp("binned_at"),
+
   // ── AI Extraction Metadata ────────────────────────────────────────────────
   confidenceScore: doublePrecision("confidence_score"),
   extractionSource: text("extraction_source"),

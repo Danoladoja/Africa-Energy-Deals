@@ -16,11 +16,13 @@ router.get("/review/stats", async (_req, res) => {
       [needsSourceCount],
       [approvedCount],
       [rejectedCount],
+      [binnedCount],
     ] = await Promise.all([
       db.select({ count: count() }).from(projectsTable).where(eq(projectsTable.reviewStatus, "pending")),
       db.select({ count: count() }).from(projectsTable).where(eq(projectsTable.reviewStatus, "needs_source")),
       db.select({ count: count() }).from(projectsTable).where(eq(projectsTable.reviewStatus, "approved")),
       db.select({ count: count() }).from(projectsTable).where(eq(projectsTable.reviewStatus, "rejected")),
+      db.select({ count: count() }).from(projectsTable).where(eq(projectsTable.reviewStatus, "binned")),
     ]);
 
     res.json({
@@ -28,6 +30,7 @@ router.get("/review/stats", async (_req, res) => {
       needs_source: needsSourceCount?.count ?? 0,
       approved: approvedCount?.count ?? 0,
       rejected: rejectedCount?.count ?? 0,
+      binned: binnedCount?.count ?? 0,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -44,7 +47,7 @@ router.get("/review/queue", async (req, res) => {
     const offset = (page - 1) * limit;
     const statusFilter = String(req.query.status ?? "pending");
 
-    const validStatuses = ["pending", "needs_source", "approved", "rejected", "all"];
+    const validStatuses = ["pending", "needs_source", "approved", "rejected", "binned", "all"];
     const statusToUse = validStatuses.includes(statusFilter) ? statusFilter : "pending";
 
     const whereClause = statusToUse === "all"
@@ -60,6 +63,7 @@ router.get("/review/queue", async (req, res) => {
       capacityMw: projectsTable.capacityMw,
       status: projectsTable.status,
       reviewStatus: projectsTable.reviewStatus,
+      approvedBy: projectsTable.approvedBy,
       confidenceScore: projectsTable.confidenceScore,
       sourceUrl: projectsTable.sourceUrl,
       newsUrl: projectsTable.newsUrl,
@@ -121,9 +125,9 @@ router.patch("/review/:id/status", async (req: ReviewerRequest, res) => {
     if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
     const { status } = req.body as { status?: string };
-    const validStatuses = ["approved", "pending", "needs_source", "rejected"];
+    const validStatuses = ["approved", "pending", "needs_source", "rejected", "binned"];
     if (!status || !validStatuses.includes(status)) {
-      res.status(400).json({ error: "Invalid status. Must be: approved, pending, needs_source, rejected" });
+      res.status(400).json({ error: "Invalid status. Must be: approved, pending, needs_source, rejected, binned" });
       return;
     }
 
@@ -146,9 +150,14 @@ router.patch("/review/:id/status", async (req: ReviewerRequest, res) => {
       .where(eq(projectsTable.id, id))
       .limit(1);
 
+    const reviewerEmail = req.reviewerEmail ?? "unknown";
     await db
       .update(projectsTable)
-      .set({ reviewStatus: status })
+      .set({
+        reviewStatus: status,
+        approvedBy: status === "approved" ? reviewerEmail : null,
+        binnedAt: status === "binned" ? new Date() : null,
+      })
       .where(eq(projectsTable.id, id));
 
     if (project?.extractionSource === "community" && project.communitySubmissionId) {
