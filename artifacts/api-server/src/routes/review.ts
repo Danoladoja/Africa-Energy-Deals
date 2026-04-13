@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, projectsTable, urlAuditTable, contributorSubmissionsTable } from "@workspace/db";
-import { eq, and, desc, count, or, isNull, inArray } from "drizzle-orm";
+import { eq, and, desc, count, or, isNull, inArray, sql } from "drizzle-orm";
 import { reviewerAuthMiddleware, type ReviewerRequest } from "../middleware/reviewAuth.js";
 import { awardBadges } from "../services/badges.js";
 
@@ -338,6 +338,35 @@ router.post("/review/test-url", async (req: ReviewerRequest, res) => {
     }
 
     res.json({ url, reachable, httpStatus, responseTime });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/review/:id/duplicates — fuzzy-similar projects (deduplication aid)
+router.get("/review/:id/duplicates", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const [project] = await db
+      .select({ projectName: projectsTable.projectName, country: projectsTable.country })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, id))
+      .limit(1);
+    if (!project) { res.status(404).json({ error: "Not found" }); return; }
+
+    const results = await db.execute(sql`
+      SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+             ROUND((similarity(project_name, ${project.projectName}) * 100)::numeric, 0) AS name_sim
+      FROM energy_projects
+      WHERE id != ${id}
+        AND similarity(project_name, ${project.projectName}) > 0.4
+      ORDER BY similarity(project_name, ${project.projectName}) DESC
+      LIMIT 5
+    `);
+
+    res.json({ duplicates: results.rows });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

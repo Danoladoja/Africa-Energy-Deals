@@ -58,6 +58,16 @@ interface TestResult {
   responseTime: number;
 }
 
+interface DuplicateHit {
+  id: number;
+  project_name: string;
+  country: string;
+  technology: string | null;
+  deal_size_usd_mn: number | null;
+  review_status: string;
+  name_sim: number;
+}
+
 export default function ReviewItem() {
   const { id } = useParams<{ id: string }>();
   const search = useSearch();
@@ -90,6 +100,10 @@ export default function ReviewItem() {
   const [savingUrl, setSavingUrl] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [queueRemaining, setQueueRemaining] = useState<number | null>(null);
+
+  // Duplicate detection
+  const [duplicates, setDuplicates] = useState<DuplicateHit[]>([]);
+  const [dupsLoading, setDupsLoading] = useState(false);
 
   // Edit details panel
   const [editOpen, setEditOpen] = useState(false);
@@ -148,13 +162,25 @@ export default function ReviewItem() {
     } catch {}
   };
 
+  const loadDuplicates = () => {
+    setDupsLoading(true);
+    setDuplicates([]);
+    apiFetch(`/api/review/${id}/duplicates`)
+      .then(r => r.json())
+      .then(d => { if (mountedRef.current) setDuplicates(d.duplicates ?? []); })
+      .catch(() => {})
+      .finally(() => { if (mountedRef.current) setDupsLoading(false); });
+  };
+
   useEffect(() => {
     setAdvancing(false);
     setSavingStatus(false);
     setEditOpen(false);
+    setDuplicates([]);
     if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
     loadQueueCount();
+    loadDuplicates();
   }, [isAuthLoading, canAccess, id]);
 
   const advanceToNext = async () => {
@@ -651,6 +677,47 @@ export default function ReviewItem() {
                 Save URL
               </button>
             </div>
+
+            {/* Possible duplicates card */}
+            {(dupsLoading || duplicates.length > 0) && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+                <h2 className="text-sm font-semibold text-amber-400 mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Possible Duplicates
+                </h2>
+                {dupsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Scanning for similar projects…
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {duplicates.map(dup => (
+                      <a
+                        key={dup.id}
+                        href={`/review/queue/${dup.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start justify-between gap-3 p-3 rounded-xl bg-background border border-border hover:border-amber-500/30 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{dup.project_name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{dup.country} · {dup.technology ?? "—"}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="text-xs font-semibold text-amber-400">{dup.name_sim}% match</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-md ${
+                            dup.review_status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
+                            dup.review_status === "rejected" ? "bg-rose-500/10 text-rose-400" :
+                            "bg-muted/40 text-muted-foreground"
+                          }`}>{dup.review_status}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right column: actions + audit */}

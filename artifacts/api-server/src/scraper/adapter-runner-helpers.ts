@@ -4,7 +4,7 @@
  */
 
 import { db, projectsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { type CandidateDraft } from "./base.js";
 
@@ -104,13 +104,15 @@ export async function writeCandidate(
   if (!name || name.length < 5) return { inserted: false, updated: false, flagged: false };
   if (candidate.confidence < 0.65) return { inserted: false, updated: false, flagged: false };
 
-  const existing = await db
-    .select({ id: projectsTable.id })
-    .from(projectsTable)
-    .where(eq(projectsTable.projectName, name))
-    .limit(1);
+  // Fix 1: Fuzzy name match (pg_trgm similarity > 0.75) replaces exact-name check
+  const fuzzyMatch = await db.execute(sql`
+    SELECT id FROM energy_projects
+    WHERE similarity(project_name, ${name}) > 0.75
+    LIMIT 1
+  `);
 
-  if (existing.length > 0) {
+  if (fuzzyMatch.rows.length > 0) {
+    const existingId = (fuzzyMatch.rows[0] as any).id as number;
     await db.update(projectsTable).set({
       ...(candidate.developer && { developer: candidate.developer }),
       ...(candidate.financiers && { financiers: candidate.financiers }),
@@ -120,8 +122,30 @@ export async function writeCandidate(
       ...(candidate.capacityMw !== null && { capacityMw: candidate.capacityMw }),
       confidenceScore: candidate.confidence,
       extractionSource: adapterKey,
-    }).where(eq(projectsTable.id, existing[0].id));
+    }).where(eq(projectsTable.id, existingId));
     return { inserted: false, updated: true, flagged: false };
+  }
+
+  // Fix 4: URL dedup — if the source URL already exists in any project, upsert instead of insert
+  if (candidate.newsUrl) {
+    const urlMatch = await db.execute(sql`
+      SELECT id FROM energy_projects
+      WHERE news_url = ${candidate.newsUrl} OR news_url_2 = ${candidate.newsUrl}
+      LIMIT 1
+    `);
+    if (urlMatch.rows.length > 0) {
+      const existingId = (urlMatch.rows[0] as any).id as number;
+      await db.update(projectsTable).set({
+        ...(candidate.developer && { developer: candidate.developer }),
+        ...(candidate.financiers && { financiers: candidate.financiers }),
+        ...(candidate.dfiInvolvement && { dfiInvolvement: candidate.dfiInvolvement }),
+        ...(candidate.dealSizeUsdMn !== null && { dealSizeUsdMn: candidate.dealSizeUsdMn }),
+        ...(candidate.capacityMw !== null && { capacityMw: candidate.capacityMw }),
+        confidenceScore: candidate.confidence,
+        extractionSource: adapterKey,
+      }).where(eq(projectsTable.id, existingId));
+      return { inserted: false, updated: true, flagged: false };
+    }
   }
 
   if (!candidate.country || !candidate.technology) {

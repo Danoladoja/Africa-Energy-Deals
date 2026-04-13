@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, projectsTable, insertProjectSchema } from "@workspace/db";
-import { ilike, and, gte, lte, eq, sql, desc, isNotNull } from "drizzle-orm";
+import { ilike, and, gte, lte, eq, sql, desc, isNotNull, or } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -150,6 +150,25 @@ router.post("/projects", requireApiKey, async (req, res) => {
   try {
     const parsed = insertProjectSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid project data", details: parsed.error.issues });
+
+    // Deduplication: reject if a project with the same name + country already exists (case-insensitive)
+    const incomingName = parsed.data.projectName;
+    const incomingCountry = (parsed.data as any).country;
+    if (incomingName && incomingCountry) {
+      const [clash] = await db
+        .select({ id: projectsTable.id, projectName: projectsTable.projectName })
+        .from(projectsTable)
+        .where(and(ilike(projectsTable.projectName, incomingName), ilike(projectsTable.country, incomingCountry)))
+        .limit(1);
+      if (clash) {
+        return res.status(409).json({
+          error: "Duplicate project",
+          message: `A project named "${clash.projectName}" in ${incomingCountry} already exists.`,
+          existingId: clash.id,
+        });
+      }
+    }
+
     const [project] = await db.insert(projectsTable).values(parsed.data).returning();
     res.status(201).json(project);
   } catch (error) {

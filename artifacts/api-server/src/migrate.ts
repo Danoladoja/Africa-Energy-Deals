@@ -51,6 +51,9 @@ async function runMigration(description: string, statement: string): Promise<voi
 export async function runStartupMigrations(): Promise<void> {
   console.log("[Migrate] Running startup schema migrations…");
 
+  // ── pg_trgm extension (required for fuzzy name deduplication) ─────────────
+  await runMigration("extension pg_trgm", `CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+
   // ── energy_projects ───────────────────────────────────────────────────────
   // Enriched deal lifecycle columns (added in scraper enrichment phase)
   await runMigration("energy_projects.deal_stage", `ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS deal_stage TEXT`);
@@ -350,6 +353,12 @@ export async function runStartupMigrations(): Promise<void> {
         RAISE NOTICE '[Migrate] Added FK energy_projects_community_submission_id_fkey';
       END IF;
     END $$
+  `);
+
+  // ── deduplication indexes ─────────────────────────────────────────────────
+  await runMigration("idx_ep_name_trgm GIN index", `
+    CREATE INDEX IF NOT EXISTS idx_ep_name_trgm
+      ON energy_projects USING GIN (project_name gin_trgm_ops)
   `);
 
   // ── seed scraper_sources ──────────────────────────────────────────────────
