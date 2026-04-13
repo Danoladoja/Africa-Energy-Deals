@@ -112,6 +112,7 @@ export default function ReviewItem() {
   };
 
   useEffect(() => {
+    setAdvancing(false);
     if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
     loadQueueCount();
