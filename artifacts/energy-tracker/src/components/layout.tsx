@@ -276,18 +276,23 @@ function ReviewerNavDropdown() {
 
   return (
     <div>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all ${
-          isOnReview
-            ? "bg-primary/10 text-primary"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-        }`}
-      >
-        <ClipboardList className="w-5 h-5 shrink-0" />
-        <span className="flex-1 text-left">Reviewer Dashboard</span>
-        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-      </button>
+      <div className={`flex items-center gap-0 rounded-xl text-sm font-medium transition-all ${
+        isOnReview
+          ? "bg-primary/10 text-primary"
+          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      }`}>
+        <Link href="/review" className="flex items-center gap-3 flex-1 px-4 py-3.5">
+          <ClipboardList className="w-5 h-5 shrink-0" />
+          <span className="flex-1 text-left">Reviewer Dashboard</span>
+        </Link>
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="px-3 py-3.5"
+          aria-label="Toggle reviewer menu"
+        >
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {reviewerPortalSections.map(s => {
@@ -320,16 +325,21 @@ function MobileReviewerNavDropdown({ onClose }: { onClose: () => void }) {
 
   return (
     <div>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-colors ${
-          isOnReview ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
-        }`}
-      >
-        <ClipboardList className="w-5 h-5 shrink-0" />
-        <span className="text-base font-medium flex-1 text-left">Reviewer Dashboard</span>
-        <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-      </button>
+      <div className={`flex items-center rounded-xl transition-colors ${
+        isOnReview ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
+      }`}>
+        <Link href="/review" onClick={onClose} className="flex items-center gap-4 flex-1 px-4 py-3.5">
+          <ClipboardList className="w-5 h-5 shrink-0" />
+          <span className="text-base font-medium flex-1 text-left">Reviewer Dashboard</span>
+        </Link>
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="px-4 py-3.5"
+          aria-label="Toggle reviewer menu"
+        >
+          <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {reviewerPortalSections.map(s => (
