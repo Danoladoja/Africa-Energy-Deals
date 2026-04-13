@@ -463,16 +463,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {theme === "dark" ? "Light" : "Dark"}
                 </button>
               </div>
-              {isReviewer && (
-                <div className="flex items-center gap-3">
-                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
-                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
-                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-              {!isReviewer && isReviewerSession && (
+              {isReviewerSession ? (
                 <div className="flex items-center gap-3">
                   <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
                   <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{reviewer?.email ?? "Reviewer"}</span>
@@ -480,7 +471,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              )}
+              ) : isAuthenticated ? (
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
+                  <button onClick={handleUserLogout} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : isAdmin ? (
+                <div className="flex items-center gap-3">
+                  <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
+                  <span className="text-xs text-sidebar-foreground/50 truncate flex-1">Administrator</span>
+                  <button onClick={() => { adminLogout(); navigate("/admin"); }} title="Sign out" className="p-1.5 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : null}
             </div>
           </>
         ) : (
@@ -692,16 +699,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         {theme === "dark" ? <><Sun className="w-3.5 h-3.5" /> Light</> : <><Moon className="w-3.5 h-3.5" /> Dark</>}
                       </button>
                     </div>
-                    {isReviewer && (
-                      <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
-                        <LogOut className="w-5 h-5" />Sign out
-                      </button>
-                    )}
-                    {!isReviewer && isReviewerSession && (
+                    {isReviewerSession ? (
                       <button onClick={() => { reviewerSessionLogout(); navigate("/review"); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
                         <LogOut className="w-5 h-5" />Sign out
                       </button>
-                    )}
+                    ) : isAuthenticated ? (
+                      <button onClick={() => { handleUserLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign out
+                      </button>
+                    ) : isAdmin ? (
+                      <button onClick={() => { adminLogout(); navigate("/admin"); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-foreground/50 hover:bg-white/5 transition-colors mt-1">
+                        <LogOut className="w-5 h-5" />Sign out
+                      </button>
+                    ) : null}
                   </>
                 ) : (
                   /* ── Regular user mobile nav ── */
