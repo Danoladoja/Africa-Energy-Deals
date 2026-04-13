@@ -113,6 +113,7 @@ export default function ReviewItem() {
 
   useEffect(() => {
     setAdvancing(false);
+    setSavingStatus(false);
     if (isAuthLoading || !canAccess) { setLoading(false); return; }
     loadData();
     loadQueueCount();
@@ -196,16 +197,14 @@ export default function ReviewItem() {
       };
       toast.success(labels[status] ?? "Updated");
       if (status !== "pending") {
-        // Auto-advance to the next project in queue
         await advanceToNext();
       } else {
-        // "Reset to pending" stays on this project
         loadData();
         loadQueueCount();
-        setSavingStatus(false);
       }
     } catch {
       toast.error("Failed to update status");
+    } finally {
       setSavingStatus(false);
     }
   }
