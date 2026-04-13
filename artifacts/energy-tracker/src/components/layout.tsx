@@ -139,17 +139,20 @@ function dispatchAdminSection(sectionId: string) {
 
 function AdminNavDropdown() {
   const [location, navigate] = useLocation();
-  const isOnAdmin = location === "/admin" || location.startsWith("/admin");
-  const [open, setOpen] = useState(isOnAdmin);
+  // isOnDashboard: AdminDashboard is actually mounted (used for dispatch-vs-navigate decision)
+  const isOnDashboard = location === "/admin" || location === "/admin/scraper";
+  // isOnAnyAdmin: any admin sub-page (used for visual highlighting and dropdown open state)
+  const isOnAnyAdmin = location.startsWith("/admin");
+  const [open, setOpen] = useState(isOnAnyAdmin);
   const activeSection = useAdminSection();
 
   useEffect(() => {
-    if (isOnAdmin) setOpen(true);
-  }, [isOnAdmin]);
+    if (isOnAnyAdmin) setOpen(true);
+  }, [isOnAnyAdmin]);
 
   const handleSectionClick = (sectionId: string, href?: string) => {
     if (href) { navigate(href); return; }
-    if (isOnAdmin) {
+    if (isOnDashboard) {
       changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
     } else {
@@ -162,7 +165,7 @@ function AdminNavDropdown() {
       <button
         onClick={() => setOpen(v => !v)}
         className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all ${
-          isOnAdmin
+          isOnAnyAdmin
             ? "bg-primary/10 text-primary"
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         }`}
@@ -174,7 +177,10 @@ function AdminNavDropdown() {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && (activeSection === s.id || (s.id === "contributors" && location === "/admin/contributors"));
+            const isActive =
+              (s.id === "reviewers" && location === "/admin/reviewers") ||
+              (s.id === "contributors" && location === "/admin/contributors") ||
+              (isOnDashboard && activeSection === s.id);
             const href = "href" in s ? (s as any).href : undefined;
             return (
               <button
@@ -199,14 +205,15 @@ function AdminNavDropdown() {
 
 function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
   const [location, navigate] = useLocation();
-  const isOnAdmin = location === "/admin" || location.startsWith("/admin");
-  const [open, setOpen] = useState(isOnAdmin);
+  const isOnDashboard = location === "/admin" || location === "/admin/scraper";
+  const isOnAnyAdmin = location.startsWith("/admin");
+  const [open, setOpen] = useState(isOnAnyAdmin);
   const activeSection = useAdminSection();
 
   const handleSectionClick = (sectionId: string, href?: string) => {
     onClose();
     if (href) { navigate(href); return; }
-    if (isOnAdmin) {
+    if (isOnDashboard) {
       changeAdminSection(sectionId);
       dispatchAdminSection(sectionId);
     } else {
@@ -219,7 +226,7 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
       <button
         onClick={() => setOpen(v => !v)}
         className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-colors ${
-          isOnAdmin ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
+          isOnAnyAdmin ? "bg-primary/10 text-primary font-medium" : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
         }`}
       >
         <Settings className="w-5 h-5 shrink-0" />
@@ -229,7 +236,10 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
-            const isActive = isOnAdmin && (activeSection === s.id || (s.id === "contributors" && location === "/admin/contributors"));
+            const isActive =
+              (s.id === "reviewers" && location === "/admin/reviewers") ||
+              (s.id === "contributors" && location === "/admin/contributors") ||
+              (isOnDashboard && activeSection === s.id);
             const href = "href" in s ? (s as any).href : undefined;
             return (
               <button
