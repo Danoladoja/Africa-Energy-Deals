@@ -1,4 +1,5 @@
-// Global admin auth interceptor — attaches Bearer token to all /api/admin calls
+// Global admin auth interceptor — attaches Bearer token to all /api/admin calls,
+// and on 401 clears stale tokens + redirects to the admin login page.
 const _origFetch = window.fetch;
 window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -16,8 +17,11 @@ window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
   if (response.status === 401 && url.includes('/api/admin')) {
     localStorage.removeItem('afrienergy_admin_token');
     localStorage.removeItem('afrienergy_session_token');
-    window.location.href = '/admin';
-    return new Promise(() => {});
+    // Use BASE_URL so the redirect is correct in both dev (/energy-tracker/) and prod (/)
+    const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+    window.location.replace(`${base}/admin`);
+    // Return the actual response — NOT a never-resolving promise — so that
+    // every caller's .finally() / catch() still executes and isLoading clears.
   }
   return response;
 };
