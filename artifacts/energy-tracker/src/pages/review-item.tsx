@@ -104,6 +104,8 @@ export default function ReviewItem() {
   // Duplicate detection
   const [duplicates, setDuplicates] = useState<DuplicateHit[]>([]);
   const [dupsLoading, setDupsLoading] = useState(false);
+  const [flaggingDupId, setFlaggingDupId] = useState<number | null>(null);
+  const [flagging, setFlagging] = useState(false);
 
   // Edit details panel
   const [editOpen, setEditOpen] = useState(false);
@@ -303,6 +305,25 @@ export default function ReviewItem() {
       toast.error("Failed to update status");
     } finally {
       setSavingStatus(false);
+    }
+  }
+
+  async function handleFlagDuplicate(dupId: number, dupName: string) {
+    setFlagging(true);
+    try {
+      const r = await apiFetch(`/api/review/${id}/flag-duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duplicateOfId: dupId }),
+      });
+      if (!r.ok) throw new Error("Failed");
+      toast.success(`Flagged as duplicate of "${dupName}" — moved to bin`);
+      setFlaggingDupId(null);
+      await advanceToNext();
+    } catch {
+      toast.error("Failed to flag duplicate");
+    } finally {
+      setFlagging(false);
     }
   }
 
@@ -681,10 +702,13 @@ export default function ReviewItem() {
             {/* Possible duplicates card */}
             {(dupsLoading || duplicates.length > 0) && (
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
-                <h2 className="text-sm font-semibold text-amber-400 mb-3 flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-amber-400 mb-1 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
                   Possible Duplicates
                 </h2>
+                <p className="text-xs text-muted-foreground mb-3">
+                  If this project is a duplicate, use "Flag as Duplicate" to bin it and move to the next item.
+                </p>
                 {dupsLoading ? (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -693,26 +717,64 @@ export default function ReviewItem() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {duplicates.map(dup => (
-                      <a
-                        key={dup.id}
-                        href={`/review/queue/${dup.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-start justify-between gap-3 p-3 rounded-xl bg-background border border-border hover:border-amber-500/30 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">{dup.project_name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{dup.country} · {dup.technology ?? "—"}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <span className="text-xs font-semibold text-amber-400">{dup.name_sim}% match</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-md ${
-                            dup.review_status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
-                            dup.review_status === "rejected" ? "bg-rose-500/10 text-rose-400" :
-                            "bg-muted/40 text-muted-foreground"
-                          }`}>{dup.review_status}</span>
-                        </div>
-                      </a>
+                      <div key={dup.id} className="rounded-xl bg-background border border-border overflow-hidden">
+                        {/* Match info row */}
+                        <a
+                          href={`/review/queue/${dup.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start justify-between gap-3 p-3 hover:bg-muted/20 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{dup.project_name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{dup.country} · {dup.technology ?? "—"}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-xs font-semibold text-amber-400">{dup.name_sim}% match</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md ${
+                              dup.review_status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
+                              dup.review_status === "rejected" ? "bg-rose-500/10 text-rose-400" :
+                              "bg-muted/40 text-muted-foreground"
+                            }`}>{dup.review_status}</span>
+                          </div>
+                        </a>
+
+                        {/* Flag action area */}
+                        {flaggingDupId === dup.id ? (
+                          <div className="px-3 pb-3 pt-1 border-t border-amber-500/10 bg-amber-500/5">
+                            <p className="text-xs text-amber-300 mb-2">
+                              This will bin the current project and move to the next in queue. Continue?
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleFlagDuplicate(dup.id, dup.project_name)}
+                                disabled={flagging}
+                                className="flex-1 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                              >
+                                {flagging ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                Confirm — Flag &amp; Bin
+                              </button>
+                              <button
+                                onClick={() => setFlaggingDupId(null)}
+                                disabled={flagging}
+                                className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="px-3 pb-3 pt-1 border-t border-border">
+                            <button
+                              onClick={() => setFlaggingDupId(dup.id)}
+                              disabled={flagging || savingStatus}
+                              className="w-full py-1.5 rounded-lg border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                            >
+                              Flag as Duplicate
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

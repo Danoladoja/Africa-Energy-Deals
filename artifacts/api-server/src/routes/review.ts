@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, projectsTable, urlAuditTable, contributorSubmissionsTable } from "@workspace/db";
+import { db, projectsTable, urlAuditTable, contributorSubmissionsTable, reviewerAuditLogTable } from "@workspace/db";
 import { eq, and, desc, count, or, isNull, inArray, sql } from "drizzle-orm";
 import { reviewerAuthMiddleware, type ReviewerRequest } from "../middleware/reviewAuth.js";
 import { awardBadges } from "../services/badges.js";
@@ -338,6 +338,61 @@ router.post("/review/test-url", async (req: ReviewerRequest, res) => {
     }
 
     res.json({ url, reachable, httpStatus, responseTime });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/review/:id/flag-duplicate — bin current project as duplicate of another
+router.post("/review/:id/flag-duplicate", async (req: ReviewerRequest, res) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const { duplicateOfId } = req.body as { duplicateOfId?: number };
+    if (!duplicateOfId || isNaN(Number(duplicateOfId))) {
+      res.status(400).json({ error: "duplicateOfId is required" });
+      return;
+    }
+
+    const [current] = await db
+      .select({ projectName: projectsTable.projectName, reviewStatus: projectsTable.reviewStatus })
+      .from(projectsTable).where(eq(projectsTable.id, id)).limit(1);
+    if (!current) { res.status(404).json({ error: "Project not found" }); return; }
+
+    const [dupOf] = await db
+      .select({ projectName: projectsTable.projectName })
+      .from(projectsTable).where(eq(projectsTable.id, duplicateOfId)).limit(1);
+    if (!dupOf) { res.status(404).json({ error: "Target project not found" }); return; }
+
+    const reviewerEmail = req.reviewerEmail ?? "unknown";
+    const note = `Flagged as duplicate of #${duplicateOfId} (${dupOf.projectName})`;
+
+    await db.update(projectsTable)
+      .set({ reviewStatus: "binned", binnedAt: new Date() })
+      .where(eq(projectsTable.id, id));
+
+    // Audit trail entries — non-blocking
+    db.insert(urlAuditTable).values({
+      dealId: id,
+      action: "flag_duplicate",
+      note,
+      reviewerEmail,
+    }).catch(() => {});
+
+    db.insert(reviewerAuditLogTable).values({
+      action: "flag_duplicate",
+      actor: reviewerEmail,
+      metadata: {
+        projectId: id,
+        projectName: current.projectName,
+        duplicateOfId,
+        duplicateOfName: dupOf.projectName,
+        previousStatus: current.reviewStatus,
+      },
+    }).catch(() => {});
+
+    res.json({ success: true, note });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
