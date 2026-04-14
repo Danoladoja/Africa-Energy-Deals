@@ -1735,6 +1735,7 @@ function DuplicateScannerSection() {
     try {
       const res = await fetch(`${API}/admin/duplicates?threshold=${threshold / 100}`, { headers: authHeaders() });
       const data = await res.json();
+      if (res.status === 401) throw new Error("Your session has expired. Please sign out and sign back in.");
       if (!res.ok) throw new Error(data.error ?? "Scan failed");
       setPairs(data.pairs ?? []);
     } catch (e: any) {

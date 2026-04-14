@@ -18,6 +18,9 @@ router.use("/admin/projects/merge", adminAuthMiddleware);
 router.get("/admin/duplicates", async (req, res) => {
   try {
     const threshold = Math.max(0.3, Math.min(0.95, parseFloat(String(req.query.threshold ?? "0.6"))));
+    // Use sql.raw for the threshold literal to avoid any type-inference issues
+    // that can arise when node-postgres sends $1 without an explicit type OID
+    const thresholdLiteral = sql.raw(threshold.toFixed(4));
 
     const results = await db.execute(sql`
       SELECT
@@ -46,7 +49,7 @@ router.get("/admin/duplicates", async (req, res) => {
       WHERE similarity(
         COALESCE(a.normalized_name, lower(a.project_name)),
         COALESCE(b.normalized_name, lower(b.project_name))
-      ) > ${threshold}
+      ) > ${thresholdLiteral}
       ORDER BY similarity(
         COALESCE(a.normalized_name, lower(a.project_name)),
         COALESCE(b.normalized_name, lower(b.project_name))
@@ -55,9 +58,10 @@ router.get("/admin/duplicates", async (req, res) => {
     `);
 
     res.json({ pairs: results.rows, count: results.rows.length, threshold });
-  } catch (err) {
-    console.error("[DuplicateScanner]", err);
-    res.status(500).json({ error: String(err) });
+  } catch (err: any) {
+    const message = err?.cause?.message ?? err?.message ?? String(err);
+    console.error("[DuplicateScanner] Query failed:", message);
+    res.status(500).json({ error: `Duplicate scan failed: ${message}` });
   }
 });
 
