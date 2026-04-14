@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { db, projectsTable, insertProjectSchema } from "@workspace/db";
+import { db, pool, projectsTable, insertProjectSchema } from "@workspace/db";
 import { ilike, and, gte, lte, eq, sql, desc, isNotNull, or } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -113,6 +113,67 @@ router.get("/projects/latest", async (req, res) => {
   }
 });
 
+// ── Rate limiter for /projects/similar (10 req/min per IP) ───────────────────
+const similarRateLimiter = new Map<string, number[]>();
+function allowSimilarRequest(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const prev = (similarRateLimiter.get(ip) ?? []).filter(t => now - t < windowMs);
+  if (prev.length >= 10) return false;
+  similarRateLimiter.set(ip, [...prev, now]);
+  return true;
+}
+
+// GET /api/projects/similar?name=X&country=Y — public fuzzy name search (10/min per IP)
+// IMPORTANT: must be declared before /projects/:id to prevent "similar" matching as an ID
+router.get("/projects/similar", async (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "unknown").split(",")[0].trim();
+  if (!allowSimilarRequest(ip)) {
+    return res.status(429).json({ error: "Too many requests. Please wait a moment." });
+  }
+
+  const name = String(req.query.name ?? "").trim();
+  const country = String(req.query.country ?? "").trim();
+  if (name.length < 3) {
+    return res.json({ similar: [] });
+  }
+
+  try {
+    const client = await pool.connect();
+    let rows: unknown[];
+    try {
+      await client.query("SET search_path TO public");
+      const result = country
+        ? await client.query(
+            `SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+                    ROUND((similarity(project_name, $1) * 100)::numeric, 0) AS score
+             FROM energy_projects
+             WHERE country ILIKE $2
+               AND similarity(project_name, $1) > 0.3
+             ORDER BY similarity(project_name, $1) DESC
+             LIMIT 3`,
+            [name, country],
+          )
+        : await client.query(
+            `SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+                    ROUND((similarity(project_name, $1) * 100)::numeric, 0) AS score
+             FROM energy_projects
+             WHERE similarity(project_name, $1) > 0.4
+             ORDER BY similarity(project_name, $1) DESC
+             LIMIT 3`,
+            [name],
+          );
+      rows = result.rows;
+    } finally {
+      client.release();
+    }
+    res.json({ similar: rows });
+  } catch (err) {
+    console.error("[/projects/similar]", err);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // GET single project by ID (approved only for public access)
 router.get("/projects/:id", async (req, res) => {
   try {
@@ -127,58 +188,6 @@ router.get("/projects/:id", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch project" });
-  }
-});
-
-// ── Rate limiter for /projects/similar (10 req/min per IP) ───────────────────
-const similarRateLimiter = new Map<string, number[]>();
-function allowSimilarRequest(ip: string): boolean {
-  const now = Date.now();
-  const windowMs = 60_000;
-  const prev = (similarRateLimiter.get(ip) ?? []).filter(t => now - t < windowMs);
-  if (prev.length >= 10) return false;
-  similarRateLimiter.set(ip, [...prev, now]);
-  return true;
-}
-
-// GET /api/projects/similar?name=X&country=Y — public fuzzy name search (10/min per IP)
-router.get("/projects/similar", async (req, res) => {
-  const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "unknown").split(",")[0].trim();
-  if (!allowSimilarRequest(ip)) {
-    return res.status(429).json({ error: "Too many requests. Please wait a moment." });
-  }
-
-  const name = String(req.query.name ?? "").trim();
-  const country = String(req.query.country ?? "").trim();
-  if (name.length < 3) {
-    return res.json({ similar: [] });
-  }
-
-  try {
-    const results = await db.execute(
-      country
-        ? sql`
-          SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                 ROUND((public.similarity(project_name, ${name}) * 100)::numeric, 0) AS score
-          FROM energy_projects
-          WHERE country ILIKE ${country}
-            AND public.similarity(project_name, ${name}) > 0.3
-          ORDER BY public.similarity(project_name, ${name}) DESC
-          LIMIT 3
-        `
-        : sql`
-          SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                 ROUND((public.similarity(project_name, ${name}) * 100)::numeric, 0) AS score
-          FROM energy_projects
-          WHERE public.similarity(project_name, ${name}) > 0.4
-          ORDER BY public.similarity(project_name, ${name}) DESC
-          LIMIT 3
-        `
-    );
-    res.json({ similar: results.rows });
-  } catch (err) {
-    console.error("[/projects/similar]", err);
-    res.status(500).json({ error: "Search failed" });
   }
 });
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, projectsTable, urlAuditTable, contributorSubmissionsTable, reviewerAuditLogTable } from "@workspace/db";
+import { db, pool, projectsTable, urlAuditTable, contributorSubmissionsTable, reviewerAuditLogTable } from "@workspace/db";
 import { eq, and, desc, count, or, isNull, inArray, sql } from "drizzle-orm";
 import { reviewerAuthMiddleware, type ReviewerRequest } from "../middleware/reviewAuth.js";
 import { awardBadges } from "../services/badges.js";
@@ -411,17 +411,26 @@ router.get("/review/:id/duplicates", async (req, res) => {
       .limit(1);
     if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
-    const results = await db.execute(sql`
-      SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-             ROUND((public.similarity(project_name, ${project.projectName}) * 100)::numeric, 0) AS name_sim
-      FROM energy_projects
-      WHERE id != ${id}
-        AND public.similarity(project_name, ${project.projectName}) > 0.4
-      ORDER BY public.similarity(project_name, ${project.projectName}) DESC
-      LIMIT 5
-    `);
+    const client = await pool.connect();
+    let dupRows: unknown[];
+    try {
+      await client.query("SET search_path TO public");
+      const result = await client.query(
+        `SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
+                ROUND((similarity(project_name, $1) * 100)::numeric, 0) AS name_sim
+         FROM energy_projects
+         WHERE id != $2
+           AND similarity(project_name, $1) > 0.4
+         ORDER BY similarity(project_name, $1) DESC
+         LIMIT 5`,
+        [project.projectName, id],
+      );
+      dupRows = result.rows;
+    } finally {
+      client.release();
+    }
 
-    res.json({ duplicates: results.rows });
+    res.json({ duplicates: dupRows });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

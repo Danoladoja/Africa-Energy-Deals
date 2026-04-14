@@ -3,7 +3,7 @@
  * and the per-source-feed route in adapters.ts.
  */
 
-import { db, projectsTable } from "@workspace/db";
+import { db, pool, projectsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { type CandidateDraft } from "./base.js";
@@ -124,14 +124,23 @@ export async function writeCandidate(
   const normalizedName = normalizeProjectName(name);
 
   // Fix 1: Fuzzy match on normalized_name (falls back to project_name for older rows)
-  const fuzzyMatch = await db.execute(sql`
-    SELECT id FROM energy_projects
-    WHERE public.similarity(COALESCE(normalized_name, lower(project_name)), ${normalizedName}) > 0.75
-    LIMIT 1
-  `);
+  const fuzzyClient = await pool.connect();
+  let fuzzyMatchRows: any[];
+  try {
+    await fuzzyClient.query("SET search_path TO public");
+    const fuzzyResult = await fuzzyClient.query(
+      `SELECT id FROM energy_projects
+       WHERE similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.75
+       LIMIT 1`,
+      [normalizedName],
+    );
+    fuzzyMatchRows = fuzzyResult.rows;
+  } finally {
+    fuzzyClient.release();
+  }
 
-  if (fuzzyMatch.rows.length > 0) {
-    const existingId = (fuzzyMatch.rows[0] as any).id as number;
+  if (fuzzyMatchRows.length > 0) {
+    const existingId = fuzzyMatchRows[0].id as number;
     await db.update(projectsTable).set({
       ...(candidate.developer && { developer: candidate.developer }),
       ...(candidate.financiers && { financiers: candidate.financiers }),
