@@ -21,6 +21,7 @@ import {
   Settings,
   ShieldCheck,
   ArrowRight,
+  ArrowLeft,
   ChevronDown,
   Database,
   Trophy,
@@ -39,7 +40,7 @@ import { useTheme } from "@/contexts/theme";
 import { EmailGateModal } from "./email-gate-modal";
 import { ChatSlideOut } from "./chat-slide-out";
 
-const homeItem = { name: "Home", href: "/", icon: House };
+const homeItem = { name: "Home", href: "/dashboard", icon: House };
 
 const publicNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -397,12 +398,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     navigate("/");
   }
 
+  // Contextual CTA — "Go To App" when in admin/review panels, "Return to …" when in the app
+  const inPrivilegedPanel = location.startsWith("/admin") || location.startsWith("/review");
+  const ctaHref  = inPrivilegedPanel ? "/dashboard" : (isAdmin ? "/admin" : "/review");
+  const ctaLabel = inPrivilegedPanel ? "Go To App"  : (isAdmin ? "Return to Admin" : "Return to Review");
+
   return (
     <div className="flex h-screen bg-background overflow-hidden selection:bg-primary/30">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-72 flex-col bg-sidebar border-r border-sidebar-border relative z-20">
         <div className="h-20 flex items-center px-8 border-b border-sidebar-border">
-          <Link href="/" className="flex items-center gap-3 group cursor-pointer">
+          <Link href="/dashboard" className="flex items-center gap-3 group cursor-pointer">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
               <img 
                 src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
@@ -438,12 +444,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ReviewerNavDropdown />
             </nav>
 
-            {/* Go To App button */}
+            {/* Contextual CTA — Go To App / Return to Admin / Return to Review */}
             <div className="px-4 pb-3">
-              <Link href="/deals" className="block">
+              <Link href={ctaHref} className="block">
                 <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
-                  <span className="text-sm font-semibold">Go To App</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  {!inPrivilegedPanel && <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />}
+                  <span className="text-sm font-semibold flex-1 text-left">{ctaLabel}</span>
+                  {inPrivilegedPanel && <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />}
                 </div>
               </Link>
             </div>
@@ -577,7 +584,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Top Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border z-50 flex items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <img 
               src={`${import.meta.env.BASE_URL}images/logo-icon.png`} 
@@ -680,12 +687,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {/* Reviewer Dashboard — always visible */}
                     <MobileReviewerNavDropdown onClose={() => setMobileMenuOpen(false)} />
 
-                    {/* Go To App */}
+                    {/* Contextual CTA — Go To App / Return to Admin / Return to Review */}
                     <div className="mt-4 px-1">
-                      <Link href="/deals" onClick={() => setMobileMenuOpen(false)}>
+                      <Link href={ctaHref} onClick={() => setMobileMenuOpen(false)}>
                         <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
-                          <span className="text-base font-semibold">Go To App</span>
-                          <ArrowRight className="w-5 h-5" />
+                          {!inPrivilegedPanel && <ArrowLeft className="w-5 h-5" />}
+                          <span className="text-base font-semibold flex-1 text-left">{ctaLabel}</span>
+                          {inPrivilegedPanel && <ArrowRight className="w-5 h-5" />}
                         </div>
                       </Link>
                     </div>
