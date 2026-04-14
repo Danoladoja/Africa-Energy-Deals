@@ -39,9 +39,9 @@ const API = "/api";
 // ── Color constants ───────────────────────────────────────────────────────────
 const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 const ENERGY_GROUPS = {
-  Renewable:      { sectors: ["Solar", "Wind", "Hydro", "Bioenergy"],   color: "#00e676" },
-  "Fossil Fuel":  { sectors: ["Oil & Gas", "Coal"],                     color: "#f87171" },
-  Infrastructure: { sectors: ["Grid Expansion", "Battery & Storage", "Nuclear"], color: "#38bdf8" },
+  Renewable:      { sectors: ["Solar", "Wind", "Hydro", "Bioenergy", "Geothermal", "Clean Cooking"], color: "#00e676" },
+  "Fossil Fuel":  { sectors: ["Oil & Gas", "Coal"],                                                  color: "#f87171" },
+  Infrastructure: { sectors: ["Grid Expansion", "Battery & Storage", "Nuclear", "Hydrogen"],         color: "#38bdf8" },
 } as const;
 const FUNNEL_STAGES = ["Announced", "Mandated", "Financial Close", "Construction", "Commissioned"];
 const FUNNEL_COLORS = ["#94a3b8", "#facc15", "#22d3ee", "#38bdf8", "#00e676"];
