@@ -140,16 +140,21 @@ function ReviewerRoute({ component: Component }: { component: React.ComponentTyp
 
 function AuthRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useAdminAuth();
+  const { isAuthenticated: isReviewerSession, isLoading: rvLoading } = useReviewerAuth();
   const [, navigate] = useLocation();
 
+  const canAccess = isAuthenticated || isAdmin || isReviewerSession;
+  const anyLoading = isLoading || adminLoading || rvLoading;
+
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!anyLoading && !canAccess) {
       navigate("/");
     }
-  }, [isAuthenticated, isLoading, navigate]);
+  }, [canAccess, anyLoading, navigate]);
 
-  if (isLoading) return <PageLoader />;
-  if (!isAuthenticated) return null;
+  if (anyLoading) return <PageLoader />;
+  if (!canAccess) return null;
   return <Component />;
 }
 
