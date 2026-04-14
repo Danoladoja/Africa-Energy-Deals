@@ -398,10 +398,40 @@ export function Layout({ children }: { children: React.ReactNode }) {
     navigate("/");
   }
 
-  // Contextual CTA — "Go To App" when in admin/review panels, "Return to …" when in the app
-  const inPrivilegedPanel = location.startsWith("/admin") || location.startsWith("/review");
-  const ctaHref  = inPrivilegedPanel ? "/dashboard" : (isAdmin ? "/admin" : "/review");
-  const ctaLabel = inPrivilegedPanel ? "Go To App"  : (isAdmin ? "Return to Admin" : "Return to Review");
+  // ── View-mode toggle ─────────────────────────────────────────────
+  // Privileged users can switch between the admin/review panel and the
+  // full live app, getting the correct sidebar in each context.
+  const [viewMode, setViewMode] = useState<"privileged" | "app">(() => {
+    const stored = localStorage.getItem("afrienergy_view_mode");
+    return stored === "app" ? "app" : "privileged";
+  });
+
+  // Auto-restore privileged sidebar when the user navigates to /admin or /review directly
+  useEffect(() => {
+    if (
+      (isAdmin || isReviewer || isReviewerSession) &&
+      (location.startsWith("/admin") || location.startsWith("/review"))
+    ) {
+      setViewMode("privileged");
+      localStorage.setItem("afrienergy_view_mode", "privileged");
+    }
+  }, [location, isAdmin, isReviewer, isReviewerSession]);
+
+  function enterApp() {
+    setViewMode("app");
+    localStorage.setItem("afrienergy_view_mode", "app");
+    navigate("/dashboard");
+  }
+
+  function returnToPrivileged(closeMobile?: () => void) {
+    setViewMode("privileged");
+    localStorage.setItem("afrienergy_view_mode", "privileged");
+    closeMobile?.();
+    navigate(isAdmin ? "/admin" : "/review");
+  }
+
+  const isPrivilegedUser = isAdmin || isReviewer || isReviewerSession;
+  const showPrivilegedSidebar = isPrivilegedUser && viewMode === "privileged";
 
   return (
     <div className="flex h-screen bg-background overflow-hidden selection:bg-primary/30">
@@ -423,7 +453,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* ── Unified privileged sidebar (Admin + Reviewer) ── */}
-        {(isAdmin || isReviewer || isReviewerSession) ? (
+        {showPrivilegedSidebar ? (
           <>
             <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
               {/* Role badge */}
@@ -444,15 +474,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ReviewerNavDropdown />
             </nav>
 
-            {/* Contextual CTA — Go To App / Return to Admin / Return to Review */}
+            {/* Go To App — switches to full live-app sidebar + navigates to dashboard */}
             <div className="px-4 pb-3">
-              <Link href={ctaHref} className="block">
+              <button onClick={enterApp} className="w-full block">
                 <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
-                  {!inPrivilegedPanel && <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />}
-                  <span className="text-sm font-semibold flex-1 text-left">{ctaLabel}</span>
-                  {inPrivilegedPanel && <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />}
+                  <span className="text-sm font-semibold flex-1 text-left">Go To App</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-              </Link>
+              </button>
             </div>
 
             {/* Footer */}
@@ -545,6 +574,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
               </button>
             </div>
+
+            {/* Return to Admin/Review — only shown when a privileged user is in app mode */}
+            {isPrivilegedUser && (
+              <div className="px-4 pb-3">
+                <button onClick={() => returnToPrivileged()} className="w-full block">
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 hover:border-primary/40 transition-all group cursor-pointer">
+                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform shrink-0" />
+                    <span className="text-sm font-semibold flex-1 text-left">
+                      {isAdmin ? "Return to Admin" : "Return to Review"}
+                    </span>
+                  </div>
+                </button>
+              </div>
+            )}
 
             <div className="p-6 border-t border-sidebar-border flex flex-col gap-3">
               <div className="flex items-center justify-between px-1">
@@ -655,7 +698,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col"
             >
               <div className="h-14 flex items-center justify-between px-5 border-b border-sidebar-border shrink-0">
-                <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5">
+                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                     <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-5 h-5 filter brightness-0" />
                   </div>
@@ -667,7 +710,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex-1 py-4 px-3 flex flex-col gap-1 overflow-y-auto">
-                {(isAdmin || isReviewer || isReviewerSession) ? (
+                {showPrivilegedSidebar ? (
                   /* ── Unified privileged mobile nav ── */
                   <>
                     {/* Role badge */}
@@ -687,15 +730,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {/* Reviewer Dashboard — always visible */}
                     <MobileReviewerNavDropdown onClose={() => setMobileMenuOpen(false)} />
 
-                    {/* Contextual CTA — Go To App / Return to Admin / Return to Review */}
+                    {/* Go To App — switches sidebar to full live-app view */}
                     <div className="mt-4 px-1">
-                      <Link href={ctaHref} onClick={() => setMobileMenuOpen(false)}>
+                      <button onClick={() => { enterApp(); setMobileMenuOpen(false); }} className="w-full">
                         <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer">
-                          {!inPrivilegedPanel && <ArrowLeft className="w-5 h-5" />}
-                          <span className="text-base font-semibold flex-1 text-left">{ctaLabel}</span>
-                          {inPrivilegedPanel && <ArrowRight className="w-5 h-5" />}
+                          <span className="text-base font-semibold flex-1 text-left">Go To App</span>
+                          <ArrowRight className="w-5 h-5" />
                         </div>
-                      </Link>
+                      </button>
                     </div>
 
                     {/* Footer */}
@@ -766,6 +808,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {!isAuthenticated && (
                       <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-[#00e676] hover:bg-[#00e676]/10 transition-colors">
                         <Bell className="w-5 h-5" />Sign In for Alerts
+                      </button>
+                    )}
+
+                    {/* Return to Admin/Review — visible for privileged users browsing the app */}
+                    {isPrivilegedUser && (
+                      <button onClick={() => returnToPrivileged(() => setMobileMenuOpen(false))} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-primary hover:bg-primary/10 transition-colors mt-1">
+                        <ArrowLeft className="w-5 h-5" />
+                        {isAdmin ? "Return to Admin" : "Return to Review"}
                       </button>
                     )}
                   </>
