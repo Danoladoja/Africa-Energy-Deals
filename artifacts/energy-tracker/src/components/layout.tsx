@@ -603,7 +603,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {theme === "dark" ? "Light" : "Dark"}
                 </button>
               </div>
-              {isAuthenticated ? (
+              {isAuthenticated && (
                 <div className="flex items-center gap-3">
                   <UserCircle2 className="w-4 h-4 text-sidebar-foreground/40 shrink-0" />
                   <span className="text-xs text-sidebar-foreground/50 truncate flex-1">{email}</span>
@@ -611,14 +611,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#00e676]/10 border border-[#00e676]/25 text-[#00e676] hover:bg-[#00e676]/15 transition-colors w-full"
-                >
-                  <Bell className="w-4 h-4" />
-                  Sign In for Alerts
-                </button>
               )}
             </div>
           </>
@@ -638,7 +630,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span className="font-display font-bold text-base">AfriEnergy</span>
         </Link>
         <div className="flex items-center gap-1">
-          {isAuthenticated ? (
+          {isAuthenticated && (
             <Link href="/watches">
               <button className="relative p-2 rounded-xl text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
                 <Bell className="w-5 h-5" />
@@ -649,14 +641,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
             </Link>
-          ) : (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="p-2 rounded-xl text-[#00e676] hover:bg-[#00e676]/10 transition-colors"
-              title="Sign In"
-            >
-              <Bell className="w-5 h-5" />
-            </button>
           )}
           {/* Theme toggle — mobile header */}
           <button
@@ -805,12 +789,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         </button>
                       </>
                     )}
-                    {!isAuthenticated && (
-                      <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-[#00e676] hover:bg-[#00e676]/10 transition-colors">
-                        <Bell className="w-5 h-5" />Sign In for Alerts
-                      </button>
-                    )}
-
                     {/* Return to Admin/Review — visible for privileged users browsing the app */}
                     {isPrivilegedUser && (
                       <button onClick={() => returnToPrivileged(() => setMobileMenuOpen(false))} className="flex items-center gap-4 px-4 py-3.5 rounded-xl text-base text-primary hover:bg-primary/10 transition-colors mt-1">
