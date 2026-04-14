@@ -258,6 +258,13 @@ router.patch("/projects/:id", requireApiKey, async (req, res) => {
     if (!rawUpdates || Object.keys(rawUpdates).length === 0) {
       return res.status(400).json({ error: "No update fields provided" });
     }
+    // Validate technology if being updated
+    if (rawUpdates.technology !== undefined && !VALID_TECHNOLOGIES.includes(rawUpdates.technology)) {
+      return res.status(400).json({
+        error: `Invalid technology value: "${rawUpdates.technology}". Must be one of: ${VALID_TECHNOLOGIES.join(", ")}`,
+        validTechnologies: VALID_TECHNOLOGIES,
+      });
+    }
     // Whitelist fields and remap legacy names to Drizzle property names
     const updates: Record<string, unknown> = {};
     for (const key of Object.keys(rawUpdates)) {

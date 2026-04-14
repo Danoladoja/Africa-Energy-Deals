@@ -64,6 +64,7 @@ const adminDashboardSections = [
   { id: "queue",         label: "Review Queue",      icon: ListTodo,        href: "/admin?section=queue" },
   { id: "newsletter",    label: "Newsletter",        icon: Newspaper,       href: "/admin?section=newsletter" },
   { id: "duplicates",    label: "Duplicate Scanner", icon: GitMerge,        href: "/admin?section=duplicates" },
+  { id: "data-health",   label: "Data Health",       icon: AlertCircle,     href: "/admin/data-health" },
   { id: "reviewers",     label: "Reviewers",         icon: ShieldCheck,     href: "/admin/reviewers" },
   { id: "contributors",  label: "Contributors",      icon: Users,           href: "/admin/contributors" },
 ] as const;

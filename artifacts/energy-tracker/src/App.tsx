@@ -42,6 +42,7 @@ const ContributeAuthCallback     = lazy(() => import("@/pages/contribute-auth-ca
 const ContributorMePage          = lazy(() => import("@/pages/contributor-me"));
 const ContributorProfilePage     = lazy(() => import("@/pages/contributor-profile"));
 const AdminContributorsPage      = lazy(() => import("@/pages/admin-contributors"));
+const AdminDataHealthPage        = lazy(() => import("@/pages/admin-data-health"));
 const ContributorBadgePage       = lazy(() => import("@/pages/contributor-badge"));
 
 const queryClient = new QueryClient({
@@ -254,6 +255,9 @@ function Router() {
         <Route path="/contributors/:slug/badges/:badgeSlug" component={ContributorBadgePage} />
         <Route path="/contributors/:slug" component={ContributorProfilePage} />
         <Route path="/contributors" component={ContributorsRedirect} />
+        <Route path="/admin/data-health">
+          {() => <AdminRoute component={AdminDataHealthPage} />}
+        </Route>
         <Route path="/admin/contributors">
           {() => <AdminRoute component={AdminContributorsPage} />}
         </Route>

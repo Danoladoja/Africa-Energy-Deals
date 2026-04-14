@@ -21,6 +21,7 @@ import contributorAuthRouter from "./contributor-auth.js";
 import contributionsRouter from "./contributions.js";
 import badgeImagesRouter from "./badge-images.js";
 import adminDuplicatesRouter from "./admin-duplicates.js";
+import adminDataHealthRouter from "./admin-data-health.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(contributorAuthRouter);
 router.use(contributionsRouter);
 router.use(badgeImagesRouter);
 router.use(adminDuplicatesRouter);
+router.use(adminDataHealthRouter);
 
 export default router;
