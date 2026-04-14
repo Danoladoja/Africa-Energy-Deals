@@ -413,11 +413,11 @@ router.get("/review/:id/duplicates", async (req, res) => {
 
     const results = await db.execute(sql`
       SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-             ROUND((similarity(project_name, ${project.projectName}) * 100)::numeric, 0) AS name_sim
+             ROUND((public.similarity(project_name, ${project.projectName}) * 100)::numeric, 0) AS name_sim
       FROM energy_projects
       WHERE id != ${id}
-        AND similarity(project_name, ${project.projectName}) > 0.4
-      ORDER BY similarity(project_name, ${project.projectName}) DESC
+        AND public.similarity(project_name, ${project.projectName}) > 0.4
+      ORDER BY public.similarity(project_name, ${project.projectName}) DESC
       LIMIT 5
     `);
 

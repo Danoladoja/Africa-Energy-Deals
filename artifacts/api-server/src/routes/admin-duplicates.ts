@@ -38,7 +38,7 @@ router.get("/admin/duplicates", async (req, res) => {
         b.capacity_mw   AS capacity_b,
         b.deal_size_usd_mn AS deal_size_b,
         b.review_status AS status_b,
-        ROUND((similarity(
+        ROUND((public.similarity(
           COALESCE(a.normalized_name, lower(a.project_name)),
           COALESCE(b.normalized_name, lower(b.project_name))
         ) * 100)::numeric, 1) AS score
@@ -46,11 +46,11 @@ router.get("/admin/duplicates", async (req, res) => {
       JOIN energy_projects b
         ON a.id < b.id
         AND lower(a.country) = lower(b.country)
-      WHERE similarity(
+      WHERE public.similarity(
         COALESCE(a.normalized_name, lower(a.project_name)),
         COALESCE(b.normalized_name, lower(b.project_name))
       ) > ${thresholdLiteral}
-      ORDER BY similarity(
+      ORDER BY public.similarity(
         COALESCE(a.normalized_name, lower(a.project_name)),
         COALESCE(b.normalized_name, lower(b.project_name))
       ) DESC

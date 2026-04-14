@@ -126,7 +126,7 @@ export async function writeCandidate(
   // Fix 1: Fuzzy match on normalized_name (falls back to project_name for older rows)
   const fuzzyMatch = await db.execute(sql`
     SELECT id FROM energy_projects
-    WHERE similarity(COALESCE(normalized_name, lower(project_name)), ${normalizedName}) > 0.75
+    WHERE public.similarity(COALESCE(normalized_name, lower(project_name)), ${normalizedName}) > 0.75
     LIMIT 1
   `);
 

@@ -159,19 +159,19 @@ router.get("/projects/similar", async (req, res) => {
       country
         ? sql`
           SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                 ROUND((similarity(project_name, ${name}) * 100)::numeric, 0) AS score
+                 ROUND((public.similarity(project_name, ${name}) * 100)::numeric, 0) AS score
           FROM energy_projects
           WHERE country ILIKE ${country}
-            AND similarity(project_name, ${name}) > 0.3
-          ORDER BY similarity(project_name, ${name}) DESC
+            AND public.similarity(project_name, ${name}) > 0.3
+          ORDER BY public.similarity(project_name, ${name}) DESC
           LIMIT 3
         `
         : sql`
           SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                 ROUND((similarity(project_name, ${name}) * 100)::numeric, 0) AS score
+                 ROUND((public.similarity(project_name, ${name}) * 100)::numeric, 0) AS score
           FROM energy_projects
-          WHERE similarity(project_name, ${name}) > 0.4
-          ORDER BY similarity(project_name, ${name}) DESC
+          WHERE public.similarity(project_name, ${name}) > 0.4
+          ORDER BY public.similarity(project_name, ${name}) DESC
           LIMIT 3
         `
     );
