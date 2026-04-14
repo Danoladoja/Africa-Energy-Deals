@@ -14,6 +14,52 @@ const router = Router();
 
 router.use("/admin/duplicates", adminAuthMiddleware);
 router.use("/admin/projects/merge", adminAuthMiddleware);
+router.use("/admin/setup-extensions", adminAuthMiddleware);
+
+// POST /api/admin/setup-extensions — idempotently install pg_trgm and its indexes
+// Use this to fix a fresh database (e.g. Railway) that has never had pg_trgm created.
+router.post("/admin/setup-extensions", async (_req, res) => {
+  const results: { step: string; status: string; detail?: string }[] = [];
+
+  async function run(step: string, sql: string) {
+    const client = await pool.connect();
+    try {
+      await client.query("SET search_path TO public");
+      await client.query(sql);
+      results.push({ step, status: "ok" });
+    } catch (err: any) {
+      const msg: string = err?.message ?? String(err);
+      if (msg.includes("already exists")) {
+        results.push({ step, status: "ok", detail: "already exists" });
+      } else {
+        results.push({ step, status: "error", detail: msg });
+      }
+    } finally {
+      client.release();
+    }
+  }
+
+  await run("pg_trgm extension", "CREATE EXTENSION IF NOT EXISTS pg_trgm");
+  await run("idx_ep_name_trgm GIN index",
+    "CREATE INDEX IF NOT EXISTS idx_ep_name_trgm ON energy_projects USING GIN (project_name gin_trgm_ops)");
+  await run("idx_ep_normalized_name_trgm GIN index",
+    "CREATE INDEX IF NOT EXISTS idx_ep_normalized_name_trgm ON energy_projects USING GIN (normalized_name gin_trgm_ops)");
+
+  // Verify similarity() is callable
+  const client = await pool.connect();
+  try {
+    await client.query("SET search_path TO public");
+    await client.query("SELECT similarity('test', 'test')");
+    results.push({ step: "similarity() function check", status: "ok" });
+  } catch (err: any) {
+    results.push({ step: "similarity() function check", status: "error", detail: err?.message });
+  } finally {
+    client.release();
+  }
+
+  const hasError = results.some(r => r.status === "error");
+  res.status(hasError ? 500 : 200).json({ results });
+});
 
 // GET /api/admin/duplicates — scan for likely duplicate project pairs using pg_trgm
 router.get("/admin/duplicates", async (req, res) => {

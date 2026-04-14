@@ -24,19 +24,24 @@
  * 10. Seed scraper_sources rows
  */
 
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { pool } from "@workspace/db";
 
 // Postgres error codes that are safe to ignore — the object already exists.
 // 42701 = duplicate_column, 42P07 = duplicate_table, 42710 = duplicate_object (constraint)
 const PG_SAFE_CODES = new Set(["42701", "42P07", "42710"]);
 
+// Use pool.query() directly (not Drizzle db.execute) so that:
+//  • The raw PostgreSQL error code and message are always accessible
+//  • Drizzle's error-wrapping cannot accidentally swallow real failures
 async function runMigration(description: string, statement: string): Promise<void> {
+  const client = await pool.connect();
   try {
-    await db.execute(sql.raw(statement));
+    await client.query("SET search_path TO public");
+    await client.query(statement);
     console.log(`[Migrate] ✓ ${description}`);
   } catch (err: any) {
-    const code: string | undefined = err?.code ?? err?.cause?.code;
+    // err from node-postgres always has .code (the 5-char PG error code)
+    const code: string | undefined = err?.code;
     const message: string = err?.message ?? "";
     const isSafe = (code && PG_SAFE_CODES.has(code)) || message.includes("already exists");
     if (isSafe) {
@@ -45,6 +50,8 @@ async function runMigration(description: string, statement: string): Promise<voi
       console.error(`[Migrate] ✗ ${description} [code=${code ?? "?"}]:`, message || err);
       throw err;
     }
+  } finally {
+    client.release();
   }
 }
 
