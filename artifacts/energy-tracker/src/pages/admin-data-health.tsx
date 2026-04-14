@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAdminAuth } from "@/contexts/admin-auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAdminToken } from "@/contexts/admin-auth";
 import { 
   AlertTriangle, CheckCircle2, RefreshCw, Wrench, 
   Database, GitBranch, Search, TrendingUp, XCircle,
-  ChevronDown, ChevronRight, Copy, ExternalLink
+  ChevronDown, ChevronRight, Copy
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTechBadgeClass, getTechColor } from "@/config/technologyConfig";
@@ -103,7 +103,6 @@ function FixButton({ projectId, suggestedTech, onFixed }: {
   suggestedTech: string; 
   onFixed: () => void; 
 }) {
-  const { token } = useAdminAuth();
   const [loading, setLoading] = useState(false);
 
   async function applyFix() {
@@ -113,7 +112,7 @@ function FixButton({ projectId, suggestedTech, onFixed }: {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${getAdminToken()}`,
         },
         body: JSON.stringify({ id: projectId, technology: suggestedTech }),
       });
@@ -182,19 +181,23 @@ function TechBadge({ tech }: { tech: string }) {
 }
 
 export default function AdminDataHealth() {
-  const { token } = useAdminAuth();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<DataHealthResponse>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<DataHealthResponse, Error>({
     queryKey: ["admin-data-health"],
     queryFn: async () => {
       const res = await fetch(`${API}/admin/data-health`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
       });
-      if (!res.ok) throw new Error("Audit failed");
+      if (res.status === 401) throw new Error("SESSION_EXPIRED");
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Audit failed (${res.status})${body ? ": " + body : ""}`);
+      }
       return res.json();
     },
     staleTime: 60 * 1000,
+    retry: false,
   });
 
   function refresh() {
@@ -211,13 +214,32 @@ export default function AdminDataHealth() {
     );
   }
   if (isError || !data) {
+    const isSessionExpired = (error as Error)?.message === "SESSION_EXPIRED";
     return (
-      <div className="flex flex-col items-center gap-3 min-h-60 justify-center text-red-400">
-        <XCircle size={24} />
-        <p>Audit failed. Check API server logs.</p>
-        <button onClick={refresh} className="px-3 py-1 rounded bg-red-900/30 border border-red-700/30 text-sm hover:bg-red-900/50">
-          Retry
-        </button>
+      <div className="flex flex-col items-center gap-4 min-h-60 justify-center">
+        <XCircle size={28} className="text-red-400" />
+        {isSessionExpired ? (
+          <>
+            <p className="text-white font-medium">Your admin session has expired.</p>
+            <p className="text-white/50 text-sm text-center max-w-sm">
+              Please sign out and sign back in using your admin password to continue.
+            </p>
+            <button
+              onClick={() => { window.location.href = "/admin"; }}
+              className="px-4 py-2 rounded-lg bg-emerald-900/40 border border-emerald-600/40 text-emerald-300 text-sm hover:bg-emerald-800/50 transition-colors"
+            >
+              Go to Admin Sign In
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-red-400 font-medium">Audit failed. Check API server logs.</p>
+            {error && <p className="text-white/40 text-xs font-mono max-w-md text-center">{(error as Error).message}</p>}
+            <button onClick={refresh} className="px-3 py-1 rounded bg-red-900/30 border border-red-700/30 text-sm text-red-300 hover:bg-red-900/50">
+              Retry
+            </button>
+          </>
+        )}
       </div>
     );
   }

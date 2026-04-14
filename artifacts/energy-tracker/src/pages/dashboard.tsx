@@ -465,7 +465,8 @@ export default function Dashboard() {
   const { data: projectsData, isLoading: loadingProjects } = useQuery<{ projects: Project[] }>({
     queryKey: ["dashboard-all-projects"],
     queryFn: () => fetch(`${API}/projects?limit=500`).then(r => r.json()),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 30 * 1000,
   });
 
   const { data: financingStats, isLoading: loadingFinancing } = useQuery<{
