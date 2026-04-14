@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   db,
+  pool,
   projectsTable,
   urlAuditTable,
   contributorSubmissionsTable,
@@ -18,46 +19,55 @@ router.use("/admin/projects/merge", adminAuthMiddleware);
 router.get("/admin/duplicates", async (req, res) => {
   try {
     const threshold = Math.max(0.3, Math.min(0.95, parseFloat(String(req.query.threshold ?? "0.6"))));
-    // Use sql.raw for the threshold literal to avoid any type-inference issues
-    // that can arise when node-postgres sends $1 without an explicit type OID
-    const thresholdLiteral = sql.raw(threshold.toFixed(4));
 
-    const results = await db.execute(sql`
-      SELECT
-        a.id            AS id_a,
-        a.project_name  AS name_a,
-        a.country       AS country_a,
-        a.developer     AS developer_a,
-        a.capacity_mw   AS capacity_a,
-        a.deal_size_usd_mn AS deal_size_a,
-        a.review_status AS status_a,
-        b.id            AS id_b,
-        b.project_name  AS name_b,
-        b.country       AS country_b,
-        b.developer     AS developer_b,
-        b.capacity_mw   AS capacity_b,
-        b.deal_size_usd_mn AS deal_size_b,
-        b.review_status AS status_b,
-        ROUND((public.similarity(
+    // Use a dedicated pool client so we can explicitly SET search_path before
+    // running the similarity query. Drizzle's db.execute() has an intermittent
+    // issue locating pg_trgm functions; raw pool.query() is reliable.
+    const client = await pool.connect();
+    let rows: unknown[];
+    try {
+      await client.query("SET search_path TO public");
+      const result = await client.query(
+        `SELECT
+          a.id            AS id_a,
+          a.project_name  AS name_a,
+          a.country       AS country_a,
+          a.developer     AS developer_a,
+          a.capacity_mw   AS capacity_a,
+          a.deal_size_usd_mn AS deal_size_a,
+          a.review_status AS status_a,
+          b.id            AS id_b,
+          b.project_name  AS name_b,
+          b.country       AS country_b,
+          b.developer     AS developer_b,
+          b.capacity_mw   AS capacity_b,
+          b.deal_size_usd_mn AS deal_size_b,
+          b.review_status AS status_b,
+          ROUND((similarity(
+            COALESCE(a.normalized_name, lower(a.project_name)),
+            COALESCE(b.normalized_name, lower(b.project_name))
+          ) * 100)::numeric, 1) AS score
+        FROM energy_projects a
+        JOIN energy_projects b
+          ON a.id < b.id
+          AND lower(a.country) = lower(b.country)
+        WHERE similarity(
           COALESCE(a.normalized_name, lower(a.project_name)),
           COALESCE(b.normalized_name, lower(b.project_name))
-        ) * 100)::numeric, 1) AS score
-      FROM energy_projects a
-      JOIN energy_projects b
-        ON a.id < b.id
-        AND lower(a.country) = lower(b.country)
-      WHERE public.similarity(
-        COALESCE(a.normalized_name, lower(a.project_name)),
-        COALESCE(b.normalized_name, lower(b.project_name))
-      ) > ${thresholdLiteral}
-      ORDER BY public.similarity(
-        COALESCE(a.normalized_name, lower(a.project_name)),
-        COALESCE(b.normalized_name, lower(b.project_name))
-      ) DESC
-      LIMIT 200
-    `);
+        ) > $1
+        ORDER BY similarity(
+          COALESCE(a.normalized_name, lower(a.project_name)),
+          COALESCE(b.normalized_name, lower(b.project_name))
+        ) DESC
+        LIMIT 200`,
+        [threshold],
+      );
+      rows = result.rows;
+    } finally {
+      client.release();
+    }
 
-    res.json({ pairs: results.rows, count: results.rows.length, threshold });
+    res.json({ pairs: rows, count: rows.length, threshold });
   } catch (err: any) {
     const message = err?.cause?.message ?? err?.message ?? String(err);
     console.error("[DuplicateScanner] Query failed:", message);
