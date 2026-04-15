@@ -351,6 +351,12 @@ export default function AdminScraperPage() {
     }
   }
 
+  async function cancelRun() {
+    try {
+      await fetch(`${API}/scraper/cancel`, { method: "POST", headers: authHeaders() });
+    } catch { /* ignore */ }
+  }
+
   async function runSource(sourceName: string) {
     if (runningSource) return;
     setRunningSource(sourceName);
@@ -756,15 +762,27 @@ export default function AdminScraperPage() {
                 <h2 className="font-semibold text-foreground">Source Groups</h2>
                 <span className="text-xs text-muted-foreground ml-1">({sources.length} groups, scheduled daily with 30-min stagger)</span>
               </div>
-              <button
-                onClick={() => runSource("__all__")}
-                disabled={!!runningSource || !!specialRunning}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Run all source groups at once"
-              >
-                {runningSource === "__all__" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                {runningSource === "__all__" ? "Running All..." : "Run All Sources"}
-              </button>
+              <div className="flex items-center gap-2">
+                {runningSource === "__all__" && (
+                  <button
+                    onClick={cancelRun}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium"
+                    title="Cancel the current run after the current source finishes"
+                  >
+                    <span className="w-3.5 h-3.5 flex items-center justify-center">✕</span>
+                    Cancel
+                  </button>
+                )}
+                <button
+                  onClick={() => runSource("__all__")}
+                  disabled={!!runningSource || !!specialRunning}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Run all source groups at once"
+                >
+                  {runningSource === "__all__" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                  {runningSource === "__all__" ? "Running All..." : "Run All Sources"}
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-border">

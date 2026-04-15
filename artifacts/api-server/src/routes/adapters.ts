@@ -3,6 +3,9 @@
  *
  * GET    /api/adapters                      — list all registered adapters
  * POST   /api/adapters/:key/run             — trigger a single adapter run (SSE)
+ * POST   /api/scraper/run                   — run ALL source groups + adapters sequentially (SSE)
+ * POST   /api/scraper/run/:sourceName       — run a specific legacy source group (SSE)
+ * POST   /api/scraper/cancel               — cancel the current "run all" in progress
  * GET    /api/scraper/runs                  — recent scraper runs with rejection telemetry
  * GET    /api/scraper/status                — pipeline status summary
  * GET    /api/scraper/sources               — source groups list
@@ -18,10 +21,17 @@ import { Router, type IRouter } from "express";
 import { db, scraperSourcesTable, scraperRunsTable, projectsTable } from "@workspace/db";
 import { eq, desc, sql, count } from "drizzle-orm";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
-import { getAdapterMeta, runAdapter } from "../scraper/adapter-runner.js";
+import { getAdapterMeta, runAdapter, ADAPTER_REGISTRY } from "../scraper/adapter-runner.js";
 import { llmScoreCandidate, writeCandidate } from "../scraper/adapter-runner-helpers.js";
 import { buildGoogleAlertsAdapterFromFeedUrl } from "../scraper/adapters/google-alerts.js";
 import { slugify } from "../scraper/base.js";
+import { runSourceGroup, getSourceGroups } from "../services/scraper.js";
+import {
+  isScraperRunning,
+  setScraperRunning,
+  isCancelRequested,
+  requestCancel,
+} from "../scraper/scraper-state.js";
 
 const router: IRouter = Router();
 
@@ -51,6 +61,186 @@ router.post("/adapters/:key/run", async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+// ── Sequential "run all" with SSE progress + cancellation ────────────────────
+
+/**
+ * Wraps a promise with a hard timeout. Rejects with a descriptive error if the
+ * promise does not resolve within `ms` milliseconds.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label}: timed out after ${ms / 1000}s`)), ms),
+    ),
+  ]);
+}
+
+/** POST /api/scraper/run — run ALL source groups + adapters sequentially. */
+router.post("/scraper/run", async (_req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  if (isScraperRunning()) {
+    send({ stage: "error", message: "A scraper run is already in progress. Cancel it first." });
+    res.end();
+    return;
+  }
+
+  setScraperRunning(true);
+
+  const ADAPTER_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes per adapter / source group
+
+  try {
+    const sourceGroups = getSourceGroups();
+    const adapterKeys = Object.keys(ADAPTER_REGISTRY);
+    const totalSteps = sourceGroups.length + adapterKeys.length;
+    let completedSteps = 0;
+
+    send({
+      stage: "start",
+      message: `Starting sequential run: ${sourceGroups.length} source groups + ${adapterKeys.length} adapters`,
+      totalSteps,
+    });
+
+    // ── Phase 1: legacy source groups ─────────────────────────────────────────
+    for (const group of sourceGroups) {
+      if (isCancelRequested()) {
+        send({ stage: "cancelled", message: "Run cancelled by user." });
+        break;
+      }
+
+      send({ stage: "fetching", message: `[Source] ${group.name} — starting…`, group: group.name });
+
+      try {
+        const result = await withTimeout(
+          runSourceGroup(group.name, "manual", (p) => {
+            send({ ...p, group: group.name });
+          }),
+          ADAPTER_TIMEOUT_MS,
+          group.name,
+        );
+        completedSteps++;
+        send({
+          stage: "group_complete",
+          group: group.name,
+          processed: result.processed,
+          discovered: result.discovered,
+          updated: result.updated,
+          flagged: result.flagged,
+          errors: result.errors.slice(0, 3),
+          completedSteps,
+          totalSteps,
+        });
+      } catch (err) {
+        completedSteps++;
+        send({
+          stage: "group_error",
+          group: group.name,
+          message: err instanceof Error ? err.message : String(err),
+          completedSteps,
+          totalSteps,
+        });
+      }
+    }
+
+    // ── Phase 2: new adapter registry ─────────────────────────────────────────
+    for (const key of adapterKeys) {
+      if (isCancelRequested()) {
+        send({ stage: "cancelled", message: "Run cancelled by user." });
+        break;
+      }
+
+      send({ stage: "fetching", message: `[Adapter] ${key} — starting…`, adapter: key });
+
+      try {
+        const report = await withTimeout(
+          runAdapter(key, "manual"),
+          ADAPTER_TIMEOUT_MS,
+          key,
+        );
+        completedSteps++;
+        send({
+          stage: "adapter_complete",
+          adapter: key,
+          rowsFetched: report.rowsFetched,
+          rowsInserted: report.rowsInserted,
+          rowsUpdated: report.rowsUpdated,
+          rowsFlagged: report.rowsFlagged,
+          rowsRejected: report.rowsRejected,
+          errors: report.errors.slice(0, 3),
+          completedSteps,
+          totalSteps,
+        });
+      } catch (err) {
+        completedSteps++;
+        send({
+          stage: "adapter_error",
+          adapter: key,
+          message: err instanceof Error ? err.message : String(err),
+          completedSteps,
+          totalSteps,
+        });
+      }
+    }
+
+    if (!isCancelRequested()) {
+      send({ stage: "complete", message: `All ${completedSteps} steps finished.`, completedSteps, totalSteps });
+    }
+  } catch (err) {
+    send({ stage: "error", message: err instanceof Error ? err.message : String(err) });
+  } finally {
+    setScraperRunning(false);
+    res.end();
+  }
+});
+
+/** POST /api/scraper/run/:sourceName — run a single legacy source group. */
+router.post("/scraper/run/:sourceName", async (req, res) => {
+  const sourceName = decodeURIComponent(req.params.sourceName);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  send({ stage: "fetching", message: `Starting source group "${sourceName}"…` });
+
+  try {
+    const result = await withTimeout(
+      runSourceGroup(sourceName, "manual", (p) => send({ ...p })),
+      5 * 60 * 1000,
+      sourceName,
+    );
+    send({
+      stage: "complete",
+      processed: result.processed,
+      discovered: result.discovered,
+      updated: result.updated,
+      flagged: result.flagged,
+      errors: result.errors.slice(0, 5),
+    });
+  } catch (err) {
+    send({ stage: "error", message: err instanceof Error ? err.message : String(err) });
+  } finally {
+    res.end();
+  }
+});
+
+/** POST /api/scraper/cancel — cancel the in-flight "run all". */
+router.post("/scraper/cancel", (_req, res) => {
+  if (!isScraperRunning()) {
+    res.status(200).json({ ok: false, message: "No scraper run is in progress." });
+    return;
+  }
+  requestCancel();
+  res.json({ ok: true, message: "Cancel requested. Current step will finish, then the run will stop." });
 });
 
 // ── Source feeds CRUD ─────────────────────────────────────────────────────────

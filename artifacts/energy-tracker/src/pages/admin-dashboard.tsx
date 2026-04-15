@@ -284,6 +284,12 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
     }
   }
 
+  async function cancelRun() {
+    try {
+      await fetch(`${API}/scraper/cancel`, { method: "POST", headers: authHeaders() });
+    } catch { /* ignore */ }
+  }
+
   async function runSource(sourceName: string) {
     if (runningSource) return;
     setRunningSource(sourceName); setRunLogSource(sourceName === "__all__" ? "All Sources" : sourceName);
@@ -398,10 +404,18 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
             <h2 className="font-semibold text-foreground">Source Groups</h2>
             <span className="text-xs text-muted-foreground ml-1">({sources.length} groups, scheduled daily)</span>
           </div>
-          <button onClick={() => runSource("__all__")} disabled={!!runningSource || !!specialRunning} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
-            {runningSource === "__all__" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            {runningSource === "__all__" ? "Running All..." : "Run All Sources"}
-          </button>
+          <div className="flex items-center gap-2">
+            {runningSource === "__all__" && (
+              <button onClick={cancelRun} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium">
+                <span className="w-3.5 h-3.5 flex items-center justify-center">✕</span>
+                Cancel
+              </button>
+            )}
+            <button onClick={() => runSource("__all__")} disabled={!!runningSource || !!specialRunning} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
+              {runningSource === "__all__" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              {runningSource === "__all__" ? "Running All..." : "Run All Sources"}
+            </button>
+          </div>
         </div>
         <div className="divide-y divide-border">
           {sources.map((source) => {
@@ -462,14 +476,33 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
           </div>
           <div className="p-4 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
             {runLog.map((entry, i) => {
-              const color = entry.stage === "error" ? "text-red-400" : entry.stage === "done" || entry.stage === "complete" ? "text-green-400" : entry.stage === "analyzing" ? "text-purple-400" : entry.stage === "saving" ? "text-blue-400" : "text-muted-foreground";
+              const isGroupComplete  = entry.stage === "group_complete" || entry.stage === "adapter_complete";
+              const isGroupError     = entry.stage === "group_error"    || entry.stage === "adapter_error";
+              const isComplete       = entry.stage === "complete";
+              const isCancelled      = entry.stage === "cancelled";
+              const isStart          = entry.stage === "start";
+              const color = entry.stage === "error" || isGroupError
+                ? "text-red-400"
+                : isComplete || isGroupComplete
+                  ? "text-green-400"
+                  : isCancelled
+                    ? "text-yellow-400"
+                    : entry.stage === "analyzing"
+                      ? "text-purple-400"
+                      : entry.stage === "saving" || isStart
+                        ? "text-blue-400"
+                        : "text-muted-foreground";
+              const label = entry.group ?? entry.adapter ?? entry.stage;
               return (
                 <div key={i} className={`${color} leading-relaxed`}>
-                  <span className="text-muted-foreground/50 mr-2">[{entry.stage}]</span>
+                  <span className="text-muted-foreground/50 mr-2">[{label}]</span>
                   {entry.message}
-                  {entry.discovered !== undefined && ` — ${entry.discovered} new`}
-                  {entry.updated !== undefined && `, ${entry.updated} updated`}
-                  {entry.flagged !== undefined && entry.flagged > 0 && `, ${entry.flagged} flagged`}
+                  {isGroupComplete && entry.discovered !== undefined && ` — ${entry.discovered} new, ${entry.updated ?? 0} updated`}
+                  {isGroupComplete && entry.flagged !== undefined && entry.flagged > 0 && `, ${entry.flagged} flagged`}
+                  {isGroupComplete && entry.completedSteps !== undefined && ` (${entry.completedSteps}/${entry.totalSteps})`}
+                  {!isGroupComplete && entry.discovered !== undefined && ` — ${entry.discovered} new`}
+                  {!isGroupComplete && entry.updated   !== undefined && `, ${entry.updated} updated`}
+                  {!isGroupComplete && entry.flagged   !== undefined && entry.flagged > 0 && `, ${entry.flagged} flagged`}
                 </div>
               );
             })}

@@ -22,7 +22,9 @@ function extractDomain(url: string): string | null {
   }
 }
 
-const SKIP_HEAD = process.env.VALIDATE_URLS === "false";
+// HEAD reachability check is opt-in. Set VALIDATE_URLS=true in the environment
+// to enable it. Off by default because it adds significant latency to scraping.
+const SKIP_HEAD = process.env.VALIDATE_URLS !== "true";
 
 async function checkReachability(url: string): Promise<string | null> {
   try {
