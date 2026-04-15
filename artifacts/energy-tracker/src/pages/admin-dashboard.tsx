@@ -1995,6 +1995,12 @@ function DuplicateScannerSection() {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 function getInitialSection(): AdminSection {
+  // Honour deep-link from data-health page via sessionStorage
+  const stored = sessionStorage.getItem("adminOpenSection");
+  if (stored) {
+    sessionStorage.removeItem("adminOpenSection");
+    if (stored === "pipeline" || stored === "queue" || stored === "newsletter" || stored === "overview" || stored === "duplicates") return stored;
+  }
   const p = new URLSearchParams(window.location.search);
   const s = p.get("section");
   if (s === "pipeline" || s === "queue" || s === "newsletter" || s === "overview" || s === "duplicates") return s;

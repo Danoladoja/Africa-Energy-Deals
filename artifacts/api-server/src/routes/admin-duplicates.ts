@@ -15,6 +15,7 @@ const router = Router();
 router.use("/admin/duplicates", adminAuthMiddleware);
 router.use("/admin/projects/merge", adminAuthMiddleware);
 router.use("/admin/projects/delete", adminAuthMiddleware);
+router.use("/admin/projects/patch", adminAuthMiddleware);
 router.use("/admin/setup-extensions", adminAuthMiddleware);
 
 // POST /api/admin/setup-extensions — idempotently install pg_trgm and its indexes
@@ -204,6 +205,55 @@ router.post("/admin/projects/merge", async (req, res) => {
     });
   } catch (err) {
     console.error("[Merge]", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/admin/projects/patch — update arbitrary numeric/text fields on a project
+// Accepts any subset of: dealSizeUsdMn, capacityMw, announcedYear, closedYear, developer, description
+router.post("/admin/projects/patch", async (req, res) => {
+  try {
+    const { id, ...fields } = req.body as Record<string, unknown>;
+    if (!id || typeof id !== "number") {
+      return res.status(400).json({ error: "id (number) is required" });
+    }
+
+    const ALLOWED_FIELDS: Record<string, string> = {
+      dealSizeUsdMn: "dealSizeUsdMn",
+      capacityMw: "capacityMw",
+      announcedYear: "announcedYear",
+      closedYear: "closedYear",
+      developer: "developer",
+      description: "description",
+      technology: "technology",
+      sourceUrl: "sourceUrl",
+    };
+
+    const updates: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(fields)) {
+      if (key in ALLOWED_FIELDS && val !== undefined && val !== "") {
+        updates[ALLOWED_FIELDS[key]] = val;
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: "No patchable fields provided" });
+    }
+
+    const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(eq(projectsTable.id, id)).limit(1);
+    if (!project) return res.status(404).json({ error: `Project ${id} not found` });
+
+    await db.update(projectsTable).set(updates).where(eq(projectsTable.id, id));
+
+    await db.insert(reviewerAuditLogTable).values({
+      action: "project_patch",
+      actor: "admin",
+      metadata: { id, fields: Object.keys(updates) },
+    });
+
+    res.json({ success: true, id, patched: Object.keys(updates) });
+  } catch (err) {
+    console.error("[Patch]", err);
     res.status(500).json({ error: String(err) });
   }
 });
