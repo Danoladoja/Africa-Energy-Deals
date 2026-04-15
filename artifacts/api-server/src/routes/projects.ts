@@ -132,11 +132,15 @@ router.get("/projects/similar", async (req, res) => {
     return res.status(429).json({ error: "Too many requests. Please wait a moment." });
   }
 
-  const name = String(req.query.name ?? "").trim();
+  const rawName = String(req.query.name ?? "").trim();
   const country = String(req.query.country ?? "").trim();
-  if (name.length < 3) {
+  if (rawName.length < 3) {
     return res.json({ similar: [] });
   }
+
+  // Normalize the incoming name so it matches the normalized_name column in the DB
+  const { normalizeProjectName } = await import("../services/name-normalizer.js");
+  const name = normalizeProjectName(rawName);
 
   try {
     const client = await pool.connect();
@@ -146,20 +150,20 @@ router.get("/projects/similar", async (req, res) => {
       const result = country
         ? await client.query(
             `SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                    ROUND((similarity(project_name, $1) * 100)::numeric, 0) AS score
+                    ROUND((similarity(COALESCE(normalized_name, lower(project_name)), $1) * 100)::numeric, 0) AS score
              FROM energy_projects
              WHERE country ILIKE $2
-               AND similarity(project_name, $1) > 0.3
-             ORDER BY similarity(project_name, $1) DESC
+               AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.3
+             ORDER BY similarity(COALESCE(normalized_name, lower(project_name)), $1) DESC
              LIMIT 3`,
             [name, country],
           )
         : await client.query(
             `SELECT id, project_name, country, technology, deal_size_usd_mn, review_status,
-                    ROUND((similarity(project_name, $1) * 100)::numeric, 0) AS score
+                    ROUND((similarity(COALESCE(normalized_name, lower(project_name)), $1) * 100)::numeric, 0) AS score
              FROM energy_projects
-             WHERE similarity(project_name, $1) > 0.4
-             ORDER BY similarity(project_name, $1) DESC
+             WHERE similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.4
+             ORDER BY similarity(COALESCE(normalized_name, lower(project_name)), $1) DESC
              LIMIT 3`,
             [name],
           );

@@ -389,6 +389,14 @@ export async function runStartupMigrations(): Promise<void> {
       ON energy_projects USING GIN (normalized_name gin_trgm_ops)
   `);
 
+  // ── Scraper self-validation pipeline columns ──────────────────────────────
+  await runMigration("energy_projects.completeness_score", `
+    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS completeness_score INTEGER
+  `);
+  await runMigration("energy_projects.review_notes", `
+    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS review_notes JSONB DEFAULT '[]'::jsonb
+  `);
+
   // ── seed scraper_sources ──────────────────────────────────────────────────
   await runMigration("seed scraper_sources google alerts", `
     INSERT INTO scraper_sources (adapter_type, key, label, feed_url, created_by) VALUES

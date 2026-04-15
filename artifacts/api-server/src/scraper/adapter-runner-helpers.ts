@@ -7,6 +7,14 @@ import { db, pool, projectsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { type CandidateDraft } from "./base.js";
+import { normalizeProjectName } from "../services/name-normalizer.js";
+import { validateFields } from "../services/field-validator.js";
+import { validateUrls } from "../services/url-validator.js";
+import { scoreCompleteness } from "../services/completeness-scorer.js";
+import { computeFinalScore } from "../services/routing-engine.js";
+
+// Re-export so existing callers that import normalizeProjectName from this file still work
+export { normalizeProjectName };
 
 const AFRICA_COUNTRIES = new Set([
   "nigeria", "kenya", "south africa", "ethiopia", "ghana", "tanzania", "egypt",
@@ -97,122 +105,195 @@ Return ONLY valid JSON, no markdown.`;
 }
 
 /**
- * Normalize a project name for robust deduplication:
- * - lowercase
- * - strip common filler suffixes (phase 1/2/3, project, development, etc.)
- * - remove special chars except hyphens
- * - collapse whitespace
+ * Write a candidate to the database through the full self-validation pipeline:
+ *
+ *  1. Field validation & cleaning (Enhancement 5)
+ *  2. Name normalization (Enhancement 1)
+ *  3. URL domain-diversity check + reachability (Enhancement 4)
+ *  4. URL exact dedup check (existing)
+ *  5. Fuzzy name dedup with country filter at 0.5 threshold (Enhancement 2)
+ *  6. Completeness scoring (Enhancement 3)
+ *  7. Composite routing (Enhancement 6)
+ *  8. Insert with completenessScore + reviewNotes
  */
-export function normalizeProjectName(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\b(phase\s*[1-9]|phase\s*i{1,3}v?|project|development|initiative|programme|program)\b/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export async function writeCandidate(
   candidate: CandidateDraft,
   adapterKey: string,
 ): Promise<{ inserted: boolean; updated: boolean; flagged: boolean }> {
   const name = String(candidate.projectName ?? "").trim();
   if (!name || name.length < 5) return { inserted: false, updated: false, flagged: false };
-  if (candidate.confidence < 0.65) return { inserted: false, updated: false, flagged: false };
+  // Minimum confidence gate — reject garbage before any DB I/O
+  if (candidate.confidence < 0.60) return { inserted: false, updated: false, flagged: false };
 
-  // Task 4: Normalize before comparing — catches "Phase 2" variants, typos, etc.
+  // ── Step 1: Field validation & cleaning ──────────────────────────────────
+  const fieldResult = validateFields(candidate);
+  if (!fieldResult.valid) {
+    // Hard reject: unrecognizable country or non-energy sector
+    return { inserted: false, updated: false, flagged: false };
+  }
+  let cleaned = fieldResult.cleaned;
+  const fieldIssues = fieldResult.issues;
+
+  // ── Step 2: Name normalization ────────────────────────────────────────────
   const normalizedName = normalizeProjectName(name);
 
-  // Fix 1: Fuzzy match on normalized_name (falls back to project_name for older rows)
-  const fuzzyClient = await pool.connect();
-  let fuzzyMatchRows: any[];
-  try {
-    await fuzzyClient.query("SET search_path TO public");
-    const fuzzyResult = await fuzzyClient.query(
-      `SELECT id FROM energy_projects
-       WHERE similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.75
-       LIMIT 1`,
-      [normalizedName],
-    );
-    fuzzyMatchRows = fuzzyResult.rows;
-  } finally {
-    fuzzyClient.release();
-  }
+  // ── Step 3: URL validation (domain diversity + reachability) ─────────────
+  const urlResult = await validateUrls(cleaned.newsUrl, null);
+  const urlIssues = urlResult.issues;
 
-  if (fuzzyMatchRows.length > 0) {
-    const existingId = fuzzyMatchRows[0].id as number;
-    await db.update(projectsTable).set({
-      ...(candidate.developer && { developer: candidate.developer }),
-      ...(candidate.financiers && { financiers: candidate.financiers }),
-      ...(candidate.dfiInvolvement && { dfiInvolvement: candidate.dfiInvolvement }),
-      ...(candidate.newsUrl && { newsUrl: candidate.newsUrl }),
-      ...(candidate.dealSizeUsdMn !== null && { dealSizeUsdMn: candidate.dealSizeUsdMn }),
-      ...(candidate.capacityMw !== null && { capacityMw: candidate.capacityMw }),
-      confidenceScore: candidate.confidence,
-      extractionSource: adapterKey,
-    }).where(eq(projectsTable.id, existingId));
-    return { inserted: false, updated: true, flagged: false };
-  }
-
-  // Fix 4: URL dedup — if the source URL already exists in any project, upsert instead of insert
-  if (candidate.newsUrl) {
+  // ── Step 4: URL exact dedup check ─────────────────────────────────────────
+  if (cleaned.newsUrl) {
     const urlMatch = await db.execute(sql`
       SELECT id FROM energy_projects
-      WHERE news_url = ${candidate.newsUrl} OR news_url_2 = ${candidate.newsUrl}
+      WHERE news_url = ${cleaned.newsUrl} OR news_url_2 = ${cleaned.newsUrl}
       LIMIT 1
     `);
     if (urlMatch.rows.length > 0) {
       const existingId = (urlMatch.rows[0] as any).id as number;
       await db.update(projectsTable).set({
-        ...(candidate.developer && { developer: candidate.developer }),
-        ...(candidate.financiers && { financiers: candidate.financiers }),
-        ...(candidate.dfiInvolvement && { dfiInvolvement: candidate.dfiInvolvement }),
-        ...(candidate.dealSizeUsdMn !== null && { dealSizeUsdMn: candidate.dealSizeUsdMn }),
-        ...(candidate.capacityMw !== null && { capacityMw: candidate.capacityMw }),
-        confidenceScore: candidate.confidence,
+        ...(cleaned.developer && { developer: cleaned.developer }),
+        ...(cleaned.financiers && { financiers: cleaned.financiers }),
+        ...(cleaned.dfiInvolvement && { dfiInvolvement: cleaned.dfiInvolvement }),
+        ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
+        ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
+        confidenceScore: cleaned.confidence,
         extractionSource: adapterKey,
       }).where(eq(projectsTable.id, existingId));
       return { inserted: false, updated: true, flagged: false };
     }
   }
 
-  if (!candidate.country || !candidate.technology) {
+  // ── Step 5: Fuzzy dedup with country filter at 0.5 threshold ─────────────
+  let duplicateSimilarity: number | null = null;
+  let possibleDuplicateId: number | null = null;
+  let possibleDuplicateName: string | null = null;
+
+  const fuzzyClient = await pool.connect();
+  try {
+    await fuzzyClient.query("SET search_path TO public");
+
+    // With country filter first for accuracy; fall back to global if no country
+    const countryFilter = cleaned.country ?? "";
+    const fuzzyResult = await fuzzyClient.query(
+      `SELECT id, project_name,
+              similarity(COALESCE(normalized_name, lower(project_name)), $1) AS sim_score
+       FROM energy_projects
+       WHERE ($2 = '' OR country = $2)
+         AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.5
+       ORDER BY sim_score DESC
+       LIMIT 5`,
+      [normalizedName, countryFilter],
+    );
+
+    if (fuzzyResult.rows.length > 0) {
+      const top = fuzzyResult.rows[0] as { id: number; project_name: string; sim_score: number };
+      duplicateSimilarity = top.sim_score;
+      possibleDuplicateId = top.id;
+      possibleDuplicateName = top.project_name;
+
+      if (top.sim_score > 0.8) {
+        // Definite duplicate — selective gap-fill upsert, never overwrite non-null
+        await db.update(projectsTable).set({
+          ...(cleaned.developer && { developer: cleaned.developer }),
+          ...(cleaned.financiers && { financiers: cleaned.financiers }),
+          ...(cleaned.dfiInvolvement && { dfiInvolvement: cleaned.dfiInvolvement }),
+          ...(cleaned.newsUrl && { newsUrl: cleaned.newsUrl }),
+          ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
+          ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
+          confidenceScore: cleaned.confidence,
+          extractionSource: adapterKey,
+        }).where(eq(projectsTable.id, top.id));
+        return { inserted: false, updated: true, flagged: false };
+      }
+      // 0.5–0.8 → possibly same project; continue to routing (will be flagged as review)
+    }
+  } finally {
+    fuzzyClient.release();
+  }
+
+  // ── Step 6: Completeness scoring ─────────────────────────────────────────
+  const completeness = scoreCompleteness(cleaned);
+
+  // ── Step 7: Composite routing ─────────────────────────────────────────────
+  const routing = computeFinalScore({
+    adapterConfidence: cleaned.confidence,
+    completenessScore: completeness.score,
+    duplicateSimilarity,
+    urlIssues,
+    fieldIssues,
+  });
+
+  if (routing.track === "reject") {
     return { inserted: false, updated: false, flagged: false };
   }
 
-  const isHighConfidence = candidate.confidence >= 0.85;
+  // ── Step 8: Build review notes ────────────────────────────────────────────
+  const reviewNotes: string[] = [...routing.reasons];
 
+  // Add possible-duplicate note with specifics
+  if (
+    possibleDuplicateId !== null &&
+    duplicateSimilarity !== null &&
+    duplicateSimilarity >= 0.5 &&
+    duplicateSimilarity <= 0.8
+  ) {
+    const pct = Math.round(duplicateSimilarity * 100);
+    const note = `Possible duplicate of "${possibleDuplicateName}" (#${possibleDuplicateId}) — ${pct}% similar`;
+    if (!reviewNotes.some(r => r.startsWith("Possible duplicate"))) {
+      reviewNotes.unshift(note);
+    }
+  }
+
+  // Add completeness details when low
+  if (completeness.score < 60 && completeness.missing.length > 0) {
+    const existingNote = reviewNotes.findIndex(r => r.startsWith("Low completeness"));
+    const detail = `Low completeness (${completeness.score}%) — missing: ${completeness.missing.filter(f => f !== "newsUrl2").join(", ")}`;
+    if (existingNote >= 0) {
+      reviewNotes[existingNote] = detail;
+    } else {
+      reviewNotes.push(detail);
+    }
+  }
+
+  // Require country and technology before inserting
+  if (!cleaned.country || !cleaned.technology) {
+    return { inserted: false, updated: false, flagged: false };
+  }
+
+  // ── Step 9: Insert ────────────────────────────────────────────────────────
   try {
     await db.insert(projectsTable).values({
       projectName: name,
       normalizedName,
-      country: candidate.country,
-      region: inferRegionBasic(candidate.country),
-      technology: candidate.technology,
-      dealSizeUsdMn: candidate.dealSizeUsdMn,
-      investors: candidate.financiers ?? null,
-      status: candidate.status ?? "announced",
-      description: candidate.description ?? null,
-      capacityMw: candidate.capacityMw,
-      announcedYear: candidate.announcedYear ?? new Date().getFullYear(),
+      country: cleaned.country,
+      region: inferRegionBasic(cleaned.country),
+      technology: cleaned.technology,
+      dealSizeUsdMn: cleaned.dealSizeUsdMn,
+      investors: cleaned.financiers ?? null,
+      status: cleaned.status ?? "announced",
+      description: cleaned.description ?? null,
+      capacityMw: cleaned.capacityMw,
+      announcedYear: cleaned.announcedYear ?? new Date().getFullYear(),
       closedYear: null,
       latitude: null,
       longitude: null,
-      sourceUrl: candidate.sourceUrl,
-      newsUrl: candidate.newsUrl,
+      sourceUrl: cleaned.sourceUrl,
+      newsUrl: cleaned.newsUrl,
       isAutoDiscovered: true,
-      reviewStatus: isHighConfidence ? "approved" : "pending",
+      reviewStatus: routing.track === "approve" ? "approved" : "pending",
       discoveredAt: new Date(),
-      developer: candidate.developer ?? null,
-      financiers: candidate.financiers ?? null,
-      dfiInvolvement: candidate.dfiInvolvement ?? null,
-      offtaker: candidate.offtaker ?? null,
-      dealStage: candidate.dealStage ?? null,
-      financialCloseDate: candidate.financialCloseDate ?? null,
-      confidenceScore: candidate.confidence,
+      developer: cleaned.developer ?? null,
+      financiers: cleaned.financiers ?? null,
+      dfiInvolvement: cleaned.dfiInvolvement ?? null,
+      offtaker: cleaned.offtaker ?? null,
+      dealStage: cleaned.dealStage ?? null,
+      financialCloseDate: cleaned.financialCloseDate ?? null,
+      confidenceScore: cleaned.confidence,
       extractionSource: adapterKey,
+      completenessScore: completeness.score,
+      reviewNotes: reviewNotes.length > 0 ? reviewNotes : [],
     });
-    return { inserted: true, updated: false, flagged: !isHighConfidence };
+    return { inserted: true, updated: false, flagged: routing.track === "review" };
   } catch {
     return { inserted: false, updated: false, flagged: false };
   }

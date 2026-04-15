@@ -19,6 +19,7 @@ interface QueueProject {
   sourceUrl: string | null;
   extractionSource: string | null;
   createdAt: string;
+  reviewNotes: string[] | null;
 }
 
 interface QueueResponse {
@@ -180,6 +181,19 @@ export default function ReviewQueue() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-sm text-foreground truncate max-w-[240px]" title={p.projectName}>{p.projectName}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">{p.country}</div>
+                        {p.reviewNotes && p.reviewNotes.length > 0 && (
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            {p.reviewNotes.slice(0, 3).map((note, ni) => (
+                              <span key={ni} className="inline-flex items-center gap-1 text-[10px] text-amber-400/90 leading-tight" title={note}>
+                                <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate max-w-[200px]">{note}</span>
+                              </span>
+                            ))}
+                            {p.reviewNotes.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{p.reviewNotes.length - 3} more…</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span

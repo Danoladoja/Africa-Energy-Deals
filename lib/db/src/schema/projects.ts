@@ -1,4 +1,4 @@
-import { pgTable, serial, text, doublePrecision, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, doublePrecision, integer, timestamp, boolean, date, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -70,6 +70,12 @@ export const projectsTable = pgTable("energy_projects", {
 
   // ── Deduplication ─────────────────────────────────────────────────────────
   normalizedName: text("normalized_name"),
+
+  // ── Scraper Self-Validation Pipeline ──────────────────────────────────────
+  // Completeness score (0–100) computed at ingestion time
+  completenessScore: integer("completeness_score"),
+  // Routing reasons: why a candidate was sent to review instead of auto-approved
+  reviewNotes: jsonb("review_notes").$type<string[]>().default([]),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });

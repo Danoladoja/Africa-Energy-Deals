@@ -1,0 +1,291 @@
+# Scraper Self-Validation Pipeline — Implementation Prompt
+
+## Context
+
+The AfriEnergy Tracker scraper currently has a functional ingestion pipeline: adapters fetch → normalize → basic dedup (exact name + URL match) → confidence routing → insert. Separately, we've built downstream data integrity layers: a Duplicate Scanner (pg_trgm similarity), Data Health checks, community contribution validation (URL dedup, field validation, rate limiting), and a Review Queue with confidence-based routing.
+
+The problem: these integrity layers catch issues AFTER bad data enters the system, requiring manual cleanup. The goal of this enhancement is to **internalize the logic from those downstream layers into the scraper's own `writeCandidate()` flow**, so the scraper produces clean data by default and the downstream tools become safety nets rather than primary filters.
+
+**Do NOT create new validation logic from scratch. Reuse the existing functions and queries wherever possible.** The code already exists — it just needs to be called from inside the scraper pipeline.
+
+---
+
+## Architecture: Three-Track Output
+
+After this enhancement, every candidate the scraper processes should be routed into one of three tracks:
+
+1. **Auto-approve** (confidence >= 0.85, passes ALL validation checks) → Insert into `energy_projects` with `reviewStatus = 'approved'`
+2. **Review** (confidence 0.60–0.84, OR failed 1–2 non-critical checks) → Insert with `reviewStatus = 'pending'` and attach specific flags explaining WHY it was routed to review
+3. **Reject** (confidence < 0.60, OR failed 3+ checks, OR hard-reject pattern match) → Log to `scraper_runs` as dropped, do NOT insert
+
+The existing confidence routing already does something like this. The enhancement adds **validation-aware routing** — a candidate that would have been auto-approved at 0.90 confidence gets downgraded to "review" if it fails a completeness or similarity check.
+
+---
+
+## Enhancement 1: Name Normalization Layer
+
+### What to build
+
+Create a shared `normalizeProjectName(name: string): string` function in a new file `artifacts/api-server/src/services/name-normalizer.ts`.
+
+### Normalization rules (in order)
+
+1. Lowercase the entire string
+2. Strip common suffixes and filler words (case-insensitive, whole-word match):
+   - "project", "phase 1", "phase 2", "phase 3", "phase i", "phase ii", "phase iii", "phase iv"
+   - "development", "initiative", "programme", "program", "scheme", "facility"
+   - "limited", "ltd", "pty", "inc", "plc", "sarl", "sa", "bv", "gmbh"
+3. Remove all characters except letters, digits, hyphens, and spaces
+4. Collapse multiple spaces into one
+5. Trim leading/trailing whitespace
+
+### Database migration
+
+- Add a new column `project_name_normalized TEXT` to the `energy_projects` table
+- Run a one-time backfill: `UPDATE energy_projects SET project_name_normalized = normalizeProjectName(project_name)` — implement this as a SQL migration that applies the same normalization logic in PL/pgSQL or run it as a Node script on deploy
+- Add a GIN trigram index on `project_name_normalized`: `CREATE INDEX idx_projects_name_normalized_trgm ON energy_projects USING GIN (project_name_normalized gin_trgm_ops);`
+- On every future INSERT or UPDATE to `energy_projects`, auto-populate `project_name_normalized` from the application layer (set it in `writeCandidate()` before insert)
+
+### Integration into writeCandidate()
+
+Before the existing duplicate check in `writeCandidate()`, normalize the incoming candidate's project name. Use the normalized form for ALL subsequent similarity comparisons. Compare against the `project_name_normalized` column (not `project_name`).
+
+### Integration into Duplicate Scanner admin endpoint
+
+Update `GET /api/admin/duplicates` to compare `project_name_normalized` instead of `project_name` for the `similarity()` call. This makes the admin scanner's results consistent with what the scraper sees.
+
+### Integration into community contribution similar-project check
+
+Update `GET /api/projects/similar` to normalize the incoming `name` query parameter before running the similarity query.
+
+---
+
+## Enhancement 2: Fuzzy Self-Check Before Write
+
+### What to change
+
+In `writeCandidate()` (in `adapter-runner-helpers.ts` or wherever the insert decision is made), replace the current exact-name-match duplicate check with a fuzzy similarity check.
+
+### Logic
+
+```sql
+SELECT id, project_name, country, similarity(project_name_normalized, $1) AS sim_score
+FROM energy_projects
+WHERE country = $2
+  AND similarity(project_name_normalized, $1) > 0.5
+ORDER BY sim_score DESC
+LIMIT 5;
+```
+
+Where `$1` is the normalized incoming project name and `$2` is the incoming country.
+
+### Routing based on similarity score
+
+- **sim_score > 0.8**: This is the same project. SKIP the insert (log as "duplicate of project #X" in the run report). If the existing record has null fields that the new candidate fills, UPDATE those fields (selective upsert — fill gaps, never overwrite non-null values).
+- **sim_score 0.5–0.8**: This MIGHT be the same project. Route to review queue with `reviewStatus = 'pending'` and add a review note: `"Possible duplicate of '[existing project name]' (XX% similar)"`. Store the matched project ID in a new column or in a JSON metadata field so the reviewer can see the comparison side-by-side.
+- **sim_score < 0.5 or no match**: Not a duplicate. Proceed with normal insert flow.
+
+### Also keep the URL-based duplicate check
+
+The existing URL check (`newsUrl` or `newsUrl2` already exists in another project) should remain as a separate, independent check. A URL match = definite duplicate regardless of name similarity.
+
+---
+
+## Enhancement 3: Completeness Scoring at Ingestion
+
+### What to build
+
+Create a `scoreCompleteness(candidate: CandidateDraft): { score: number, missing: string[] }` function in `artifacts/api-server/src/services/completeness-scorer.ts`.
+
+### Scoring weights
+
+| Field | Weight | Notes |
+|---|---|---|
+| `projectName` | 15 | Always present (required) |
+| `country` | 15 | Always present (required) |
+| `technology` / sector | 15 | Must be canonical enum value |
+| `capacityMw` | 12 | Positive number |
+| `dealSizeUsdMn` | 12 | Positive number, 0.05–5000 range |
+| `developer` | 10 | Non-empty string |
+| `status` | 8 | One of allowed statuses |
+| `newsUrl` | 8 | Valid HTTP/HTTPS URL |
+| `newsUrl2` | 5 | Valid HTTP/HTTPS URL, different domain from newsUrl |
+| **Total** | **100** | |
+
+The function returns `{ score: 72, missing: ['dealSizeUsdMn', 'developer', 'newsUrl2'] }`.
+
+### Integration into writeCandidate()
+
+After duplicate checking and before the final insert, run `scoreCompleteness(candidate)`.
+
+- **Score >= 60**: Proceed with normal insert. Attach the completeness score to the record (store in a `completeness_score INTEGER` column on `energy_projects`).
+- **Score 40–59**: Downgrade to review queue regardless of confidence. Set `reviewStatus = 'pending'` with a note: `"Low completeness (XX%) — missing: developer, dealSizeUsdMn"`.
+- **Score < 40**: Reject entirely. Log in `scraper_runs` as `"dropped: too incomplete (XX%)"`. Do not insert.
+
+### Database migration
+
+- Add `completeness_score INTEGER DEFAULT NULL` to `energy_projects`
+- Backfill existing records by running `scoreCompleteness()` against all existing projects (Node script or migration)
+
+### Integration into Data Health admin view
+
+The existing Data Health page should display `completeness_score` as a column. This replaces or supplements whatever field-level checks it currently does.
+
+---
+
+## Enhancement 4: Source URL Validation Before Write
+
+### What to change
+
+The scraper already does some URL reachability checking. Tighten it to match the community contribution pipeline's validation:
+
+1. **URL reachability**: HEAD request (not GET — faster, less bandwidth) with 5-second timeout. Accept 200, 301, 302 as valid. Anything else (404, 500, timeout) = unreachable.
+2. **Cross-check against existing URLs**: Before insert, query: `SELECT id FROM energy_projects WHERE news_url = $1 OR news_url_2 = $1` for both incoming URLs. If either URL is already claimed by another project → this is a duplicate (skip insert, log as duplicate).
+3. **Domain diversity**: If both `newsUrl` and `newsUrl2` are provided, verify they come from different domains (same logic as the contribution pipeline). If same domain, null out `newsUrl2` and flag `needsExtraScrutiny = true`.
+4. **Dead URL handling**: If the primary URL is unreachable, downgrade to review queue with a note: `"Primary source URL returned XXX / timed out"`. Don't null it out — let the reviewer check manually.
+
+### Where to put this
+
+Add a `validateUrls(candidate: CandidateDraft): { valid: boolean, issues: string[] }` function in `artifacts/api-server/src/services/url-validator.ts`. Call it from `writeCandidate()` after the duplicate check and before the completeness score.
+
+---
+
+## Enhancement 5: Field Validation and Type Checking
+
+### What to build
+
+Create a `validateFields(candidate: CandidateDraft): { valid: boolean, issues: string[], cleaned: CandidateDraft }` function in `artifacts/api-server/src/services/field-validator.ts`.
+
+### Validation rules
+
+These rules already exist scattered across the codebase (sector classifier, contribution validation, writeCandidate checks). Consolidate them into one function:
+
+1. **Sector**: Must be one of the 12 canonical values (`ENERGY_SECTORS` enum). If the raw value is a close misspelling (e.g., "Solor" → "Solar", "wind power" → "Wind"), auto-correct it in the `cleaned` output. If unrecognizable, set `issues.push('Unrecognized sector: "X"')`.
+
+2. **Country**: Must be one of the 54 AU member states. If the raw value is a city name that maps to a known country (e.g., "Nairobi" → "Kenya", "Lagos" → "Nigeria", "Accra" → "Ghana"), auto-correct it. Include a mapping of the top 30 African cities to their countries. If unrecognizable, reject.
+
+3. **Capacity (MW)**: Must be a positive number. If provided as a string with units (e.g., "100MW", "2.5 GW"), parse it (convert GW to MW). If negative or clearly wrong (e.g., > 50,000 MW), flag for review.
+
+4. **Deal size (USD millions)**: Must be a positive number in range 0.05–5000. If provided with currency symbols or text (e.g., "$100M", "USD 2.5 billion"), parse and normalize to USD millions. If > 5000, flag: `"Deal size unusually large ($X M) — may be a multi-project program"`.
+
+5. **Developer name**: Trim whitespace, remove trailing legal suffixes ("Ltd", "Inc", "PLC", etc.) for matching purposes (but keep the original in the stored value). Flag if empty.
+
+6. **Status**: Must be one of the allowed enum values. If provided as a free-text variant (e.g., "under construction" → "Construction", "planned" → "Planned"), normalize it.
+
+### Integration
+
+Call `validateFields(candidate)` early in `writeCandidate()`, before duplicate checking. Use the `cleaned` output for all subsequent steps. If `valid === false` (hard rejection — unrecognizable country or non-energy sector), reject immediately. If `issues.length > 0` but `valid === true` (soft issues — auto-corrected values), attach the issues as review notes.
+
+---
+
+## Enhancement 6: Composite Confidence Scoring and Smart Routing
+
+### What to change
+
+Replace the current simple confidence threshold routing with a composite score that factors in ALL the checks above.
+
+### New scoring formula
+
+```typescript
+function computeFinalScore(candidate: CandidateDraft, checks: {
+  adapterConfidence: number,       // 0.0–1.0 from adapter/LLM
+  completenessScore: number,       // 0–100 from Enhancement 3
+  duplicateSimilarity: number | null, // 0.0–1.0, null if no match found
+  urlIssues: string[],             // from Enhancement 4
+  fieldIssues: string[],           // from Enhancement 5
+}): { finalScore: number, track: 'approve' | 'review' | 'reject', reasons: string[] } {
+
+  let score = checks.adapterConfidence * 100; // Start with adapter confidence (0–100)
+  const reasons: string[] = [];
+
+  // Completeness adjustment
+  if (checks.completenessScore < 40) {
+    return { finalScore: 0, track: 'reject', reasons: [`Too incomplete (${checks.completenessScore}%)`] };
+  }
+  if (checks.completenessScore < 60) {
+    score -= 20;
+    reasons.push(`Low completeness (${checks.completenessScore}%)`);
+  }
+
+  // Duplicate proximity penalty
+  if (checks.duplicateSimilarity !== null && checks.duplicateSimilarity >= 0.5) {
+    score -= 30;
+    reasons.push(`Possible duplicate (${Math.round(checks.duplicateSimilarity * 100)}% similar)`);
+  }
+
+  // URL issues penalty
+  if (checks.urlIssues.length > 0) {
+    score -= 10 * checks.urlIssues.length;
+    reasons.push(...checks.urlIssues);
+  }
+
+  // Field issues penalty
+  if (checks.fieldIssues.length > 0) {
+    score -= 5 * checks.fieldIssues.length;
+    reasons.push(...checks.fieldIssues);
+  }
+
+  // Determine track
+  const finalScore = Math.max(0, Math.min(100, score));
+  let track: 'approve' | 'review' | 'reject';
+  if (finalScore >= 75 && reasons.length === 0) {
+    track = 'approve';
+  } else if (finalScore >= 40) {
+    track = 'review';
+  } else {
+    track = 'reject';
+  }
+
+  return { finalScore, track, reasons };
+}
+```
+
+### Key change: only auto-approve if ALL checks pass
+
+A candidate with 0.95 adapter confidence but 45% completeness or a 0.6 duplicate similarity should NOT be auto-approved. The composite score ensures that auto-approval requires high confidence AND clean validation across all dimensions.
+
+### Store the routing reasons
+
+Add a `review_notes TEXT[]` or `review_notes JSONB` column to `energy_projects`. When a candidate is routed to the review queue, store the `reasons` array so the reviewer sees exactly why: `["Low completeness (52%) — missing: developer, dealSizeUsdMn", "Primary source URL returned 403"]`. This replaces the current generic "pending" status with actionable information.
+
+### Database migration
+
+- Add `review_notes JSONB DEFAULT '[]'` to `energy_projects`
+- Add `completeness_score INTEGER DEFAULT NULL` to `energy_projects` (if not already added in Enhancement 3)
+- Add `project_name_normalized TEXT` to `energy_projects` (if not already added in Enhancement 1)
+
+---
+
+## Implementation Order
+
+Build these in order — each layer depends on the previous:
+
+1. **Name normalizer** (Enhancement 1) — standalone utility, no dependencies
+2. **Field validator** (Enhancement 5) — standalone utility, uses sector and country enums
+3. **URL validator** (Enhancement 4) — standalone utility, uses existing URL checking logic
+4. **Completeness scorer** (Enhancement 3) — standalone utility, no dependencies
+5. **Fuzzy self-check** (Enhancement 2) — depends on name normalizer + pg_trgm being enabled
+6. **Composite scoring and routing** (Enhancement 6) — orchestrates all of the above
+7. **Wire into writeCandidate()** — call all validators in sequence, use composite score for routing
+8. **Database migrations** — add `project_name_normalized`, `completeness_score`, `review_notes` columns; backfill existing records
+9. **Update admin Duplicate Scanner and Data Health** — use normalized names and completeness scores
+
+---
+
+## Testing
+
+After implementation:
+
+1. Run the scraper against each adapter once. Check the `scraper_runs` log for the new routing breakdown: how many auto-approved, how many routed to review, how many rejected.
+2. Verify that routed-to-review items show specific `review_notes` in the admin Review Queue.
+3. Manually check 10 "auto-approved" items to confirm they're genuinely clean (no duplicates, complete data, valid URLs).
+4. Manually check 10 "rejected" items to confirm they were correctly rejected (truly incomplete, non-energy, or duplicate).
+5. Run the Duplicate Scanner — the results should be significantly fewer than before, since the scraper now catches duplicates at ingestion time.
+
+---
+
+## What NOT to change
+
+- **Do not modify the adapter fetch/normalize logic.** Each adapter's `fetch()` and `normalize()` methods stay as-is. The enhancements all happen in the shared `writeCandidate()` flow that runs AFTER normalization.
+- **Do not remove the downstream integrity layers** (Duplicate Scanner, Data Health, contribution validation). They remain as safety nets. Over time, as the scraper gets smarter, they should surface fewer issues — but they stay in place.
+- **Do not change the review queue UI.** The only change is that review items now have `review_notes` attached, which should be displayed in the existing review interface.

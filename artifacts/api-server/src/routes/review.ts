@@ -73,6 +73,7 @@ router.get("/review/queue", async (req, res) => {
       extractionSource: projectsTable.extractionSource,
       discoveredAt: projectsTable.discoveredAt,
       createdAt: projectsTable.createdAt,
+      reviewNotes: projectsTable.reviewNotes,
     };
 
     const [projects, [totalRow]] = await Promise.all([
