@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAdminToken } from "@/contexts/admin-auth";
 import { 
   AlertTriangle, CheckCircle2, RefreshCw, Wrench, 
   Database, GitBranch, Search, TrendingUp, XCircle,
-  ChevronDown, ChevronRight, Copy
+  ChevronDown, ChevronRight, Copy, ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTechBadgeClass, getTechColor } from "@/config/technologyConfig";
@@ -260,11 +261,20 @@ export default function AdminDataHealth() {
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Data Health</h1>
-          <p className="text-sm text-white/40 mt-0.5">
-            Last audit: {new Date(summary.lastAuditAt).toLocaleString()}
-          </p>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/6 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+            title="Back to Admin Dashboard"
+          >
+            <ArrowLeft size={15} />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Data Health</h1>
+            <p className="text-sm text-white/40 mt-0.5">
+              Last audit: {new Date(summary.lastAuditAt).toLocaleString()}
+            </p>
+          </div>
         </div>
         <button
           onClick={refresh}

@@ -9,7 +9,7 @@ import {
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
   ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle, FlaskConical,
-  History,
+  History, Trash2,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -1720,14 +1720,24 @@ interface DupPair {
   score: number;
 }
 
+type ConfirmAction =
+  | { type: "merge"; keepId: number; removeId: number; keepName: string; removeName: string }
+  | { type: "delete"; id: number; name: string; status: string };
+
+function statusBadge(status: string) {
+  if (status === "approved") return <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">approved</span>;
+  if (status === "rejected") return <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/25 font-semibold">rejected</span>;
+  return <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">{status}</span>;
+}
+
 function DuplicateScannerSection() {
   const [pairs, setPairs] = useState<DupPair[]>([]);
   const [loading, setLoading] = useState(false);
   const [threshold, setThreshold] = useState(60);
-  const [merging, setMerging] = useState<string | null>(null);
-  const [merged, setMerged] = useState<Set<string>>(new Set());
+  const [acting, setActing] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<{ keepId: number; removeId: number; keepName: string; removeName: string } | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
 
   const scan = async () => {
     setLoading(true);
@@ -1738,6 +1748,7 @@ function DuplicateScannerSection() {
       if (res.status === 401) throw new Error("Your session has expired. Please sign out and sign back in.");
       if (!res.ok) throw new Error(data.error ?? "Scan failed");
       setPairs(data.pairs ?? []);
+      setDismissed(new Set());
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -1747,7 +1758,7 @@ function DuplicateScannerSection() {
 
   const merge = async (keepId: number, removeId: number) => {
     const key = `${keepId}-${removeId}`;
-    setMerging(key);
+    setActing(key);
     setError(null);
     try {
       const res = await fetch(`${API}/admin/projects/merge`, {
@@ -1757,25 +1768,47 @@ function DuplicateScannerSection() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Merge failed");
-      setMerged(s => new Set([...s, key]));
+      // Dismiss any pair containing either project
+      setPairs(prev => prev.filter(p => p.id_a !== keepId && p.id_a !== removeId && p.id_b !== keepId && p.id_b !== removeId));
       setConfirm(null);
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setMerging(null);
+      setActing(null);
     }
   };
 
-  const visiblePairs = pairs.filter(p => !merged.has(`${p.id_a}-${p.id_b}`) && !merged.has(`${p.id_b}-${p.id_a}`));
+  const deleteProject = async (id: number, reason?: string) => {
+    setActing(`delete-${id}`);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/admin/projects/delete`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ id, reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      // Remove all pairs that include this project
+      setPairs(prev => prev.filter(p => p.id_a !== id && p.id_b !== id));
+      setConfirm(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const visiblePairs = pairs.filter(p => !dismissed.has(`${p.id_a}-${p.id_b}`) && !dismissed.has(`${p.id_b}-${p.id_a}`));
 
   return (
     <div className="p-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Duplicate Scanner</h1>
-        <p className="text-sm text-muted-foreground mt-1">Find and merge likely duplicate projects using fuzzy name matching within the same country.</p>
+        <p className="text-sm text-muted-foreground mt-1">Find and merge likely duplicate projects, or delete rejected/invalid entries entirely.</p>
       </div>
 
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-2">
           <label className="text-sm text-muted-foreground whitespace-nowrap">Similarity threshold</label>
           <input
@@ -1806,33 +1839,60 @@ function DuplicateScannerSection() {
         </div>
       )}
 
-      {/* Confirm merge modal */}
+      {/* Confirmation modal */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h2 className="text-base font-semibold text-foreground mb-2">Confirm Merge</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This will merge <span className="font-medium text-foreground">"{confirm.removeName}"</span> (ID {confirm.removeId}) into <span className="font-medium text-foreground">"{confirm.keepName}"</span> (ID {confirm.keepId}), then permanently delete the removed project. This cannot be undone.
-            </p>
-            <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
-              Any data fields missing on the kept record will be filled from the removed one. All reviews and audit history will be reassigned to the kept record.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => merge(confirm.keepId, confirm.removeId)}
-                disabled={!!merging}
-                className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Merge & Delete
-              </button>
-              <button
-                onClick={() => setConfirm(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+            {confirm.type === "merge" ? (
+              <>
+                <h2 className="text-base font-semibold text-foreground mb-2">Confirm Merge</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Merge <span className="font-medium text-foreground">"{confirm.removeName}"</span> (#{confirm.removeId}) into <span className="font-medium text-foreground">"{confirm.keepName}"</span> (#{confirm.keepId}), then permanently delete the duplicate. Cannot be undone.
+                </p>
+                <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
+                  Missing fields on the kept record will be filled from the removed one.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => merge(confirm.keepId, confirm.removeId)}
+                    disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-sm font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Merge & Delete
+                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <h2 className="text-base font-semibold text-foreground">Permanently Delete Project</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Delete <span className="font-medium text-foreground">"{confirm.name}"</span> (#{confirm.id})?
+                </p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Status: <span className="font-medium">{confirm.status}</span> · This removes the project from the database entirely and cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deleteProject(confirm.id, `admin deleted ${confirm.status} project`)}
+                    disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Delete Permanently
+                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1841,50 +1901,73 @@ function DuplicateScannerSection() {
         <div className="space-y-3">
           {visiblePairs.map(p => {
             const key = `${p.id_a}-${p.id_b}`;
+            const hasRejected = p.status_a === "rejected" || p.status_b === "rejected";
+            const hasNonApproved = p.status_a !== "approved" || p.status_b !== "approved";
+            const projects = [
+              { id: p.id_a, name: p.name_a, dev: p.developer_a, cap: p.capacity_a, size: p.deal_size_a, status: p.status_a },
+              { id: p.id_b, name: p.name_b, dev: p.developer_b, cap: p.capacity_b, size: p.deal_size_b, status: p.status_b },
+            ];
             return (
-              <div key={key} className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-muted/20">
-                  <span className="text-xs font-semibold text-amber-400">{p.score}% similar · {p.country_a}</span>
+              <div key={key} className={`bg-card border rounded-xl overflow-hidden ${hasRejected ? "border-red-500/30" : "border-border"}`}>
+                <div className={`px-4 py-2 border-b flex items-center justify-between ${hasRejected ? "bg-red-500/5 border-red-500/20" : "bg-muted/20 border-border"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-amber-400">{p.score}% similar · {p.country_a}</span>
+                    {hasRejected && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> contains rejected
+                      </span>
+                    )}
+                    {!hasRejected && hasNonApproved && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">pending review</span>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 divide-x divide-border">
-                  {[
-                    { id: p.id_a, name: p.name_a, dev: p.developer_a, cap: p.capacity_a, size: p.deal_size_a, status: p.status_a },
-                    { id: p.id_b, name: p.name_b, dev: p.developer_b, cap: p.capacity_b, size: p.deal_size_b, status: p.status_b },
-                  ].map((proj, i) => (
-                    <div key={i} className="p-4">
-                      <div className="flex items-start justify-between gap-2 mb-2">
+                  {projects.map((proj, i) => (
+                    <div key={i} className={`p-4 ${proj.status === "rejected" ? "bg-red-500/3" : ""}`}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
                         <p className="text-sm font-medium text-foreground leading-snug">{proj.name}</p>
-                        <a href={`/review/queue/${proj.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-primary">
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => setConfirm({ type: "delete", id: proj.id, name: proj.name, status: proj.status })}
+                            disabled={!!acting}
+                            title="Delete this project"
+                            className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <a href={`/review/queue/${proj.id}`} target="_blank" rel="noopener noreferrer" className="p-1 rounded text-muted-foreground hover:text-primary">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">ID #{proj.id}</p>
+                      <p className="text-xs text-muted-foreground mb-1">ID #{proj.id}</p>
                       {proj.dev && <p className="text-xs text-muted-foreground truncate">{proj.dev}</p>}
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {proj.cap != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">{proj.cap} MW</span>}
                         {proj.size != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">${proj.size}M</span>}
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${proj.status === "approved" ? "bg-emerald-500/10 text-emerald-400" : "bg-muted/40 text-muted-foreground"}`}>{proj.status}</span>
+                        {statusBadge(proj.status)}
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className="px-4 py-3 border-t border-border flex gap-2">
                   <button
-                    onClick={() => setConfirm({ keepId: p.id_a, removeId: p.id_b, keepName: p.name_a, removeName: p.name_b })}
-                    disabled={!!merging}
+                    onClick={() => setConfirm({ type: "merge", keepId: p.id_a, removeId: p.id_b, keepName: p.name_a, removeName: p.name_b })}
+                    disabled={!!acting}
                     className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
                   >
                     Keep #{p.id_a}, remove #{p.id_b}
                   </button>
                   <button
-                    onClick={() => setConfirm({ keepId: p.id_b, removeId: p.id_a, keepName: p.name_b, removeName: p.name_a })}
-                    disabled={!!merging}
+                    onClick={() => setConfirm({ type: "merge", keepId: p.id_b, removeId: p.id_a, keepName: p.name_b, removeName: p.name_a })}
+                    disabled={!!acting}
                     className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
                   >
                     Keep #{p.id_b}, remove #{p.id_a}
                   </button>
                   <button
-                    onClick={() => setMerged(s => new Set([...s, key]))}
+                    onClick={() => setDismissed(s => new Set([...s, key]))}
                     className="px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
                     title="Dismiss this pair"
                   >

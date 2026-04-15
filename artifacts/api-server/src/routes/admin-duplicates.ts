@@ -14,6 +14,7 @@ const router = Router();
 
 router.use("/admin/duplicates", adminAuthMiddleware);
 router.use("/admin/projects/merge", adminAuthMiddleware);
+router.use("/admin/projects/delete", adminAuthMiddleware);
 router.use("/admin/setup-extensions", adminAuthMiddleware);
 
 // POST /api/admin/setup-extensions — idempotently install pg_trgm and its indexes
@@ -203,6 +204,45 @@ router.post("/admin/projects/merge", async (req, res) => {
     });
   } catch (err) {
     console.error("[Merge]", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/admin/projects/delete — permanently delete a single project by ID
+// Intended for rejected projects or entries that should never have been in the tracker.
+router.post("/admin/projects/delete", async (req, res) => {
+  try {
+    const { id, reason } = req.body as { id?: number; reason?: string };
+    if (!id || typeof id !== "number") {
+      return res.status(400).json({ error: "id (number) is required" });
+    }
+
+    const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, id)).limit(1);
+    if (!project) return res.status(404).json({ error: `Project ${id} not found` });
+
+    // Null-out FK references before deleting so constraints don't block the delete
+    await db.execute(sql`
+      UPDATE contributor_submissions SET linked_project_id = NULL WHERE linked_project_id = ${id}
+    `);
+    await db.execute(sql`DELETE FROM url_audit WHERE deal_id = ${id}`);
+
+    await db.delete(projectsTable).where(eq(projectsTable.id, id));
+
+    await db.insert(reviewerAuditLogTable).values({
+      action: "project_delete",
+      actor: "admin",
+      metadata: {
+        deletedId: id,
+        deletedName: project.projectName,
+        country: project.country,
+        reviewStatus: project.reviewStatus,
+        reason: reason ?? "admin decision",
+      },
+    });
+
+    res.json({ success: true, deletedId: id, deletedName: project.projectName });
+  } catch (err) {
+    console.error("[Delete]", err);
     res.status(500).json({ error: String(err) });
   }
 });
