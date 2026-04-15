@@ -1722,7 +1722,8 @@ interface DupPair {
 
 type ConfirmAction =
   | { type: "merge"; keepId: number; removeId: number; keepName: string; removeName: string }
-  | { type: "delete"; id: number; name: string; status: string };
+  | { type: "delete"; id: number; name: string; status: string }
+  | { type: "deleteBoth"; idA: number; nameA: string; statusA: string; idB: number; nameB: string; statusB: string };
 
 function statusBadge(status: string) {
   if (status === "approved") return <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">approved</span>;
@@ -1799,6 +1800,34 @@ function DuplicateScannerSection() {
     }
   };
 
+  const deleteBoth = async (idA: number, idB: number) => {
+    setActing(`deleteBoth-${idA}-${idB}`);
+    setError(null);
+    try {
+      const [resA, resB] = await Promise.all([
+        fetch(`${API}/admin/projects/delete`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ id: idA, reason: "admin deleted both — neither fit for tracker" }),
+        }),
+        fetch(`${API}/admin/projects/delete`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ id: idB, reason: "admin deleted both — neither fit for tracker" }),
+        }),
+      ]);
+      const [dataA, dataB] = await Promise.all([resA.json(), resB.json()]);
+      if (!resA.ok) throw new Error(dataA.error ?? `Failed to delete #${idA}`);
+      if (!resB.ok) throw new Error(dataB.error ?? `Failed to delete #${idB}`);
+      setPairs(prev => prev.filter(p => p.id_a !== idA && p.id_b !== idA && p.id_a !== idB && p.id_b !== idB));
+      setConfirm(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setActing(null);
+    }
+  };
+
   const visiblePairs = pairs.filter(p => !dismissed.has(`${p.id_a}-${p.id_b}`) && !dismissed.has(`${p.id_b}-${p.id_a}`));
 
   return (
@@ -1866,7 +1895,7 @@ function DuplicateScannerSection() {
                   </button>
                 </div>
               </>
-            ) : (
+            ) : confirm.type === "delete" ? (
               <>
                 <div className="flex items-center gap-2 mb-2">
                   <Trash2 className="w-4 h-4 text-red-400" />
@@ -1886,6 +1915,42 @@ function DuplicateScannerSection() {
                   >
                     {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     Delete Permanently
+                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <h2 className="text-base font-semibold text-foreground">Delete Both Projects</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Neither project is fit for the tracker. Both will be permanently removed from the database — this cannot be undone.
+                </p>
+                <div className="space-y-2 mb-4">
+                  {[
+                    { id: confirm.idA, name: confirm.nameA, status: confirm.statusA },
+                    { id: confirm.idB, name: confirm.nameB, status: confirm.statusB },
+                  ].map(proj => (
+                    <div key={proj.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/15">
+                      <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span className="text-sm text-foreground font-medium truncate">{proj.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">#{proj.id}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${proj.status === "rejected" ? "bg-red-500/15 text-red-400" : "bg-muted/40 text-muted-foreground"}`}>{proj.status}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deleteBoth(confirm.idA, confirm.idB)}
+                    disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Delete Both Permanently
                   </button>
                   <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
                     Cancel
@@ -1951,20 +2016,29 @@ function DuplicateScannerSection() {
                     </div>
                   ))}
                 </div>
-                <div className="px-4 py-3 border-t border-border flex gap-2">
+                <div className="px-4 py-3 border-t border-border flex gap-2 flex-wrap">
                   <button
                     onClick={() => setConfirm({ type: "merge", keepId: p.id_a, removeId: p.id_b, keepName: p.name_a, removeName: p.name_b })}
                     disabled={!!acting}
-                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
                   >
                     Keep #{p.id_a}, remove #{p.id_b}
                   </button>
                   <button
                     onClick={() => setConfirm({ type: "merge", keepId: p.id_b, removeId: p.id_a, keepName: p.name_b, removeName: p.name_a })}
                     disabled={!!acting}
-                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
                   >
                     Keep #{p.id_b}, remove #{p.id_a}
+                  </button>
+                  <button
+                    onClick={() => setConfirm({ type: "deleteBoth", idA: p.id_a, nameA: p.name_a, statusA: p.status_a, idB: p.id_b, nameB: p.name_b, statusB: p.status_b })}
+                    disabled={!!acting}
+                    className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                    title="Delete both — neither belongs in the tracker"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Both
                   </button>
                   <button
                     onClick={() => setDismissed(s => new Set([...s, key]))}
