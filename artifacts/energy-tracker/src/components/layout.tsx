@@ -567,18 +567,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             </nav>
 
-            {/* Ask AI button */}
-            <div className="px-4 pb-3">
-              <button
-                onClick={() => setAiOpen(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 hover:border-[#00e676]/35 transition-all group"
-              >
-                <Sparkles className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-semibold flex-1 text-left">Ask AI</span>
-                <kbd className="text-[10px] bg-[#00e676]/10 border border-[#00e676]/20 px-1.5 py-0.5 rounded text-[#00e676]/70 font-mono">⌘K</kbd>
-              </button>
-            </div>
-
             {/* Return to Admin/Review — only shown when a privileged user is in app mode */}
             {isPrivilegedUser && (
               <div className="px-4 pb-3">
@@ -754,11 +742,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 ) : (
                   /* ── Regular user mobile nav ── */
                   <>
-                    <button onClick={() => { setAiOpen(true); setMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#00e676]/8 border border-[#00e676]/20 text-[#00e676] hover:bg-[#00e676]/14 transition-all mb-2">
-                      <Sparkles className="w-5 h-5 shrink-0" />
-                      <span className="text-base font-semibold">Ask AI</span>
-                    </button>
-
                     {navItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
@@ -819,7 +802,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      {/* Floating Ask AI button — mobile only */}
+      {/* Floating Ask AI button — all screen sizes */}
       <AnimatePresence>
         {!aiOpen && (
           <motion.button
@@ -829,7 +812,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             onClick={() => setAiOpen(true)}
-            className="md:hidden fixed bottom-6 right-5 z-[1300] flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#00e676] text-[#0b0f1a] font-bold text-sm shadow-[0_4px_20px_rgba(0,230,118,0.4)] hover:shadow-[0_6px_28px_rgba(0,230,118,0.55)] transition-shadow"
+            className="fixed bottom-6 right-5 z-[1300] flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#00e676] text-[#0b0f1a] font-bold text-sm shadow-[0_4px_20px_rgba(0,230,118,0.4)] hover:shadow-[0_6px_28px_rgba(0,230,118,0.55)] transition-shadow"
           >
             <Sparkles className="w-4 h-4" />
             Ask AI
