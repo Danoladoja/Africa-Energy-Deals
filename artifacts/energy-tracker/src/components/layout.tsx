@@ -28,8 +28,6 @@ import {
   ListTodo,
   Newspaper,
   AlertCircle,
-  GitMerge,
-  BarChart2,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -63,9 +61,7 @@ const adminDashboardSections = [
   { id: "overview",      label: "Overview",          icon: LayoutDashboard, href: "/admin?section=overview" },
   { id: "pipeline",      label: "Data Pipeline & Queue", icon: Database,    href: "/admin?section=pipeline" },
   { id: "newsletter",    label: "Newsletter",        icon: Newspaper,       href: "/admin?section=newsletter" },
-  { id: "duplicates",    label: "Duplicate Scanner", icon: GitMerge,        href: "/admin?section=duplicates" },
-  { id: "yield",         label: "Source Yield",      icon: BarChart2,       href: "/admin?section=yield" },
-  { id: "data-health",   label: "Data Health",       icon: AlertCircle,     href: "/admin/data-health" },
+  { id: "quality",       label: "Data Quality",      icon: ShieldCheck,     href: "/admin?section=quality" },
   { id: "reviewers",     label: "Reviewers",         icon: ShieldCheck,     href: "/admin/reviewers" },
   { id: "contributors",  label: "Contributors",      icon: Users,           href: "/admin/contributors" },
 ] as const;
@@ -184,10 +180,14 @@ function AdminNavDropdown() {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
+            const qualityAliases = ["quality", "duplicates", "yield"];
+            const pipelineAliases = ["pipeline", "queue"];
             const isActive =
               (s.id === "reviewers" && location === "/admin/reviewers") ||
               (s.id === "contributors" && location === "/admin/contributors") ||
-              (isOnDashboard && activeSection === s.id);
+              (isOnDashboard && activeSection === s.id) ||
+              (isOnDashboard && s.id === "quality" && qualityAliases.includes(activeSection)) ||
+              (isOnDashboard && s.id === "pipeline" && pipelineAliases.includes(activeSection));
             const href = "href" in s ? (s as any).href : undefined;
             return (
               <button
@@ -243,10 +243,14 @@ function MobileAdminNavDropdown({ onClose }: { onClose: () => void }) {
       {open && (
         <div className="mt-1 ml-9 space-y-0.5">
           {adminDashboardSections.map(s => {
+            const qualityAliases = ["quality", "duplicates", "yield"];
+            const pipelineAliases = ["pipeline", "queue"];
             const isActive =
               (s.id === "reviewers" && location === "/admin/reviewers") ||
               (s.id === "contributors" && location === "/admin/contributors") ||
-              (isOnDashboard && activeSection === s.id);
+              (isOnDashboard && activeSection === s.id) ||
+              (isOnDashboard && s.id === "quality" && qualityAliases.includes(activeSection)) ||
+              (isOnDashboard && s.id === "pipeline" && pipelineAliases.includes(activeSection));
             const href = "href" in s ? (s as any).href : undefined;
             return (
               <button

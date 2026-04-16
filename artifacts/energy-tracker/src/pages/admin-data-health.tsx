@@ -423,7 +423,7 @@ function TechBadge({ tech }: { tech: string }) {
   return <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300 border border-gray-600">{tech}</span>;
 }
 
-export default function AdminDataHealth() {
+export function DataHealthContent() {
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<DataHealthResponse, Error>({
@@ -896,3 +896,5 @@ export default function AdminDataHealth() {
     </div>
   );
 }
+
+export default DataHealthContent;

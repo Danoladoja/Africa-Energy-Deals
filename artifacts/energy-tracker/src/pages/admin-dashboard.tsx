@@ -12,6 +12,7 @@ import {
   History, Trash2, GitCompare, ArrowUpDown, BarChart3, ShieldCheck,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
+import { DataHealthContent } from "@/pages/admin-data-health";
 
 class SectionErrorBoundary extends Component<
   { label: string; children: ReactNode },
@@ -88,7 +89,7 @@ interface RunProgress { stage: string; message: string; processed?: number; disc
 interface Newsletter { id: number; editionNumber: number; title: string; executiveSummary: string | null; spotlightSector: string | null; spotlightCountry: string | null; projectsAnalyzed: number | null; totalInvestmentCovered: string | null; generatedAt: string | null; sentAt: string | null; status: string; recipientCount: number | null; type?: string }
 interface Subscriber { id: number; email: string; role: string; newsletterOptIn: boolean; newsletterFrequency: string | null; createdAt: string; lastNewsletterSentAt: string | null }
 
-type AdminSection = "overview" | "pipeline" | "queue" | "newsletter" | "duplicates" | "yield";
+type AdminSection = "overview" | "pipeline" | "queue" | "newsletter" | "duplicates" | "yield" | "quality";
 type QueueFilter = "pending" | "needs_source" | "rejected" | "all";
 interface QueueStats { pending: number; needs_source: number; rejected: number }
 interface AuditEntry { id: number; dealId: number; action: string; note: string | null; oldUrl: string | null; newUrl: string | null; testedStatus: number | null; responseTime: number | null; reviewerEmail: string; createdAt: string }
@@ -2658,8 +2659,43 @@ function PipelineQueueSection({
   );
 }
 
+// ── Data Quality Combined Section ────────────────────────────────────────────
+type QualityTab = "quality" | "yield" | "duplicates";
+const QUALITY_TABS: { id: QualityTab; label: string }[] = [
+  { id: "quality",    label: "Data Health"       },
+  { id: "yield",      label: "Source Yield"      },
+  { id: "duplicates", label: "Duplicate Scanner" },
+];
+
+function QualitySection({ activeTab, setSection }: { activeTab: QualityTab; setSection: (s: AdminSection) => void }) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 border-b border-border bg-card/40 flex px-6">
+        {QUALITY_TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => setSection(id)}
+            className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === "quality"    && <DataHealthContent />}
+        {activeTab === "yield"      && <SourceYieldSection />}
+        {activeTab === "duplicates" && <DuplicateScannerSection />}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
-const ALL_SECTIONS: AdminSection[] = ["overview", "pipeline", "queue", "newsletter", "duplicates", "yield"];
+const ALL_SECTIONS: AdminSection[] = ["overview", "pipeline", "queue", "newsletter", "duplicates", "yield", "quality"];
 
 function getInitialSection(): AdminSection {
   const stored = sessionStorage.getItem("adminOpenSection");
@@ -2771,14 +2807,9 @@ export default function AdminDashboard() {
             <NewsletterSection newsletters={newsletters} subscriberStats={subscriberStats} loadNewsletters={loadNewsletters} loadSubscribers={loadSubscribers} />
           </SectionErrorBoundary>
         )}
-        {section === "duplicates" && (
-          <SectionErrorBoundary label="Duplicate Scanner">
-            <DuplicateScannerSection />
-          </SectionErrorBoundary>
-        )}
-        {section === "yield" && (
-          <SectionErrorBoundary label="Source Yield">
-            <SourceYieldSection />
+        {(section === "quality" || section === "duplicates" || section === "yield") && (
+          <SectionErrorBoundary label="Data Quality">
+            <QualitySection activeTab={section as QualityTab} setSection={setSection} />
           </SectionErrorBoundary>
         )}
       </div>
