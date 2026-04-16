@@ -9,7 +9,7 @@ import {
   FileSearch, Activity, BarChart2, Filter, Download, Globe,
   Newspaper, Mail, Users, Send, Eye, LayoutDashboard, ListTodo,
   ChevronRight, ExternalLink, ArrowLeft, Edit3, Bot, RotateCcw, Save, AlertTriangle, FlaskConical,
-  History, Trash2,
+  History, Trash2, GitCompare, ArrowUpDown, BarChart3, ShieldCheck,
 } from "lucide-react";
 import { useAdminAuth } from "@/contexts/admin-auth";
 
@@ -83,12 +83,12 @@ interface SourceStat {
   lastRun: { id: number; sourceName: string; startedAt: string; completedAt: string | null; recordsFound: number; recordsInserted: number; recordsUpdated: number; flaggedForReview: number; errors: string | null; triggeredBy: string } | null;
   totalInserted: number; totalUpdated: number; totalFound: number; totalFlagged: number; runCount: number;
 }
-interface Project { id: number; projectName: string; country: string; technology: string; dealSizeUsdMn: number | null; capacityMw: number | null; status: string; description: string | null; sourceUrl: string | null; newsUrl: string | null; reviewStatus: string; discoveredAt: string | null; confidenceScore: number | null; extractionSource: string | null; developer: string | null; financiers: string | null }
+interface Project { id: number; projectName: string; country: string; technology: string; dealSizeUsdMn: number | null; capacityMw: number | null; status: string; description: string | null; sourceUrl: string | null; newsUrl: string | null; reviewStatus: string; discoveredAt: string | null; confidenceScore: number | null; extractionSource: string | null; developer: string | null; financiers: string | null; reviewNotes: string[] | null; completenessScore: number | null }
 interface RunProgress { stage: string; message: string; processed?: number; discovered?: number; updated?: number; flagged?: number }
 interface Newsletter { id: number; editionNumber: number; title: string; executiveSummary: string | null; spotlightSector: string | null; spotlightCountry: string | null; projectsAnalyzed: number | null; totalInvestmentCovered: string | null; generatedAt: string | null; sentAt: string | null; status: string; recipientCount: number | null; type?: string }
 interface Subscriber { id: number; email: string; role: string; newsletterOptIn: boolean; newsletterFrequency: string | null; createdAt: string; lastNewsletterSentAt: string | null }
 
-type AdminSection = "overview" | "pipeline" | "queue" | "newsletter" | "duplicates";
+type AdminSection = "overview" | "pipeline" | "queue" | "newsletter" | "duplicates" | "yield";
 type QueueFilter = "pending" | "needs_source" | "rejected" | "all";
 interface QueueStats { pending: number; needs_source: number; rejected: number }
 interface AuditEntry { id: number; dealId: number; action: string; note: string | null; oldUrl: string | null; newUrl: string | null; testedStatus: number | null; responseTime: number | null; reviewerEmail: string; createdAt: string }
@@ -114,6 +114,400 @@ function ConfidenceBadge({ score }: { score: number | null }) {
   const pct = Math.round(score * 100);
   const color = score >= 0.8 ? "text-green-400" : score >= 0.6 ? "text-yellow-400" : "text-red-400";
   return <span className={`text-xs font-mono ${color}`}>{pct}%</span>;
+}
+
+// ── Review Note Helpers (Task 3) ───────────────────────────────────────────────
+type NoteCategory = "duplicate" | "completeness" | "url" | "field" | "other";
+
+interface ParsedNote {
+  raw: string;
+  category: NoteCategory;
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  duplicateId?: number;
+}
+
+function parseReviewNote(note: string): ParsedNote {
+  const lower = note.toLowerCase();
+  if (lower.includes("possible duplicate") || lower.includes("similar") || lower.includes("duplicate of")) {
+    const idMatch = note.match(/#(\d+)/);
+    return {
+      raw: note, category: "duplicate", label: note,
+      color: "text-orange-300", bgColor: "bg-orange-500/10", borderColor: "border-orange-500/25",
+      duplicateId: idMatch ? parseInt(idMatch[1]) : undefined,
+    };
+  }
+  if (lower.includes("completeness") || lower.includes("missing:") || lower.includes("missing fields")) {
+    return {
+      raw: note, category: "completeness", label: note,
+      color: "text-yellow-300", bgColor: "bg-yellow-500/10", borderColor: "border-yellow-500/25",
+    };
+  }
+  if (lower.includes("url") || lower.includes("http") || lower.includes("403") || lower.includes("404") || lower.includes("not reachable")) {
+    return {
+      raw: note, category: "url", label: note,
+      color: "text-red-300", bgColor: "bg-red-500/10", borderColor: "border-red-500/25",
+    };
+  }
+  if (lower.includes("auto-corrected") || lower.includes("corrected") || lower.includes("sector:") || lower.includes("technology:")) {
+    return {
+      raw: note, category: "field", label: note,
+      color: "text-blue-300", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/25",
+    };
+  }
+  return {
+    raw: note, category: "other", label: note,
+    color: "text-muted-foreground", bgColor: "bg-muted/30", borderColor: "border-border",
+  };
+}
+
+function ReviewNotesBadges({ notes, onCompare }: { notes: string[]; onCompare?: (note: ParsedNote) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {notes.map((note, i) => {
+        const parsed = parseReviewNote(note);
+        return (
+          <span
+            key={i}
+            className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border font-medium max-w-[320px] ${parsed.color} ${parsed.bgColor} ${parsed.borderColor}`}
+            title={note}
+          >
+            <span className="truncate">{note.length > 60 ? note.slice(0, 60) + "…" : note}</span>
+            {parsed.category === "duplicate" && onCompare && (
+              <button
+                onClick={e => { e.stopPropagation(); onCompare(parsed); }}
+                className="shrink-0 ml-0.5 hover:underline font-semibold"
+                title="Compare side-by-side"
+              >
+                Compare
+              </button>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+interface ProjectDetail {
+  id: number; projectName: string; country: string; technology: string;
+  dealSizeUsdMn: number | null; capacityMw: number | null; status: string;
+  developer: string | null; financiers: string | null; sourceUrl: string | null;
+}
+
+function CompareDialog({
+  candidate, existingId, onClose, onAction,
+}: {
+  candidate: Project;
+  existingId: number;
+  onClose: () => void;
+  onAction: (action: "merge" | "keep-both" | "reject-new") => void;
+}) {
+  const [existing, setExisting] = useState<ProjectDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/review/${existingId}`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => setExisting(d.project ?? null))
+      .catch(() => setExisting(null))
+      .finally(() => setLoading(false));
+  }, [existingId]);
+
+  const fields: { label: string; key: keyof ProjectDetail }[] = [
+    { label: "Name", key: "projectName" }, { label: "Country", key: "country" },
+    { label: "Technology", key: "technology" }, { label: "Deal Size", key: "dealSizeUsdMn" },
+    { label: "Capacity", key: "capacityMw" }, { label: "Developer", key: "developer" },
+    { label: "Status", key: "status" }, { label: "Source", key: "sourceUrl" },
+  ];
+
+  function fmt(v: unknown): string {
+    if (v == null) return "—";
+    if (typeof v === "number") return v.toString();
+    return String(v);
+  }
+
+  async function handleAction(action: "merge" | "keep-both" | "reject-new") {
+    setActing(true);
+    onAction(action);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GitCompare className="w-4 h-4 text-orange-400" />
+            <span className="font-semibold text-foreground text-sm">Duplicate Comparison</span>
+            <span className="text-xs text-muted-foreground">Candidate #{candidate.id} vs Existing #{existingId}</span>
+          </div>
+          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 divide-x divide-border">
+              <div className="px-5 py-3 bg-primary/5">
+                <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider">New Candidate #{candidate.id}</p>
+              </div>
+              <div className="px-5 py-3 bg-muted/20">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Existing Record #{existingId}</p>
+              </div>
+            </div>
+            <div className="divide-y divide-border/40">
+              {fields.map(({ label, key }) => {
+                const cv = (candidate as any)[key];
+                const ev = existing ? (existing as any)[key] : null;
+                const differ = fmt(cv) !== fmt(ev);
+                return (
+                  <div key={key} className={`grid grid-cols-2 divide-x divide-border/40 ${differ ? "bg-yellow-500/5" : ""}`}>
+                    <div className="px-5 py-2.5 flex items-start gap-2">
+                      <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider shrink-0 mt-0.5 w-16">{label}</span>
+                      <span className={`text-xs font-medium ${cv == null ? "text-muted-foreground/30 italic" : "text-foreground"}`}>{fmt(cv)}</span>
+                    </div>
+                    <div className="px-5 py-2.5 flex items-start gap-2">
+                      <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider shrink-0 mt-0.5 w-16">{label}</span>
+                      <span className={`text-xs font-medium ${ev == null ? "text-muted-foreground/30 italic" : "text-foreground"}`}>{fmt(ev)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-6 py-4 border-t border-border flex gap-2 flex-wrap">
+              <button
+                disabled={acting}
+                onClick={() => handleAction("merge")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium disabled:opacity-40"
+              >
+                {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Merge (fill gaps)
+              </button>
+              <button
+                disabled={acting}
+                onClick={() => handleAction("keep-both")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-medium disabled:opacity-40"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Keep Both
+              </button>
+              <button
+                disabled={acting}
+                onClick={() => handleAction("reject-new")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium disabled:opacity-40"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Reject New
+              </button>
+              <button onClick={onClose} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs">
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Source Yield Dashboard (Task 1) ────────────────────────────────────────────
+interface SourceYieldStat {
+  sourceName: string; totalRuns: number; lastRunAt: string | null; lastRunDuration: number | null;
+  avgCandidatesPerRun: number; approvalRate: number; reviewRate: number; rejectionRate: number;
+  totalInserted: number; totalFlagged: number; totalRejected: number; trustScore: number;
+}
+
+type YieldSortKey = "sourceName" | "approvalRate" | "reviewRate" | "rejectionRate" | "trustScore" | "totalRuns" | "lastRunAt";
+
+function ApprovalRateBar({ rate, width = 60 }: { rate: number; width?: number }) {
+  const pct = Math.round(rate * 100);
+  const color = rate >= 0.7 ? "bg-green-500" : rate >= 0.4 ? "bg-yellow-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-2">
+      <div style={{ width }} className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-xs font-mono tabular-nums ${rate >= 0.7 ? "text-green-400" : rate >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
+function TrustBadge({ score }: { score: number }) {
+  const color = score >= 1.1 ? "text-green-400 bg-green-500/10 border-green-500/25"
+    : score >= 0.8 ? "text-blue-400 bg-blue-500/10 border-blue-500/25"
+    : "text-red-400 bg-red-500/10 border-red-500/25";
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-mono ${color}`}>
+      <ShieldCheck className="w-2.5 h-2.5" />
+      {score.toFixed(2)}
+    </span>
+  );
+}
+
+function SourceYieldSection() {
+  const [stats, setStats] = useState<SourceYieldStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<YieldSortKey>("approvalRate");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/scraper/source-stats`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => setStats(Array.isArray(d) ? d : []))
+      .catch(() => setStats([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function toggleSort(key: YieldSortKey) {
+    if (sortKey === key) { setSortAsc(a => !a); } else { setSortKey(key); setSortAsc(false); }
+  }
+
+  const sorted = [...stats].sort((a, b) => {
+    let av: any = a[sortKey]; let bv: any = b[sortKey];
+    if (av == null) av = sortKey === "lastRunAt" ? "" : -1;
+    if (bv == null) bv = sortKey === "lastRunAt" ? "" : -1;
+    return sortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  function SortTh({ k, children }: { k: YieldSortKey; children: React.ReactNode }) {
+    const active = sortKey === k;
+    return (
+      <th
+        className="text-left py-2 px-3 text-[11px] font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap"
+        onClick={() => toggleSort(k)}
+      >
+        <div className="flex items-center gap-1">
+          {children}
+          <ArrowUpDown className={`w-3 h-3 shrink-0 transition-colors ${active ? "text-primary" : "opacity-40"}`} />
+        </div>
+      </th>
+    );
+  }
+
+  const overallApproval = stats.length > 0
+    ? stats.reduce((s, x) => s + x.approvalRate, 0) / stats.length : 0;
+  const totalRuns = stats.reduce((s, x) => s + x.totalRuns, 0);
+  const highTrust = stats.filter(s => s.trustScore >= 1.0).length;
+
+  return (
+    <div className="p-8 max-w-6xl">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Source Yield Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">Per-adapter approval rates and pipeline quality metrics</p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); fetch(`${API}/scraper/source-stats`, { headers: authHeaders() }).then(r => r.json()).then(d => setStats(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false)); }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        {[
+          { label: "Total Adapter Runs", value: totalRuns.toLocaleString(), icon: <BarChart3 className="w-5 h-5" />, color: "text-blue-400" },
+          { label: "Avg Approval Rate", value: `${Math.round(overallApproval * 100)}%`, icon: <TrendingUp className="w-5 h-5" />, color: overallApproval >= 0.6 ? "text-green-400" : "text-yellow-400" },
+          { label: "High-Trust Sources", value: `${highTrust} / ${stats.length}`, icon: <ShieldCheck className="w-5 h-5" />, color: "text-primary" },
+        ].map(({ label, value, icon, color }) => (
+          <div key={label} className="bg-card border border-border rounded-xl p-4">
+            <div className={`flex items-center gap-2 ${color} mb-2`}>{icon}<span className="text-xs font-medium uppercase tracking-wider">{label}</span></div>
+            <div className="text-2xl font-bold text-foreground">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary/50" /></div>
+        ) : sorted.length === 0 ? (
+          <div className="px-6 py-14 text-center text-sm text-muted-foreground">No scraper run data yet. Run an adapter to see stats here.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/20">
+                <tr>
+                  <SortTh k="sourceName">Source</SortTh>
+                  <SortTh k="lastRunAt">Last Run</SortTh>
+                  <SortTh k="totalRuns">Runs</SortTh>
+                  <SortTh k="approvalRate">Approval %</SortTh>
+                  <SortTh k="reviewRate">Review %</SortTh>
+                  <SortTh k="rejectionRate">Reject %</SortTh>
+                  <SortTh k="trustScore">Trust</SortTh>
+                  <th className="py-2 px-3 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Avg Yield</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {sorted.map(row => (
+                  <>
+                    <tr
+                      key={row.sourceName}
+                      className="hover:bg-muted/20 cursor-pointer transition-colors"
+                      onClick={() => setExpandedSource(expandedSource === row.sourceName ? null : row.sourceName)}
+                    >
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          {expandedSource === row.sourceName
+                            ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                          <span className="font-medium text-foreground text-xs max-w-[180px] truncate" title={row.sourceName}>{row.sourceName}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-xs text-muted-foreground">{ago(row.lastRunAt)}</td>
+                      <td className="py-3 px-3 text-xs font-mono text-muted-foreground">{row.totalRuns}</td>
+                      <td className="py-3 px-3"><ApprovalRateBar rate={row.approvalRate} /></td>
+                      <td className="py-3 px-3 text-xs text-yellow-400/80 font-mono">{Math.round(row.reviewRate * 100)}%</td>
+                      <td className="py-3 px-3 text-xs text-red-400/70 font-mono">{Math.round(row.rejectionRate * 100)}%</td>
+                      <td className="py-3 px-3"><TrustBadge score={row.trustScore} /></td>
+                      <td className="py-3 px-3 text-xs text-muted-foreground font-mono">{row.avgCandidatesPerRun.toFixed(1)}/run</td>
+                    </tr>
+                    {expandedSource === row.sourceName && (
+                      <tr key={`${row.sourceName}-expand`}>
+                        <td colSpan={8} className="bg-muted/10 px-8 py-4 border-t border-border/30">
+                          <div className="grid grid-cols-4 gap-4 text-xs">
+                            <div>
+                              <p className="text-muted-foreground/60 uppercase tracking-wider mb-1 text-[10px]">Total Approved</p>
+                              <p className="font-semibold text-green-400">{row.totalInserted}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground/60 uppercase tracking-wider mb-1 text-[10px]">Total Flagged</p>
+                              <p className="font-semibold text-yellow-400">{row.totalFlagged}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground/60 uppercase tracking-wider mb-1 text-[10px]">Total Rejected</p>
+                              <p className="font-semibold text-red-400">{row.totalRejected}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground/60 uppercase tracking-wider mb-1 text-[10px]">Trust Score</p>
+                              <p className="font-semibold">
+                                {row.trustScore >= 1.1 ? "Above baseline (high accuracy)"
+                                  : row.trustScore >= 0.8 ? "Baseline (normal)"
+                                  : "Below baseline (low accuracy)"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Overview Section ───────────────────────────────────────────────────────────
@@ -245,11 +639,22 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
   const [specialRunning, setSpecialRunning] = useState<string | null>(null);
   const [specialLog, setSpecialLog] = useState<{ msg: string; ok: boolean }[]>([]);
   const [specialResult, setSpecialResult] = useState<{ total: number; inserted: number; updated: number; skipped: number; errors: number } | null>(null);
+  const [yieldStats, setYieldStats] = useState<Map<string, SourceYieldStat>>(new Map());
   const logEndRef = useRef<HTMLDivElement>(null);
   const specialLogEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runLog]);
   useEffect(() => { specialLogEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [specialLog]);
+
+  useEffect(() => {
+    fetch(`${API}/scraper/source-stats`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then((d: SourceYieldStat[]) => {
+        if (!Array.isArray(d)) return;
+        setYieldStats(new Map(d.map(s => [s.sourceName, s])));
+      })
+      .catch(() => {});
+  }, []);
 
   async function runSpecial(endpoint: string, label: string) {
     if (specialRunning || runningSource) return;
@@ -440,6 +845,18 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
                       <div className="text-center"><div className="text-muted-foreground mb-0.5">In</div><div className="font-medium text-green-400">{stats?.totalInserted ?? 0}</div></div>
                       <div className="text-center"><div className="text-muted-foreground mb-0.5">Up</div><div className="font-medium text-blue-400">{stats?.totalUpdated ?? 0}</div></div>
                       <div className="text-center"><div className="text-muted-foreground mb-0.5">Runs</div><div className="font-medium text-foreground">{stats?.runCount ?? 0}</div></div>
+                      {(() => { const ys = yieldStats.get(source.name); return ys ? (
+                        <>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-1">Approval</div>
+                            <ApprovalRateBar rate={ys.approvalRate} width={48} />
+                          </div>
+                          <div className="text-center">
+                            <div className="text-muted-foreground mb-0.5">Trust</div>
+                            <TrustBadge score={ys.trustScore} />
+                          </div>
+                        </>
+                      ) : null; })()}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {lastRun?.errors && (
@@ -533,16 +950,19 @@ function formatAuditAction(entry: AuditEntry): string {
 function QueueItemRow({
   project, isExpanded, onToggleExpand, urlEdit, urlTest, testing, saving,
   auditLog, loadingAudit, actionInProgress, onSetUrlEdit, onTestUrl,
-  onSaveUrl, onMoveToPending, onStatusChange,
+  onSaveUrl, onMoveToPending, onStatusChange, onCompare,
 }: {
   project: Project; isExpanded: boolean; onToggleExpand: () => void;
   urlEdit: string; urlTest: UrlTestResult | null; testing: boolean; saving: boolean;
   auditLog: AuditEntry[] | undefined; loadingAudit: boolean; actionInProgress: boolean;
   onSetUrlEdit: (v: string) => void; onTestUrl: () => void; onSaveUrl: () => void;
   onMoveToPending: () => void; onStatusChange: (s: "approved" | "rejected") => void;
+  onCompare: (note: ParsedNote) => void;
 }) {
   const rs = project.reviewStatus;
   const canMoveToPending = rs === "rejected" || (rs === "needs_source" && urlTest?.reachable === true);
+  const notes = project.reviewNotes ?? [];
+  const hasDuplicate = notes.some(n => parseReviewNote(n).category === "duplicate");
 
   const statusBadge = rs === "pending"
     ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-yellow-400/15 text-yellow-400 border border-yellow-400/25 font-medium">pending</span>
@@ -561,6 +981,16 @@ function QueueItemRow({
             <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium shrink-0 ${TECH_COLORS[project.technology] ?? "text-muted-foreground bg-muted"}`}>{project.technology}</span>
             {statusBadge}
             <ConfidenceBadge score={project.confidenceScore} />
+            {project.completenessScore != null && (
+              <span className={`text-[11px] px-1.5 py-0.5 rounded border font-mono shrink-0 ${project.completenessScore >= 0.8 ? "text-green-400 bg-green-500/8 border-green-500/20" : project.completenessScore >= 0.6 ? "text-yellow-400 bg-yellow-500/8 border-yellow-500/20" : "text-red-400 bg-red-500/8 border-red-500/20"}`}>
+                {Math.round(project.completenessScore * 100)}% complete
+              </span>
+            )}
+            {hasDuplicate && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/25 text-orange-300 font-medium flex items-center gap-0.5">
+                <GitCompare className="w-2.5 h-2.5" /> dup flag
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <span>{project.country}</span>
@@ -569,6 +999,9 @@ function QueueItemRow({
             {project.extractionSource && <span className="text-primary/60">via {project.extractionSource}</span>}
             <span>{ago(project.discoveredAt)}</span>
           </div>
+          {notes.length > 0 && (
+            <ReviewNotesBadges notes={notes} onCompare={onCompare} />
+          )}
         </div>
         <button onClick={onToggleExpand} className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -691,6 +1124,7 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
   }
 
   const [filter, setFilterRaw] = useState<QueueFilter>(getInitialFilter);
+  const [noteFilter, setNoteFilter] = useState<NoteCategory | "all">("all");
   const [stats, setStats] = useState<QueueStats>({ pending: 0, needs_source: 0, rejected: 0 });
   const [items, setItems] = useState<Project[]>([]);
   const [page, setPage] = useState(1);
@@ -706,6 +1140,7 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
   const [savingUrl, setSavingUrl] = useState<Record<number, boolean>>({});
   const [actionsInProgress, setActionsInProgress] = useState<Record<number, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [compareDialog, setCompareDialog] = useState<{ candidate: Project; existingId: number } | null>(null);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -880,7 +1315,7 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
       </div>
 
       {/* Filter tabs with live counts */}
-      <div className="flex gap-1.5 flex-wrap mb-5">
+      <div className="flex gap-1.5 flex-wrap mb-3">
         {(["pending", "needs_source", "rejected", "all"] as QueueFilter[]).map(f => {
           const cnt = filterCount(f);
           const active = filter === f;
@@ -898,6 +1333,35 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
           );
         })}
       </div>
+
+      {/* Note category filter */}
+      {items.some(p => (p.reviewNotes ?? []).length > 0) && (
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          <span className="text-[11px] text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1">
+            <Filter className="w-3 h-3" /> Filter by flag:
+          </span>
+          {([
+            { key: "all", label: "All", color: "" },
+            { key: "duplicate", label: "Duplicate", color: "text-orange-300 border-orange-500/25 bg-orange-500/8" },
+            { key: "completeness", label: "Completeness", color: "text-yellow-300 border-yellow-500/25 bg-yellow-500/8" },
+            { key: "url", label: "URL Issue", color: "text-red-300 border-red-500/25 bg-red-500/8" },
+            { key: "field", label: "Field Fix", color: "text-blue-300 border-blue-500/25 bg-blue-500/8" },
+          ] as { key: NoteCategory | "all"; label: string; color: string }[]).map(({ key, label, color }) => {
+            const isActive = noteFilter === key;
+            const cnt = key === "all" ? items.length : items.filter(p => (p.reviewNotes ?? []).some(n => parseReviewNote(n).category === key)).length;
+            if (key !== "all" && cnt === 0) return null;
+            return (
+              <button
+                key={key}
+                onClick={() => setNoteFilter(key)}
+                className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${isActive ? `${color} ring-1 ring-current` : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"}`}
+              >
+                {label} <span className="opacity-70">({cnt})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Contextual hints */}
       {filter === "needs_source" && stats.needs_source > 0 && (
@@ -926,55 +1390,108 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
       )}
 
       {/* Items list */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="px-6 py-14 text-center">
-            <CheckCircle2 className="w-10 h-10 text-green-400/30 mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm">
-              {filter === "pending" ? "No items pending review — queue is clear"
-               : filter === "needs_source" ? "No items awaiting a source URL"
-               : filter === "rejected" ? "No rejected items"
-               : "Nothing in the queue"}
-            </p>
-          </div>
-        ) : (
+      {(() => {
+        const displayItems = noteFilter === "all"
+          ? items
+          : items.filter(p => (p.reviewNotes ?? []).some(n => parseReviewNote(n).category === noteFilter));
+
+        function handleCompare(project: Project, note: ParsedNote) {
+          if (note.duplicateId) setCompareDialog({ candidate: project, existingId: note.duplicateId });
+        }
+
+        async function handleCompareAction(action: "merge" | "keep-both" | "reject-new") {
+          if (!compareDialog) return;
+          const { candidate, existingId } = compareDialog;
+          setCompareDialog(null);
+          if (action === "merge") {
+            try {
+              const r = await fetch(`${API}/admin/projects/merge`, {
+                method: "POST", headers: authHeaders(),
+                body: JSON.stringify({ existingId, candidateId: candidate.id }),
+              });
+              if (r.ok) { showToast("Merged — candidate binned, gaps filled on existing record"); await refresh(); }
+              else showToast("Merge failed: " + await r.text(), false);
+            } catch (e) { showToast("Merge failed: " + String(e), false); }
+          } else if (action === "keep-both") {
+            await handleStatusChange(candidate.id, "approved");
+            showToast("Kept both — candidate approved as separate project");
+          } else {
+            try {
+              const r = await fetch(`${API}/review/${candidate.id}/flag-duplicate`, {
+                method: "POST", headers: authHeaders(),
+                body: JSON.stringify({ duplicateOfId: existingId }),
+              });
+              if (r.ok) { showToast("Candidate binned as duplicate"); await refresh(); }
+              else showToast("Reject failed: " + await r.text(), false);
+            } catch (e) { showToast("Reject failed: " + String(e), false); }
+          }
+        }
+
+        return (
           <>
-            <div className="divide-y divide-border">
-              {items.map(project => (
-                <QueueItemRow
-                  key={project.id}
-                  project={project}
-                  isExpanded={expandedId === project.id}
-                  onToggleExpand={() => toggleExpand(project.id)}
-                  urlEdit={urlEdits[project.id] ?? (project.newsUrl ?? project.sourceUrl ?? "")}
-                  urlTest={urlTests[project.id] ?? null}
-                  testing={testingUrl[project.id] ?? false}
-                  saving={savingUrl[project.id] ?? false}
-                  auditLog={auditLogs[project.id]}
-                  loadingAudit={loadingAudit[project.id] ?? false}
-                  actionInProgress={actionsInProgress[project.id] ?? false}
-                  onSetUrlEdit={v => setUrlEdits(prev => ({ ...prev, [project.id]: v }))}
-                  onTestUrl={() => handleTestUrl(project.id)}
-                  onSaveUrl={() => handleSaveUrl(project.id)}
-                  onMoveToPending={() => handleStatusChange(project.id, "pending")}
-                  onStatusChange={status => handleStatusChange(project.id, status)}
-                />
-              ))}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              {loading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+                </div>
+              ) : displayItems.length === 0 ? (
+                <div className="px-6 py-14 text-center">
+                  <CheckCircle2 className="w-10 h-10 text-green-400/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">
+                    {noteFilter !== "all" ? `No items with "${noteFilter}" flags` :
+                     filter === "pending" ? "No items pending review — queue is clear"
+                     : filter === "needs_source" ? "No items awaiting a source URL"
+                     : filter === "rejected" ? "No rejected items"
+                     : "Nothing in the queue"}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="divide-y divide-border">
+                    {displayItems.map(project => (
+                      <QueueItemRow
+                        key={project.id}
+                        project={project}
+                        isExpanded={expandedId === project.id}
+                        onToggleExpand={() => toggleExpand(project.id)}
+                        urlEdit={urlEdits[project.id] ?? (project.newsUrl ?? project.sourceUrl ?? "")}
+                        urlTest={urlTests[project.id] ?? null}
+                        testing={testingUrl[project.id] ?? false}
+                        saving={savingUrl[project.id] ?? false}
+                        auditLog={auditLogs[project.id]}
+                        loadingAudit={loadingAudit[project.id] ?? false}
+                        actionInProgress={actionsInProgress[project.id] ?? false}
+                        onSetUrlEdit={v => setUrlEdits(prev => ({ ...prev, [project.id]: v }))}
+                        onTestUrl={() => handleTestUrl(project.id)}
+                        onSaveUrl={() => handleSaveUrl(project.id)}
+                        onMoveToPending={() => handleStatusChange(project.id, "pending")}
+                        onStatusChange={status => handleStatusChange(project.id, status)}
+                        onCompare={note => handleCompare(project, note)}
+                      />
+                    ))}
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 px-5 py-3 border-t border-border">
+                      <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">← Prev</button>
+                      <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
+                      <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">Next →</button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 px-5 py-3 border-t border-border">
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">← Prev</button>
-                <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
-                <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">Next →</button>
-              </div>
+
+            {compareDialog && (
+              <CompareDialog
+                candidate={compareDialog.candidate}
+                existingId={compareDialog.existingId}
+                onClose={() => setCompareDialog(null)}
+                onAction={handleCompareAction}
+              />
             )}
           </>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2101,16 +2618,17 @@ function DuplicateScannerSection() {
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
+const ALL_SECTIONS: AdminSection[] = ["overview", "pipeline", "queue", "newsletter", "duplicates", "yield"];
+
 function getInitialSection(): AdminSection {
-  // Honour deep-link from data-health page via sessionStorage
   const stored = sessionStorage.getItem("adminOpenSection");
   if (stored) {
     sessionStorage.removeItem("adminOpenSection");
-    if (stored === "pipeline" || stored === "queue" || stored === "newsletter" || stored === "overview" || stored === "duplicates") return stored;
+    if (ALL_SECTIONS.includes(stored as AdminSection)) return stored as AdminSection;
   }
   const p = new URLSearchParams(window.location.search);
   const s = p.get("section");
-  if (s === "pipeline" || s === "queue" || s === "newsletter" || s === "overview" || s === "duplicates") return s;
+  if (s && ALL_SECTIONS.includes(s as AdminSection)) return s as AdminSection;
   return "overview";
 }
 
@@ -2212,6 +2730,11 @@ export default function AdminDashboard() {
         {section === "duplicates" && (
           <SectionErrorBoundary label="Duplicate Scanner">
             <DuplicateScannerSection />
+          </SectionErrorBoundary>
+        )}
+        {section === "yield" && (
+          <SectionErrorBoundary label="Source Yield">
+            <SourceYieldSection />
           </SectionErrorBoundary>
         )}
       </div>

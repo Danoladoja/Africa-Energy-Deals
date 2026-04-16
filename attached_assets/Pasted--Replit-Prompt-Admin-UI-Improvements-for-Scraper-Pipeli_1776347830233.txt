@@ -1,0 +1,170 @@
+# Replit Prompt: Admin UI Improvements for Scraper Pipeline
+
+## Context
+
+The scraper pipeline now includes a self-validation layer (name normalization, fuzzy dedup, completeness scoring, URL validation, field validation, composite routing). Backend improvements are being added separately to improve extraction quality (full-article extraction, deal-signal pre-filter, intra-batch dedup, structured API adapters, adapter trust scoring). This prompt covers the **frontend/UI work** needed to surface these backend capabilities in the admin interface.
+
+---
+
+## Task 1: Source Yield Rate Dashboard
+
+### What to build
+
+Add a new section to the admin area (or enhance the existing Sources/Scraper page) showing per-source yield metrics.
+
+### Data source
+
+Create or extend `GET /api/admin/source-stats` to return:
+
+```json
+[
+  {
+    "sourceName": "ESI Africa",
+    "totalRuns": 42,
+    "lastRunAt": "2026-04-15T10:30:00Z",
+    "lastRunDuration": 45,
+    "avgCandidatesPerRun": 8.2,
+    "approvalRate": 0.65,
+    "reviewRate": 0.25,
+    "rejectionRate": 0.10,
+    "totalApproved": 224,
+    "totalReviewed": 86,
+    "totalRejected": 34,
+    "trustScore": 0.85
+  }
+]
+```
+
+This data comes from aggregating the `scraper_runs` table. The endpoint likely already exists in some form — extend it with the approval/review/rejection breakdown.
+
+### UI requirements
+
+- Table with one row per source adapter
+- Columns: Source Name, Last Run, Total Runs, Avg Yield, Approval %, Review %, Reject %, Trust Score
+- Color-code the Approval % column: green (>70%), yellow (40-70%), red (<40%)
+- Trust Score shown as a badge (same color coding)
+- Clicking a row expands to show the last 5 runs with per-run stats
+- Sortable by any column
+
+### Design constraint
+
+Match the existing admin page design language (same component library, spacing, colors). This should feel like a natural extension of the current admin area.
+
+---
+
+## Task 2: Unified Source Management Table
+
+### What to build
+
+Replace the separate Sources and Scraper Run pages with a single unified view that combines source configuration, run history, and performance stats.
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Sources & Scraper Performance                    [Run All] │
+├──────────┬──────────┬───────┬────────┬───────┬──────────────┤
+│ Source   │ Status   │ Yield │ Trust  │ Last  │ Actions      │
+│          │          │ Rate  │ Score  │ Run   │              │
+├──────────┼──────────┼───────┼────────┼───────┼──────────────┤
+│ ESI      │ ● Active │ 65%   │ 0.85   │ 2h    │ [Run] [···] │
+│ Africa   │          │ ▓▓▓░░ │ ████░  │ ago   │              │
+├──────────┼──────────┼───────┼────────┼───────┼──────────────┤
+│ Reuters  │ ● Active │ 42%   │ 0.62   │ 2h    │ [Run] [···] │
+│ Africa   │          │ ▓▓░░░ │ ███░░  │ ago   │              │
+├──────────┼──────────┼───────┼────────┼───────┼──────────────┤
+│ World    │ ● Active │ 95%   │ 1.00   │ 1d    │ [Run] [···] │
+│ Bank API │          │ ▓▓▓▓▓ │ █████  │ ago   │              │
+└──────────┴──────────┴───────┴────────┴───────┴──────────────┘
+```
+
+### Row expansion
+
+Clicking a row expands to show:
+- Recent run history (last 5 runs) with timestamps and candidate counts
+- Breakdown: X approved, Y to review, Z rejected per run
+- "View rejected" link that filters the scraper_runs log to show what was dropped and why
+
+### Actions menu (···)
+
+- Run Now (single adapter)
+- View Run History
+- Disable/Enable Source
+- View Rejected Items (last 30 days)
+
+---
+
+## Task 3: Review Queue Enhancement — Display review_notes
+
+### What to change
+
+The Review Queue page currently shows pending items but doesn't explain WHY they were flagged. The backend now attaches a `review_notes` JSONB array to each record routed to review.
+
+### UI requirements
+
+- Display `review_notes` as colored tags/badges on each review item
+- Tag colors by category:
+  - Duplicate concern (orange): "Possible duplicate of 'X' (72% similar)"
+  - Completeness (yellow): "Low completeness (52%) — missing: developer, dealSizeUsdMn"
+  - URL issue (red): "Primary source URL returned 403"
+  - Field issue (blue): "Auto-corrected sector: 'Solor' → 'Solar'"
+- If a review note references a possible duplicate, show a "Compare" button that opens a side-by-side view of the candidate vs. the suspected duplicate
+- Add a filter/sort on review_notes category so reviewers can batch-process similar issues
+
+### Side-by-side comparison view
+
+When a candidate is flagged as a possible duplicate:
+
+```
+┌─────────────────────┬─────────────────────┐
+│ New Candidate       │ Existing Record #42 │
+├─────────────────────┼─────────────────────┤
+│ Name: Kenya Solar   │ Name: Kenya Solar   │
+│       Project       │       Farm Phase 1  │
+│ Country: Kenya      │ Country: Kenya      │
+│ Capacity: 100 MW   │ Capacity: 100 MW    │
+│ Developer: —        │ Developer: ACWA     │
+│ Status: Planned     │ Status: Construction│
+│ Source: ESI Africa  │ Source: Reuters     │
+│ Similarity: 72%     │                     │
+├─────────────────────┴─────────────────────┤
+│ [✓ Merge (fill gaps)] [✗ Keep Both] [🗑 Reject New] │
+└───────────────────────────────────────────┘
+```
+
+Actions:
+- **Merge**: Update the existing record's null fields with the new candidate's values, then delete the candidate
+- **Keep Both**: Approve the new candidate as a separate project
+- **Reject New**: Delete the candidate, mark as duplicate in scraper_runs
+
+---
+
+## Task 4: Data Health Page — Show Completeness Score
+
+### What to change
+
+The Data Health admin page should now display the `completeness_score` column that the backend attaches to every record.
+
+### UI requirements
+
+- Add a "Completeness" column showing the score as a percentage with a mini progress bar
+- Color: green (80-100%), yellow (60-79%), red (<60%)
+- Add a filter: "Show only incomplete records (< 60%)"
+- For each record, show which fields are missing (from the completeness scorer output)
+- Add a bulk action: "Send to enrichment queue" (for future Idea 5 — for now, just flag for manual review)
+
+---
+
+## Implementation Order
+
+1. **Task 3: Review Queue review_notes** — Highest user-facing impact, Daniel needs this to review flagged items effectively
+2. **Task 4: Data Health completeness scores** — Quick win, just add a column and color coding
+3. **Task 1: Source Yield Dashboard** — Depends on backend endpoint being ready
+4. **Task 2: Unified Source Table** — Largest UI effort, do last
+
+## What NOT to Change
+
+- Do not modify any backend validation logic, routing engine, or scraper pipeline code
+- Do not change the scoring formulas or routing thresholds
+- Do not modify the database schema (backend handles migrations)
+- Keep all existing admin pages functional during the transition — don't break things while building the unified view

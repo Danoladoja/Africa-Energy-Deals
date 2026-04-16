@@ -18,7 +18,7 @@ router.get("/admin/data-health", async (req, res) => {
   try {
     const validList = VALID_TECHNOLOGIES.map(t => `'${t.replace(/'/g, "''")}'`).join(", ");
 
-    const [nonCanonical, mismatches, missingBoth, techDistribution, duplicateUrls] = await Promise.all([
+    const [nonCanonical, mismatches, missingBoth, techDistribution, duplicateUrls, lowCompleteness] = await Promise.all([
       // 1. Projects with non-canonical technology values
       db.execute(sql`
         SELECT id, project_name, country, technology, deal_size_usd_mn, review_status
@@ -86,14 +86,48 @@ router.get("/admin/data-health", async (req, res) => {
         ORDER BY count DESC
         LIMIT 50
       `),
+
+      // 6. Low completeness records (score < 0.8)
+      db.execute(sql`
+        SELECT id, project_name, country, technology, review_status,
+               completeness_score,
+               deal_size_usd_mn, capacity_mw, source_url,
+               announced_year, developer_name, description,
+               latitude, longitude
+        FROM energy_projects
+        WHERE completeness_score < 0.8
+        ORDER BY completeness_score ASC
+        LIMIT 300
+      `),
     ]);
 
+    const COMPLETENESS_FIELDS: Array<{ key: string; label: string }> = [
+      { key: "deal_size_usd_mn",  label: "deal size"    },
+      { key: "capacity_mw",       label: "capacity MW"  },
+      { key: "source_url",        label: "source URL"   },
+      { key: "announced_year",    label: "year"         },
+      { key: "developer_name",    label: "developer"    },
+      { key: "description",       label: "description"  },
+      { key: "latitude",          label: "coordinates"  },
+    ];
+
+    const lowCompletenessRows = (lowCompleteness.rows as any[]).map(r => ({
+      id: r.id,
+      project_name: r.project_name,
+      country: r.country,
+      technology: r.technology,
+      completeness_score: Number(r.completeness_score),
+      missing_fields: COMPLETENESS_FIELDS
+        .filter(f => r[f.key] == null || r[f.key] === "")
+        .map(f => f.label),
+    }));
     res.json({
       summary: {
         nonCanonicalCount: nonCanonical.rows.length,
         mismatchCount: mismatches.rows.filter((r: any) => r.suggested_technology).length,
         missingDataCount: missingBoth.rows.length,
         duplicateUrlCount: duplicateUrls.rows.length,
+        lowCompletenessCount: lowCompletenessRows.length,
         lastAuditAt: new Date().toISOString(),
         totalApproved: techDistribution.rows.reduce((s: number, r: any) => 
           r.review_status === "approved" ? s + Number(r.count) : s, 0),
@@ -103,6 +137,7 @@ router.get("/admin/data-health", async (req, res) => {
       missingDealAndCapacity: missingBoth.rows,
       duplicateSourceUrls: duplicateUrls.rows,
       techDistribution: techDistribution.rows,
+      lowCompletenessProjects: lowCompletenessRows,
       validTechnologies: VALID_TECHNOLOGIES,
     });
   } catch (error) {
@@ -150,6 +185,56 @@ router.post("/admin/data-health/bulk-fix", adminAuthMiddleware, async (req, res)
   } catch (error) {
     console.error("[data-health/bulk-fix]", error);
     res.status(500).json({ error: "Bulk fix failed" });
+  }
+});
+
+// POST /api/admin/projects/merge — fill null fields from candidate into existing, then bin candidate
+router.post("/admin/projects/merge", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { existingId, candidateId } = req.body as { existingId: number; candidateId: number };
+    if (!existingId || !candidateId) {
+      return res.status(400).json({ error: "existingId and candidateId are required" });
+    }
+    if (existingId === candidateId) {
+      return res.status(400).json({ error: "existingId and candidateId must be different" });
+    }
+
+    const [existing, candidate] = await Promise.all([
+      db.select().from(projectsTable).where(eq(projectsTable.id, existingId)).limit(1),
+      db.select().from(projectsTable).where(eq(projectsTable.id, candidateId)).limit(1),
+    ]);
+    if (!existing[0]) return res.status(404).json({ error: "Existing project not found" });
+    if (!candidate[0]) return res.status(404).json({ error: "Candidate project not found" });
+
+    const ex = existing[0];
+    const ca = candidate[0];
+
+    // Build update: copy only fields that are null in existing but present in candidate
+    const patch: Partial<typeof ex> = {};
+    const mergeFields = [
+      "dealSizeUsdMn", "capacityMw", "developer", "financiers", "status",
+      "description", "sourceUrl", "newsUrl", "country", "technology",
+      "dealStage", "financingType", "climateFinanceTag", "guarantor",
+    ] as const;
+    for (const field of mergeFields) {
+      if (ex[field] == null && ca[field] != null) {
+        (patch as any)[field] = ca[field];
+      }
+    }
+
+    await Promise.all([
+      Object.keys(patch).length > 0
+        ? db.update(projectsTable).set(patch).where(eq(projectsTable.id, existingId))
+        : Promise.resolve(),
+      db.update(projectsTable)
+        .set({ reviewStatus: "binned", binnedAt: new Date() })
+        .where(eq(projectsTable.id, candidateId)),
+    ]);
+
+    res.json({ success: true, mergedFields: Object.keys(patch), candidateBinned: candidateId });
+  } catch (error) {
+    console.error("[admin/projects/merge]", error);
+    res.status(500).json({ error: "Merge failed" });
   }
 });
 

@@ -7,6 +7,7 @@ import {
   Database, GitBranch, Search, TrendingUp, XCircle,
   ChevronDown, ChevronRight, Copy, ArrowLeft,
   ExternalLink, SkipForward, Zap, Globe, Pencil,
+  BarChart2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTechBadgeClass, getTechColor } from "@/config/technologyConfig";
@@ -18,6 +19,7 @@ interface HealthSummary {
   mismatchCount: number;
   missingDataCount: number;
   duplicateUrlCount: number;
+  lowCompletenessCount: number;
   lastAuditAt: string;
   totalApproved: number;
 }
@@ -67,6 +69,15 @@ interface TechDistRow {
   total_investment_usd_mn: number | null;
 }
 
+interface LowCompletenessRow {
+  id: number;
+  project_name: string;
+  country: string;
+  technology: string;
+  completeness_score: number;
+  missing_fields: string[];
+}
+
 interface DataHealthResponse {
   summary: HealthSummary;
   nonCanonicalTechnologies: NonCanonicalRow[];
@@ -74,6 +85,7 @@ interface DataHealthResponse {
   missingDealAndCapacity: MissingDataRow[];
   duplicateSourceUrls: DuplicateUrlRow[];
   techDistribution: TechDistRow[];
+  lowCompletenessProjects: LowCompletenessRow[];
   validTechnologies: string[];
 }
 
@@ -475,7 +487,7 @@ export default function AdminDataHealth() {
     );
   }
 
-  const { summary, nonCanonicalTechnologies, keywordMismatches, missingDealAndCapacity, duplicateSourceUrls, techDistribution, validTechnologies } = data;
+  const { summary, nonCanonicalTechnologies, keywordMismatches, missingDealAndCapacity, duplicateSourceUrls, techDistribution, lowCompletenessProjects = [], validTechnologies } = data;
   const totalIssues = summary.nonCanonicalCount + summary.mismatchCount + summary.duplicateUrlCount;
 
   // Group tech distribution by technology for the table
@@ -517,12 +529,13 @@ export default function AdminDataHealth() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <SummaryCard label="Approved Projects" value={summary.totalApproved} icon={Database} variant="info" />
         <SummaryCard label="Non-Canonical Tech" value={summary.nonCanonicalCount} icon={AlertTriangle} variant={summary.nonCanonicalCount > 0 ? "error" : "ok"} />
         <SummaryCard label="Name Mismatches" value={summary.mismatchCount} icon={GitBranch} variant={summary.mismatchCount > 0 ? "warn" : "ok"} />
         <SummaryCard label="Missing Data" value={summary.missingDataCount} icon={Search} variant={summary.missingDataCount > 20 ? "warn" : "ok"} />
         <SummaryCard label="Duplicate URLs" value={summary.duplicateUrlCount} icon={Copy} variant={summary.duplicateUrlCount > 0 ? "warn" : "ok"} />
+        <SummaryCard label="Low Completeness" value={summary.lowCompletenessCount ?? lowCompletenessProjects.length} icon={BarChart2} variant={(summary.lowCompletenessCount ?? lowCompletenessProjects.length) > 0 ? "warn" : "ok"} />
       </div>
 
       {totalIssues === 0 && (
@@ -803,6 +816,68 @@ export default function AdminDataHealth() {
             </tbody>
           </table>
         </div>
+      </CollapsibleSection>
+
+      {/* Low completeness projects */}
+      <CollapsibleSection
+        title="Low Completeness Projects"
+        count={lowCompletenessProjects.length}
+        icon={BarChart2}
+        variant={lowCompletenessProjects.length > 10 ? "warn" : lowCompletenessProjects.length > 0 ? "warn" : "ok"}
+        defaultOpen={lowCompletenessProjects.length > 0}
+      >
+        {lowCompletenessProjects.length === 0 ? (
+          <p className="text-emerald-400 text-sm">All projects meet the 80% completeness threshold.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-white/50 mb-3">
+              These approved projects have a completeness score below 80%. Adding missing fields increases the quality of AI insights and public data accuracy.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-white/40 border-b border-white/8">
+                    <th className="text-left py-2 pr-3 font-medium">ID</th>
+                    <th className="text-left py-2 pr-3 font-medium">Project</th>
+                    <th className="text-left py-2 pr-3 font-medium">Country</th>
+                    <th className="text-left py-2 pr-3 font-medium">Technology</th>
+                    <th className="text-left py-2 pr-3 font-medium w-36">Completeness</th>
+                    <th className="text-left py-2 font-medium">Missing Fields</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lowCompletenessProjects.map((r) => {
+                    const pct = Math.round((r.completeness_score ?? 0) * 100);
+                    const barColor = pct < 40 ? "bg-red-500" : pct < 60 ? "bg-orange-400" : "bg-amber-400";
+                    return (
+                      <tr key={r.id} className="border-b border-white/4 hover:bg-white/4">
+                        <td className="py-2.5 pr-3 font-mono text-white/40">{r.id}</td>
+                        <td className="py-2.5 pr-3 font-medium text-white max-w-[200px] truncate" title={r.project_name}>{r.project_name}</td>
+                        <td className="py-2.5 pr-3 text-white/60">{r.country}</td>
+                        <td className="py-2.5 pr-3"><TechBadge tech={r.technology} /></td>
+                        <td className="py-2.5 pr-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-white/8 rounded-full overflow-hidden w-24">
+                              <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className={`text-xs font-mono font-medium ${pct < 40 ? "text-red-400" : pct < 60 ? "text-orange-400" : "text-amber-400"}`}>{pct}%</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(r.missing_fields ?? []).map(f => (
+                              <span key={f} className="px-1.5 py-0.5 rounded text-[10px] bg-white/6 border border-white/10 text-white/50">{f}</span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </CollapsibleSection>
 
       {/* Canonical technology reference */}

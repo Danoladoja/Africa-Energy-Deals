@@ -29,6 +29,7 @@ import {
   Newspaper,
   AlertCircle,
   GitMerge,
+  BarChart2,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -64,6 +65,7 @@ const adminDashboardSections = [
   { id: "queue",         label: "Review Queue",      icon: ListTodo,        href: "/admin?section=queue" },
   { id: "newsletter",    label: "Newsletter",        icon: Newspaper,       href: "/admin?section=newsletter" },
   { id: "duplicates",    label: "Duplicate Scanner", icon: GitMerge,        href: "/admin?section=duplicates" },
+  { id: "yield",         label: "Source Yield",      icon: BarChart2,       href: "/admin?section=yield" },
   { id: "data-health",   label: "Data Health",       icon: AlertCircle,     href: "/admin/data-health" },
   { id: "reviewers",     label: "Reviewers",         icon: ShieldCheck,     href: "/admin/reviewers" },
   { id: "contributors",  label: "Contributors",      icon: Users,           href: "/admin/contributors" },
