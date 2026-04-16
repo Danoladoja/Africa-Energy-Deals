@@ -61,8 +61,7 @@ const adminNavItems: { name: string; href: string; icon: React.ElementType }[] =
 
 const adminDashboardSections = [
   { id: "overview",      label: "Overview",          icon: LayoutDashboard, href: "/admin?section=overview" },
-  { id: "pipeline",      label: "Data Pipeline",     icon: Database,        href: "/admin?section=pipeline" },
-  { id: "queue",         label: "Review Queue",      icon: ListTodo,        href: "/admin?section=queue" },
+  { id: "pipeline",      label: "Data Pipeline & Queue", icon: Database,    href: "/admin?section=pipeline" },
   { id: "newsletter",    label: "Newsletter",        icon: Newspaper,       href: "/admin?section=newsletter" },
   { id: "duplicates",    label: "Duplicate Scanner", icon: GitMerge,        href: "/admin?section=duplicates" },
   { id: "yield",         label: "Source Yield",      icon: BarChart2,       href: "/admin?section=yield" },

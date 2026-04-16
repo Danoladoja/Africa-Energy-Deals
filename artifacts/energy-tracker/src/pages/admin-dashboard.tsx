@@ -2617,6 +2617,47 @@ function DuplicateScannerSection() {
   );
 }
 
+// ── Pipeline + Queue Combined Section ──────────────────────────────────────────
+function PipelineQueueSection({
+  activeTab, setSection, sources, bySource, loadData, loadQueue, onPendingCountChange,
+}: {
+  activeTab: "pipeline" | "queue";
+  setSection: (s: AdminSection) => void;
+  sources: SourceGroup[];
+  bySource: Record<string, SourceStat>;
+  loadData: () => Promise<void>;
+  loadQueue: () => Promise<void>;
+  onPendingCountChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 border-b border-border bg-card/40 flex px-6">
+        {(["pipeline", "queue"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setSection(tab)}
+            className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === tab
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            {tab === "pipeline" ? "Data Sources" : "Review Queue"}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === "pipeline" && (
+          <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
+        )}
+        {activeTab === "queue" && (
+          <QueueSection onPendingCountChange={onPendingCountChange} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 const ALL_SECTIONS: AdminSection[] = ["overview", "pipeline", "queue", "newsletter", "duplicates", "yield"];
 
@@ -2712,14 +2753,17 @@ export default function AdminDashboard() {
             <OverviewSection sources={sources} bySource={bySource} pendingCount={pendingCount} newsletters={newsletters} subscriberStats={subscriberStats} setSection={setSection} />
           </SectionErrorBoundary>
         )}
-        {section === "pipeline" && (
-          <SectionErrorBoundary label="Data Pipeline">
-            <PipelineSection sources={sources} bySource={bySource} loadData={loadData} loadQueue={loadQueue} />
-          </SectionErrorBoundary>
-        )}
-        {section === "queue" && (
-          <SectionErrorBoundary label="Review Queue">
-            <QueueSection onPendingCountChange={setPendingCount} />
+        {(section === "pipeline" || section === "queue") && (
+          <SectionErrorBoundary label="Data Pipeline & Queue">
+            <PipelineQueueSection
+              activeTab={section}
+              setSection={setSection}
+              sources={sources}
+              bySource={bySource}
+              loadData={loadData}
+              loadQueue={loadQueue}
+              onPendingCountChange={setPendingCount}
+            />
           </SectionErrorBoundary>
         )}
         {section === "newsletter" && (
