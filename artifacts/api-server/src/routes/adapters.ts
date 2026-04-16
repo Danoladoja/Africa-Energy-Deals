@@ -473,4 +473,93 @@ router.get("/scraper/rejection-telemetry", async (_req, res) => {
   }
 });
 
+// ── Adapter trust scores (Idea 7) ────────────────────────────────────────────
+
+import { getAllTrustScores } from "../services/adapter-trust.js";
+
+router.get("/scraper/adapter-trust", async (_req, res) => {
+  try {
+    const scores = await getAllTrustScores();
+    res.json(scores);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── Source stats for yield rate dashboard (Idea 3 — backend part) ────────────
+
+router.get("/scraper/source-stats", async (_req, res) => {
+  try {
+    const runs = await db
+      .select()
+      .from(scraperRunsTable)
+      .orderBy(desc(scraperRunsTable.startedAt))
+      .limit(500);
+
+    // Aggregate per-source
+    const bySource = new Map<string, {
+      sourceName: string;
+      totalRuns: number;
+      lastRunAt: string | null;
+      lastRunDuration: number | null;
+      totalFound: number;
+      totalInserted: number;
+      totalUpdated: number;
+      totalFlagged: number;
+      totalRejected: number;
+    }>();
+
+    for (const run of runs) {
+      const key = run.adapterKey ?? run.sourceName;
+      let entry = bySource.get(key);
+      if (!entry) {
+        const duration = run.completedAt && run.startedAt
+          ? (new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()) / 1000
+          : null;
+
+        entry = {
+          sourceName: key,
+          totalRuns: 0,
+          lastRunAt: run.startedAt ? new Date(run.startedAt).toISOString() : null,
+          lastRunDuration: duration,
+          totalFound: 0,
+          totalInserted: 0,
+          totalUpdated: 0,
+          totalFlagged: 0,
+          totalRejected: 0,
+        };
+        bySource.set(key, entry);
+      }
+
+      entry.totalRuns++;
+      entry.totalFound += run.recordsFound;
+      entry.totalInserted += run.recordsInserted;
+      entry.totalUpdated += run.recordsUpdated;
+      entry.totalFlagged += run.flaggedForReview;
+      entry.totalRejected += (run.rejectedNonEnergyCount ?? 0);
+    }
+
+    // Compute rates and add trust scores
+    const trustScores = await getAllTrustScores();
+    const trustMap = new Map(trustScores.map(t => [t.adapterKey, t]));
+
+    const stats = Array.from(bySource.values()).map(entry => {
+      const total = entry.totalInserted + entry.totalFlagged + entry.totalRejected;
+      const trust = trustMap.get(entry.sourceName);
+      return {
+        ...entry,
+        avgCandidatesPerRun: entry.totalRuns > 0 ? Math.round((entry.totalFound / entry.totalRuns) * 10) / 10 : 0,
+        approvalRate: total > 0 ? Math.round(((entry.totalInserted - entry.totalFlagged) / total) * 100) / 100 : 0,
+        reviewRate: total > 0 ? Math.round((entry.totalFlagged / total) * 100) / 100 : 0,
+        rejectionRate: total > 0 ? Math.round((entry.totalRejected / total) * 100) / 100 : 0,
+        trustScore: trust?.trustFactor ?? 1.0,
+      };
+    });
+
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;

@@ -43,15 +43,24 @@ function inferRegionBasic(country: string): string {
   return "Africa";
 }
 
-export async function llmScoreCandidate(draft: CandidateDraft): Promise<CandidateDraft | null> {
+export async function llmScoreCandidate(draft: CandidateDraft, articleText?: string | null): Promise<CandidateDraft | null> {
   if (!draft.projectName || !draft.newsUrl) return null;
 
-  const prompt = `You are an Africa energy investment deal extraction AI.
-Given this news article title and description, extract the deal if it represents an energy investment project in Africa.
-
-Title: ${draft.projectName}
-Description: ${draft.description ?? "(none)"}
+  // Build context section — use full article text if available (Idea 1: Deep Extraction)
+  const contextSection = articleText
+    ? `Title: ${draft.projectName}
 URL: ${draft.newsUrl}
+
+Full Article Text:
+${articleText}`
+    : `Title: ${draft.projectName}
+Description: ${draft.description ?? "(none)"}
+URL: ${draft.newsUrl}`;
+
+  const prompt = `You are an Africa energy investment deal extraction AI.
+Given this news article${articleText ? " (full text provided)" : " title and description"}, extract the deal if it represents an energy investment project in Africa.
+
+${contextSection}
 
 If this IS an Africa energy deal, return a single JSON object with:
 {

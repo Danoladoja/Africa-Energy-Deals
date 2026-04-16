@@ -26,6 +26,7 @@ import { dfiFMOAdapter } from "./dfi-fmo.js";
 import { dfiBIIAdapter } from "./dfi-bii.js";
 import { apoGroupAdapter } from "./apo-group.js";
 import { seedGoogleAlertsAdapters } from "./google-alerts.js";
+import { worldBankApiAdapter } from "./api-worldbank.js";
 
 export const ADAPTER_REGISTRY: BaseSourceAdapter[] = [
   dfiAfDBAdapter,
@@ -35,6 +36,7 @@ export const ADAPTER_REGISTRY: BaseSourceAdapter[] = [
   dfiFMOAdapter,
   dfiBIIAdapter,
   apoGroupAdapter,
+  worldBankApiAdapter,
   ...seedGoogleAlertsAdapters,
 ];
 

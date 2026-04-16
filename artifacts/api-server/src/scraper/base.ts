@@ -8,6 +8,7 @@
 
 import { db, scraperRunsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { deduplicateBatch, deduplicateBatchByUrl } from "../services/batch-dedup.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -248,7 +249,17 @@ export abstract class BaseSourceAdapter {
           })
           .filter((c): c is CandidateDraft => c !== null);
 
-        const deduped = this.deduplicate(normalized);
+        // Stage 1: adapter-level URL exact dedup (existing)
+        const adapterDeduped = this.deduplicate(normalized);
+
+        // Stage 2: intra-batch name+country dedup — merges candidates that
+        //          refer to the same project from different articles/feeds
+        const urlDeduped = deduplicateBatchByUrl(adapterDeduped);
+        const batchResult = deduplicateBatch(urlDeduped);
+        if (batchResult.mergedCount > 0) {
+          console.log(`[Adapter:${this.key}] Batch dedup merged ${batchResult.mergedCount} duplicates`);
+        }
+        const deduped = batchResult.deduplicated;
 
         for (const candidate of deduped) {
           try {

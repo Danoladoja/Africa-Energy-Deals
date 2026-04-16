@@ -1,0 +1,55 @@
+# Prompt: Integrate 9 Backend Scraper Improvement Files
+
+## Instructions
+
+I have 9 files — 5 brand new and 4 modified — that implement backend scraper improvements. These were written externally to match the existing codebase patterns exactly. Your job is to place them into the project at the correct paths. **Do NOT modify the file contents.** Just integrate them.
+
+## New files (create these)
+
+### 1. `artifacts/api-server/src/services/deal-signal-filter.ts`
+Keyword gate that runs before LLM calls — filters out non-deal articles (opinion, policy, etc.) to save LLM cost. Exports `isDealSignal(text, adapter?)`.
+
+### 2. `artifacts/api-server/src/services/article-fetcher.ts`
+Fetches full article HTML from a URL, strips it to readable text, and returns it for use in the LLM extraction prompt. Exports `fetchArticleText(url)`.
+
+### 3. `artifacts/api-server/src/services/batch-dedup.ts`
+Deduplicates candidates within a single scraper batch by normalized name + country. Keeps the candidate with the highest completeness score and merges unique fields from duplicates. Exports `deduplicateBatch(candidates)` and `deduplicateBatchByUrl(candidates)`.
+
+### 4. `artifacts/api-server/src/services/adapter-trust.ts`
+Tracks per-adapter historical accuracy (approval/review/rejection rates) and computes a dynamic trust factor (0.6–1.2) that adjusts adapter confidence in the routing engine. Reads from existing `scraper_runs` table — no new tables needed. Exports `getAdapterTrustFactor(key)`, `getAllTrustScores()`, `refreshTrustScores()`.
+
+### 5. `artifacts/api-server/src/scraper/adapters/api-worldbank.ts`
+World Bank Projects API adapter. Pulls structured energy project data from Africa. Returns pre-structured JSON with confidence 1.0 — no LLM extraction needed. Exports `worldBankApiAdapter`.
+
+## Modified files (replace existing versions entirely)
+
+### 6. `artifacts/api-server/src/scraper/adapters/index.ts`
+**Change:** Added `import { worldBankApiAdapter } from "./api-worldbank.js"` and added `worldBankApiAdapter` to the `ADAPTER_REGISTRY` array.
+
+### 7. `artifacts/api-server/src/scraper/adapter-runner.ts`
+**Changes:**
+- Imports `isDealSignal` from deal-signal-filter
+- Imports `fetchArticleText` from article-fetcher
+- Imports `getAdapterTrustFactor` and `refreshTrustScores` from adapter-trust
+- In `runAdapter()`: adds deal-signal pre-filter before LLM, passes article text to `llmScoreCandidate()`, applies trust factor to confidence
+- In `runAllAdapters()`: calls `refreshTrustScores()` after all adapters complete
+- Same changes applied to `runAdaptersFromDb()`
+
+### 8. `artifacts/api-server/src/scraper/adapter-runner-helpers.ts`
+**Change:** `llmScoreCandidate()` signature changed from `(draft)` to `(draft, articleText?)`. When articleText is provided, the LLM prompt includes the full article text instead of just the title + description snippet.
+
+### 9. `artifacts/api-server/src/routes/adapters.ts`
+**Changes:** Added two new admin endpoints at the bottom of the file:
+- `GET /api/scraper/adapter-trust` — returns trust scores for all adapters
+- `GET /api/scraper/source-stats` — returns per-source yield rate metrics (approval/review/reject rates, trust scores)
+
+## Important
+
+- These files use existing imports (`@workspace/db`, `@workspace/integrations-anthropic-ai`, `@workspace/shared`) — no new dependencies needed
+- No database migrations required — everything works with the existing schema
+- The `batch-dedup.ts` module is created but not yet wired into the run-all flow. That integration requires changes to the SSE streaming logic in the run endpoint, which I'd like you to handle since it's your UI code. The module exports are ready to use.
+- Do NOT rename, restructure, or "improve" these files. They are tested against the existing codebase patterns.
+
+## Files
+
+The 9 files are attached / available in the Downloads folder as `scraper-improvements.zip`. Unzip and place each file at the path matching its location inside `Africa-Energy-Deals-master/`.
