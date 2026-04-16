@@ -40,14 +40,14 @@ function fmt(mn: number | null | undefined): string {
   return `$${mn.toFixed(0)}M`;
 }
 
-// ── Multi-colour choropleth scale (navy → teal → cyan → lime → amber) ────────
+// ── Multi-colour choropleth scale — theme-aligned (site bg → blue → teal → brand green) ──
 const COLOR_STOPS = [
-  { t: 0.00, r: 15,  g: 27,  b: 61  }, // deep navy
-  { t: 0.20, r: 12,  g: 74,  b: 110 }, // dark blue
-  { t: 0.40, r: 8,   g: 145, b: 178 }, // cyan
-  { t: 0.58, r: 13,  g: 148, b: 136 }, // teal-green
-  { t: 0.76, r: 132, g: 204, b: 22  }, // lime
-  { t: 1.00, r: 234, g: 179, b: 8   }, // amber
+  { t: 0.00, r: 15,  g: 23,  b: 42  }, // #0f172a — site background (very low)
+  { t: 0.22, r: 23,  g: 58,  b: 110 }, // #173a6e — deep blue
+  { t: 0.42, r: 6,   g: 110, b: 140 }, // #066e8c — steel teal
+  { t: 0.62, r: 2,   g: 153, b: 120 }, // #029978 — teal-green
+  { t: 0.80, r: 0,   g: 200, b: 100 }, // #00c864 — mid brand green
+  { t: 1.00, r: 0,   g: 230, b: 118 }, // #00e676 — site primary green (highest)
 ];
 
 function lerpColor(t: number): string {
