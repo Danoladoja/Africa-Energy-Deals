@@ -92,7 +92,7 @@ router.get("/admin/data-health", async (req, res) => {
         SELECT id, project_name, country, technology, review_status,
                completeness_score,
                deal_size_usd_mn, capacity_mw, source_url,
-               announced_year, developer_name, description,
+               announced_year, developer, description,
                latitude, longitude
         FROM energy_projects
         WHERE completeness_score < 0.8
@@ -106,7 +106,7 @@ router.get("/admin/data-health", async (req, res) => {
       { key: "capacity_mw",       label: "capacity MW"  },
       { key: "source_url",        label: "source URL"   },
       { key: "announced_year",    label: "year"         },
-      { key: "developer_name",    label: "developer"    },
+      { key: "developer",          label: "developer"    },
       { key: "description",       label: "description"  },
       { key: "latitude",          label: "coordinates"  },
     ];
