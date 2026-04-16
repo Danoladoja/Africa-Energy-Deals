@@ -442,7 +442,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-background overflow-hidden selection:bg-primary/30">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-72 flex-col bg-sidebar border-r border-sidebar-border relative z-20">
-        <div className="h-20 flex items-center px-8 border-b border-sidebar-border">
+        <div className="h-20 flex items-center justify-between px-8 border-b border-sidebar-border">
           <Link href="/dashboard" className="flex items-center gap-3 group cursor-pointer">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
               <img 
@@ -454,6 +454,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-display font-bold text-xl tracking-tight text-sidebar-foreground">
               AfriEnergy
             </span>
+          </Link>
+          <Link href="/dashboard" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+            <House className="w-3.5 h-3.5" />
+            <span>Home</span>
           </Link>
         </div>
 
@@ -535,10 +539,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           /* ── Regular user sidebar ── */
           <>
             <nav className="flex-1 py-8 px-4 flex flex-col gap-2 overflow-y-auto">
-              <NavItem item={homeItem} />
-              <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-                Analytics & Tools
-              </div>
               {navItems.map((item) => (
                 <NavItem key={item.href} item={item} />
               ))}
@@ -760,10 +760,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <span className="text-base font-semibold">Ask AI</span>
                     </button>
 
-                    <MobileNavItem item={homeItem} onClose={() => setMobileMenuOpen(false)} />
-                    <div className="px-4 pt-4 pb-1 text-[11px] font-semibold text-foreground/35 uppercase tracking-widest">
-                      Analytics & Tools
-                    </div>
                     {navItems.map((item) => (
                       <MobileNavItem key={item.href} item={item} onClose={() => setMobileMenuOpen(false)} />
                     ))}
