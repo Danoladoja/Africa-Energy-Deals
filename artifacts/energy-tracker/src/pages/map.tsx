@@ -7,14 +7,14 @@ import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta } from "@/components/seo-meta";
-import { captureToCanvas } from "@/utils/export-utils";
+import { captureToCanvas, triggerBlobDownload } from "@/utils/export-utils";
 import {
-  MapPin, Zap, Maximize2, ChevronUp, X as XIcon, Download, Share2,
+  Maximize2, X as XIcon, Download, Share2,
   Check, ChevronDown,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { TECHNOLOGY_COLORS, TECHNOLOGY_SECTORS } from "@/config/technologyConfig";
+import { TECHNOLOGY_COLORS } from "@/config/technologyConfig";
 
 const API = "/api";
 const AFRICA_GEOJSON_URL =
@@ -25,17 +25,6 @@ const AFRICA_BOUNDS: L.LatLngBoundsExpression = [[-38, -20], [38, 56]];
 
 const SECTOR_COLORS: Record<string, string> = TECHNOLOGY_COLORS;
 const DEFAULT_COLOR = "#94a3b8";
-
-const FINANCING_COLORS: Record<string, string> = {
-  "Project Finance":   "#3b82f6",
-  "Blended Finance":   "#06b6d4",
-  "Concessional Loan": "#f59e0b",
-  "Grant/Donor":       "#10b981",
-  "Corporate":         "#8b5cf6",
-  "Sovereign":         "#ef4444",
-  "IPP/Concession":    "#ec4899",
-  "Green Bond":        "#22c55e",
-};
 
 const DB_TO_GEO: Record<string, string> = {
   "DRC":            "DR Congo",
@@ -62,13 +51,13 @@ function getCountryColor(investment: number, maxInvestment: number): string {
 }
 
 // ── Dynamic map title ─────────────────────────────────────────────────────────
-function getMapTitle(sectorFilter: string, financingFilter: string): string {
+function getMapTitle(sectorFilter: string, regionFilter: string): string {
   const hasSector = sectorFilter !== "all";
-  const hasFinancing = financingFilter !== "all";
-  if (hasSector && hasFinancing)
-    return `African ${sectorFilter} Energy — ${financingFilter} Financing`;
+  const hasRegion = regionFilter !== "all";
+  if (hasSector && hasRegion)
+    return `${regionFilter} ${sectorFilter} Energy Investments`;
   if (hasSector) return `African ${sectorFilter} Energy Investments`;
-  if (hasFinancing) return `African Energy Investment — ${financingFilter} Financing`;
+  if (hasRegion) return `${regionFilter} Energy Investment Landscape`;
   return "African Energy Investment Landscape";
 }
 
@@ -293,68 +282,6 @@ function EnhancedPopup({ project, navigate }: { project: Project; navigate: (p: 
   );
 }
 
-// ── Project list sidebar ──────────────────────────────────────────────────────
-
-function ProjectList({
-  projects,
-  isLoading,
-  activeProject,
-  onSelect,
-}: {
-  projects: Project[];
-  isLoading: boolean;
-  activeProject: Project | null;
-  onSelect: (p: Project) => void;
-}) {
-  return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-      {isLoading
-        ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="p-3.5 rounded-xl border border-border/50 bg-muted/10 animate-pulse">
-              <div className="h-3.5 bg-muted/30 w-3/4 mb-2 rounded" />
-              <div className="h-3 bg-muted/30 w-1/2 rounded" />
-            </div>
-          ))
-        : projects.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => onSelect(p)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
-                activeProject?.id === p.id
-                  ? "bg-[#00e676]/8 border-[#00e676]/25"
-                  : "bg-muted/10 border-border/50 hover:border-primary/30"
-              }`}
-            >
-              <div
-                className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l"
-                style={{ backgroundColor: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }}
-              />
-              <div className="pl-3">
-                <div className="flex items-start justify-between gap-2 mb-0.5">
-                  <h3 className="font-semibold text-xs leading-tight flex-1 text-foreground line-clamp-2">
-                    {p.projectName}
-                  </h3>
-                  {p.dealSizeUsdMn && (
-                    <span className="font-mono text-[11px] font-bold text-[#00e676] shrink-0">
-                      {fmt(p.dealSizeUsdMn)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground/70 flex items-center gap-2 mt-1">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-2.5 h-2.5" /> {p.country}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Zap className="w-2.5 h-2.5" style={{ color: SECTOR_COLORS[p.technology] ?? DEFAULT_COLOR }} />
-                    {p.technology}
-                  </span>
-                </p>
-              </div>
-            </div>
-          ))}
-    </div>
-  );
-}
 
 // ── Filter dropdown ───────────────────────────────────────────────────────────
 
@@ -399,15 +326,14 @@ export default function MapPage() {
   const searchStr = useSearch();
   const initParams = useMemo(() => {
     const p = new URLSearchParams(searchStr);
-    return { sector: p.get("sector") ?? "all", financing: p.get("financing") ?? "all" };
+    return { sector: p.get("sector") ?? "all", region: p.get("region") ?? "all" };
   }, []);
 
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [layerMode, setLayerMode] = useState<LayerMode>("both");
   const [legendOpen, setLegendOpen] = useState(true);
-  const [showProjects, setShowProjects] = useState(false);
   const [sectorFilter, setSectorFilter] = useState(initParams.sector);
-  const [financingFilter, setFinancingFilter] = useState(initParams.financing);
+  const [regionFilter, setRegionFilter] = useState(initParams.region);
   const [zoom, setZoom] = useState(3);
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -449,22 +375,29 @@ export default function MapPage() {
   const filteredProjects = useMemo(() => {
     return allProjects.filter((p) => {
       if (sectorFilter !== "all" && p.technology !== sectorFilter) return false;
-      if (financingFilter !== "all" && p.financingType !== financingFilter) return false;
+      if (regionFilter !== "all" && p.region !== regionFilter) return false;
       return true;
     });
-  }, [allProjects, sectorFilter, financingFilter]);
+  }, [allProjects, sectorFilter, regionFilter]);
 
   const mapProjects = useMemo(
     () => filteredProjects.filter(p => p.latitude != null && p.longitude != null),
     [filteredProjects]
   );
 
-  // Unique sectors and financing types from data
+  // Unique sectors and regions from data
   const sectors = useMemo(() => [...new Set(allProjects.map(p => p.technology))].filter(Boolean).sort(), [allProjects]);
-  const financingTypes = useMemo(
-    () => [...new Set(allProjects.map(p => p.financingType).filter(Boolean))] as string[],
+  const regions = useMemo(
+    () => [...new Set(allProjects.map(p => p.region).filter(Boolean))].sort() as string[],
     [allProjects]
   );
+
+  // Set of GEO-mapped country names that appear in filtered results
+  // null = no active filter (show all)
+  const filteredCountryNames = useMemo<Set<string> | null>(() => {
+    if (sectorFilter === "all" && regionFilter === "all") return null;
+    return new Set(filteredProjects.map(p => DB_TO_GEO[p.country] ?? p.country));
+  }, [filteredProjects, sectorFilter, regionFilter]);
 
   const countryStatsMap = useMemo(() => {
     const m: Record<string, CountryStat> = {};
@@ -480,7 +413,17 @@ export default function MapPage() {
   );
 
   const geoStyle = useCallback((feature: any) => {
-    const stat = countryStatsMap[feature.properties?.name];
+    const geoName: string = feature.properties?.name;
+    const stat = countryStatsMap[geoName];
+    // Dim countries that have no matching projects when a filter is active
+    if (filteredCountryNames && !filteredCountryNames.has(geoName)) {
+      return {
+        fillColor: "rgba(15, 23, 42, 0.25)",
+        fillOpacity: 1,
+        color: "rgba(30,41,82,0.3)",
+        weight: 0.5,
+      };
+    }
     return {
       fillColor: stat?.totalInvestmentUsdMn
         ? getCountryColor(stat.totalInvestmentUsdMn, maxInvestment)
@@ -489,7 +432,7 @@ export default function MapPage() {
       color: "rgba(30,41,82,0.8)",
       weight: 0.8,
     };
-  }, [countryStatsMap, maxInvestment]);
+  }, [countryStatsMap, maxInvestment, filteredCountryNames]);
 
   const onEachFeature = useCallback((feature: any, layer: any) => {
     const name = feature.properties?.name as string;
@@ -515,8 +458,8 @@ export default function MapPage() {
   }, [countryStatsMap]);
 
   const geoKey = useMemo(
-    () => `geo-${Object.keys(countryStatsMap).length}`,
-    [countryStatsMap]
+    () => `geo-${Object.keys(countryStatsMap).length}-${sectorFilter}-${regionFilter}`,
+    [countryStatsMap, sectorFilter, regionFilter]
   );
 
   const showChoropleth = layerMode === "both" || layerMode === "choropleth";
@@ -527,7 +470,7 @@ export default function MapPage() {
     mapRef.current.fitBounds(AFRICA_BOUNDS, { padding: [20, 20], animate: true });
   }
 
-  const mapTitle = getMapTitle(sectorFilter, financingFilter);
+  const mapTitle = getMapTitle(sectorFilter, regionFilter);
 
   async function handleDownload() {
     if (!mapWrapRef.current) return;
@@ -575,11 +518,14 @@ export default function MapPage() {
       ctx.fillStyle = "#64748b";
       ctx.fillText(`Source: AfriEnergy Tracker  ·  ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, paddingX + 18, 78);
 
-      const link = document.createElement("a");
       const slug = mapTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      link.download = `afrienergy-map-${slug}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const filename = `afrienergy-map-${slug}.png`;
+
+      // Use reliable blob download (works in all browsers / async contexts)
+      canvas.toBlob((blob) => {
+        if (blob) triggerBlobDownload(blob, filename);
+      }, "image/png");
+
       toast.success("Map downloaded");
     } catch (e) {
       toast.error("Download failed — try again");
@@ -591,7 +537,7 @@ export default function MapPage() {
   function handleShare() {
     const params = new URLSearchParams();
     if (sectorFilter !== "all") params.set("sector", sectorFilter);
-    if (financingFilter !== "all") params.set("financing", financingFilter);
+    if (regionFilter !== "all") params.set("region", regionFilter);
     const qs = params.toString();
     const url = `${window.location.origin}${window.location.pathname.replace(/\?.*/, "")}${qs ? "?" + qs : ""}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -644,10 +590,10 @@ export default function MapPage() {
             {/* Filters */}
             <div className="flex items-center gap-2 shrink-0">
               <FilterDropdown label="Sector" value={sectorFilter} options={sectors} onChange={setSectorFilter} />
-              <FilterDropdown label="Financing" value={financingFilter} options={financingTypes} onChange={setFinancingFilter} />
-              {(sectorFilter !== "all" || financingFilter !== "all") && (
+              <FilterDropdown label="Region" value={regionFilter} options={regions} onChange={setRegionFilter} />
+              {(sectorFilter !== "all" || regionFilter !== "all") && (
                 <button
-                  onClick={() => { setSectorFilter("all"); setFinancingFilter("all"); }}
+                  onClick={() => { setSectorFilter("all"); setRegionFilter("all"); }}
                   className="text-[11px] text-muted-foreground/70 hover:text-red-400 transition-colors px-1"
                   title="Clear filters"
                 >
@@ -761,14 +707,6 @@ export default function MapPage() {
               <Maximize2 className="w-4 h-4 text-foreground/80" />
             </button>
 
-            {/* Mobile: toggle project list */}
-            <button
-              onClick={() => setShowProjects(true)}
-              className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-card/95 backdrop-blur border border-border rounded-full px-5 py-2.5 shadow-xl text-xs font-semibold text-foreground"
-            >
-              <ChevronUp className="w-4 h-4 text-[#00e676]" />
-              {isLoading ? "Loading…" : `${filteredProjects.length} Projects`}
-            </button>
 
             {/* Legend */}
             <div className="absolute bottom-4 left-4 md:bottom-6 md:left-4 z-[1000]">
@@ -814,68 +752,6 @@ export default function MapPage() {
           </div>
         </div>
 
-        {/* ── Desktop Sidebar ── */}
-        <div className="hidden md:flex w-[290px] bg-card border-l border-border/50 flex-col h-full z-10">
-          <div className="p-4 border-b border-border/50 shrink-0">
-            <h2 className="text-sm font-bold mb-0.5">Project Explorer</h2>
-            <p className="text-xs text-muted-foreground/70">
-              {isLoading
-                ? "Loading…"
-                : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
-            </p>
-          </div>
-          <ProjectList
-            projects={filteredProjects}
-            isLoading={isLoading}
-            activeProject={activeProject}
-            onSelect={(p) => setActiveProject(activeProject?.id === p.id ? null : p)}
-          />
-        </div>
-
-        {/* ── Mobile Bottom Sheet ── */}
-        <AnimatePresence>
-          {showProjects && (
-            <>
-              <motion.div
-                key="bs-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="md:hidden fixed inset-0 z-[1100] bg-black/50"
-                onClick={() => setShowProjects(false)}
-              />
-              <motion.div
-                key="bs-panel"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", stiffness: 320, damping: 35 }}
-                className="md:hidden fixed bottom-0 left-0 right-0 z-[1200] bg-card rounded-t-2xl border-t border-border flex flex-col"
-                style={{ maxHeight: "70vh" }}
-              >
-                <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
-                  <div>
-                    <h2 className="text-sm font-bold">Project Explorer</h2>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      {isLoading ? "Loading…" : `${mapProjects.length} mapped · ${filteredProjects.length} filtered`}
-                    </p>
-                  </div>
-                  <button onClick={() => setShowProjects(false)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50">
-                    <XIcon className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  <ProjectList
-                    projects={filteredProjects}
-                    isLoading={isLoading}
-                    activeProject={activeProject}
-                    onSelect={(p) => { setActiveProject(activeProject?.id === p.id ? null : p); setShowProjects(false); }}
-                  />
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
 
       </PageTransition>
     </Layout>
