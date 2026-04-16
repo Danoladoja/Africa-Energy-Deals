@@ -455,9 +455,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               AfriEnergy
             </span>
           </Link>
-          <Link href="/dashboard" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
-            <House className="w-3.5 h-3.5" />
-            <span>Home</span>
+          <Link href="/dashboard" className="p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors shrink-0">
+            <House className="w-4 h-4" />
           </Link>
         </div>
 
