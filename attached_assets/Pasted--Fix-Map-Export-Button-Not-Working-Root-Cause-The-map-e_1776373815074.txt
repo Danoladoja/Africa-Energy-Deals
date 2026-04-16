@@ -1,0 +1,166 @@
+# Fix: Map Export Button Not Working
+
+## Root Cause
+
+The map export has failed repeatedly because `html2canvas` fundamentally cannot capture Leaflet maps. The issues are:
+
+1. **Cross-origin tile images**: Leaflet loads map tiles from `cartocdn.com`. Even with `useCORS: true` and `crossOrigin="anonymous"`, html2canvas either produces a blank canvas or throws a tainted canvas error when calling `toDataURL()`.
+2. **CSS transforms**: Leaflet positions tiles using `translate3d()` CSS transforms. html2canvas doesn't handle these correctly — tiles appear offset, overlapping, or missing.
+3. **Dynamic rendering**: Leaflet markers, popups, and GeoJSON overlays use complex DOM structures that html2canvas can't reliably clone.
+
+This is a well-documented limitation of html2canvas. No amount of configuration will fix it for Leaflet maps.
+
+## The Fix: Replace html2canvas with `html-to-image` for the Map Page
+
+The `html-to-image` library (npm: `html-to-image`) uses a fundamentally different approach — it serializes the DOM to SVG via `foreignObject`, which correctly handles CSS transforms and cross-origin images (when CORS headers are present). It works reliably with Leaflet maps.
+
+### Step 1: Install the library
+
+```bash
+npm install html-to-image
+```
+
+### Step 2: Update ONLY the `handleDownload()` function in `artifacts/energy-tracker/src/pages/map.tsx`
+
+Replace the existing `handleDownload` function (around line 532) with this:
+
+```typescript
+async function handleDownload() {
+  if (!mapWrapRef.current) return;
+  setExporting(true);
+  try {
+    // Import html-to-image (tree-shaken, only loads when export is clicked)
+    const { toPng } = await import("html-to-image");
+
+    // Wait for tile images to load
+    const imgs = Array.from(mapWrapRef.current.querySelectorAll<HTMLImageElement>("img"));
+    await Promise.all(imgs.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        setTimeout(resolve, 3000);
+      });
+    }));
+
+    // Capture the map container as a PNG data URL
+    const dataUrl = await toPng(mapWrapRef.current, {
+      quality: 1.0,
+      pixelRatio: 2,
+      backgroundColor: "#0b0f1a",
+      cacheBust: true,
+      // Filter out elements marked as no-export
+      filter: (node: HTMLElement) => {
+        return !node.hasAttribute?.("data-no-export");
+      },
+    });
+
+    // Create a canvas to add the title overlay
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to load captured image"));
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+
+    // Draw title overlay
+    const paddingX = 28;
+    const boxHeight = 80;
+    const radius = 12;
+
+    ctx.fillStyle = "rgba(11,15,26,0.88)";
+    ctx.beginPath();
+    ctx.moveTo(paddingX + radius, 16);
+    ctx.lineTo(paddingX + 520 - radius, 16);
+    ctx.arcTo(paddingX + 520, 16, paddingX + 520, 16 + radius, radius);
+    ctx.lineTo(paddingX + 520, 16 + boxHeight - radius);
+    ctx.arcTo(paddingX + 520, 16 + boxHeight, paddingX + 520 - radius, 16 + boxHeight, radius);
+    ctx.lineTo(paddingX + radius, 16 + boxHeight);
+    ctx.arcTo(paddingX, 16 + boxHeight, paddingX, 16 + boxHeight - radius, radius);
+    ctx.lineTo(paddingX, 16 + radius);
+    ctx.arcTo(paddingX, 16, paddingX + radius, 16, radius);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.font = "bold 22px 'Inter', sans-serif";
+    ctx.fillStyle = "#f1f5f9";
+    ctx.fillText(mapTitle, paddingX + 18, 54);
+
+    ctx.font = "13px 'Inter', sans-serif";
+    ctx.fillStyle = "#64748b";
+    ctx.fillText(
+      `Source: AfriEnergy Tracker  ·  ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`,
+      paddingX + 18, 78
+    );
+
+    // Download the final image
+    const link = document.createElement("a");
+    const slug = mapTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    link.download = `afrienergy-map-${slug}.png`;
+    link.href = canvas.toDataURL("image/png");
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => document.body.removeChild(link), 150);
+
+    toast.success("Map downloaded");
+  } catch (e) {
+    console.error("Map export failed:", e);
+    toast.error("Download failed — try again");
+  } finally {
+    setExporting(false);
+  }
+}
+```
+
+### Step 3: Remove the unused import
+
+In `map.tsx`, remove this line from the imports at the top:
+```typescript
+// DELETE THIS LINE:
+import { captureToCanvas } from "@/utils/export-utils";
+```
+
+The `captureToCanvas` function from `export-utils.ts` is still used by other pages (Dashboard, Countries, Developers, Studio) — do NOT modify or delete `export-utils.ts`. Only the Map page switches to `html-to-image`.
+
+### Step 4: Verify
+
+After deploying:
+1. Go to the Map page
+2. Click Export → Download PNG
+3. A PNG file should download with the map, overlays, and title bar
+
+### What NOT to change
+
+- Do NOT modify `export-utils.ts` — other pages still use it
+- Do NOT change the Share Link button — it works fine (it copies a URL, no canvas involved)
+- Do NOT try to fix html2canvas to work with Leaflet — it's a fundamental limitation of the library
+- Do NOT change the `crossOrigin="anonymous"` on TileLayer — it's correct and needed
+
+### Fallback: If `html-to-image` Also Fails
+
+If cross-origin tiles still cause issues (some CDNs don't send proper CORS headers), the nuclear option is to proxy the tiles through your own server. Add a route like:
+
+```typescript
+// In the API server
+router.get("/api/tiles/:z/:x/:y", async (req, res) => {
+  const { z, x, y } = req.params;
+  const tileUrl = `https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
+  const response = await fetch(tileUrl);
+  res.set("Content-Type", "image/png");
+  res.set("Cache-Control", "public, max-age=86400");
+  response.body?.pipe(res);
+});
+```
+
+Then change the TileLayer URL to:
+```
+url="/api/tiles/{z}/{x}/{y}"
+```
+
+This guarantees same-origin tiles, eliminating all CORS issues. But try `html-to-image` first — it should work without the proxy.

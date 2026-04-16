@@ -7,7 +7,7 @@ import type { GeoJsonObject } from "geojson";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import { SEOMeta } from "@/components/seo-meta";
-import { captureToCanvas, triggerBlobDownload } from "@/utils/export-utils";
+import { triggerBlobDownload } from "@/utils/export-utils";
 import {
   Maximize2, X as XIcon, Download, Share2,
   Check, ChevronDown,
@@ -542,7 +542,11 @@ export default function MapPage() {
     if (!mapWrapRef.current) return;
     setExporting(true);
     try {
-      // Wait for every tile <img> in the map to finish loading
+      // html-to-image handles CSS transforms and cross-origin tiles correctly,
+      // unlike html2canvas which fundamentally cannot capture Leaflet maps.
+      const { toPng } = await import("html-to-image");
+
+      // Wait for tile images to finish loading
       const imgs = Array.from(mapWrapRef.current.querySelectorAll<HTMLImageElement>("img"));
       await Promise.all(imgs.map(img => {
         if (img.complete) return Promise.resolve();
@@ -553,17 +557,35 @@ export default function MapPage() {
         });
       }));
 
-      const canvas = await captureToCanvas(mapWrapRef.current, 2);
+      const dataUrl = await toPng(mapWrapRef.current, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: "#0b0f1a",
+        cacheBust: true,
+        filter: (node: Element) => !node.hasAttribute?.("data-no-export"),
+      });
 
-      // Draw title overlay on canvas
+      // Load captured image onto a canvas so we can draw the title overlay
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load captured image"));
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+
+      // Draw title backdrop + text
       const paddingX = 28;
       const boxHeight = 80;
+      const radius = 12;
 
-      // Title backdrop
       ctx.fillStyle = "rgba(11,15,26,0.88)";
       ctx.beginPath();
-      const radius = 12;
       ctx.moveTo(paddingX + radius, 16);
       ctx.lineTo(paddingX + 520 - radius, 16);
       ctx.arcTo(paddingX + 520, 16, paddingX + 520, 16 + radius, radius);
@@ -582,18 +604,21 @@ export default function MapPage() {
 
       ctx.font = "13px 'Inter', sans-serif";
       ctx.fillStyle = "#64748b";
-      ctx.fillText(`Source: AfriEnergy Tracker  ·  ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, paddingX + 18, 78);
+      ctx.fillText(
+        `Source: AfriEnergy Tracker  ·  ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`,
+        paddingX + 18, 78
+      );
 
       const slug = mapTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const filename = `afrienergy-map-${slug}.png`;
 
-      // Use reliable blob download (works in all browsers / async contexts)
       canvas.toBlob((blob) => {
         if (blob) triggerBlobDownload(blob, filename);
       }, "image/png");
 
       toast.success("Map downloaded");
     } catch (e) {
+      console.error("Map export failed:", e);
       toast.error("Download failed — try again");
     } finally {
       setExporting(false);
