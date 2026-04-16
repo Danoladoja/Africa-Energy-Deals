@@ -40,14 +40,80 @@ function fmt(mn: number | null | undefined): string {
   return `$${mn.toFixed(0)}M`;
 }
 
-// ── Green choropleth color scale ─────────────────────────────────────────────
+// ── Multi-colour choropleth scale (navy → teal → cyan → lime → amber) ────────
+const COLOR_STOPS = [
+  { t: 0.00, r: 15,  g: 27,  b: 61  }, // deep navy
+  { t: 0.20, r: 12,  g: 74,  b: 110 }, // dark blue
+  { t: 0.40, r: 8,   g: 145, b: 178 }, // cyan
+  { t: 0.58, r: 13,  g: 148, b: 136 }, // teal-green
+  { t: 0.76, r: 132, g: 204, b: 22  }, // lime
+  { t: 1.00, r: 234, g: 179, b: 8   }, // amber
+];
+
+function lerpColor(t: number): string {
+  if (t <= 0) return `rgb(${COLOR_STOPS[0].r},${COLOR_STOPS[0].g},${COLOR_STOPS[0].b})`;
+  if (t >= 1) { const s = COLOR_STOPS[COLOR_STOPS.length - 1]; return `rgb(${s.r},${s.g},${s.b})`; }
+  let lo = COLOR_STOPS[0], hi = COLOR_STOPS[COLOR_STOPS.length - 1];
+  for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+    if (t >= COLOR_STOPS[i].t && t <= COLOR_STOPS[i + 1].t) { lo = COLOR_STOPS[i]; hi = COLOR_STOPS[i + 1]; break; }
+  }
+  const range = hi.t - lo.t;
+  const u = range === 0 ? 0 : (t - lo.t) / range;
+  return `rgb(${Math.round(lo.r + (hi.r - lo.r) * u)},${Math.round(lo.g + (hi.g - lo.g) * u)},${Math.round(lo.b + (hi.b - lo.b) * u)})`;
+}
+
 function getCountryColor(investment: number, maxInvestment: number): string {
-  if (!investment) return "rgba(15, 23, 42, 0.6)";
+  if (!investment) return "rgba(15, 23, 42, 0.55)";
   const t = Math.log1p(investment) / Math.log1p(maxInvestment);
-  const g = Math.round(77 + (230 - 77) * t);
-  const b = Math.round(42 + (118 - 42) * t);
-  const alpha = 0.35 + 0.55 * t;
-  return `rgba(0,${g},${b},${alpha})`;
+  return lerpColor(t);
+}
+
+// Gradient CSS string for the legend bar
+const GRADIENT_CSS = `linear-gradient(to right, ${COLOR_STOPS.map(s => `rgb(${s.r},${s.g},${s.b}) ${s.t * 100}%`).join(", ")})`;
+
+// ── Investment scale bottom bar ───────────────────────────────────────────────
+function InvestmentScaleLegend({ maxInvestment }: { maxInvestment: number }) {
+  const cats = [
+    { label: "Minimal",  t: 0 },
+    { label: "Low",      t: 0.25 },
+    { label: "Moderate", t: 0.5 },
+    { label: "High",     t: 0.75 },
+    { label: "Leading",  t: 1 },
+  ];
+  const getAmt = (t: number) => {
+    const v = Math.expm1(t * Math.log1p(maxInvestment));
+    return v < 1 ? "$0" : fmt(v);
+  };
+  return (
+    <div
+      className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[1000] bg-[rgba(11,15,26,0.88)] backdrop-blur border border-white/10 rounded-2xl px-5 py-3 shadow-2xl"
+      style={{ minWidth: 280, maxWidth: 360 }}
+    >
+      <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 text-center mb-2">
+        Finance Flow Intensity
+      </p>
+      <div className="h-3 w-full rounded-full mb-1" style={{ background: GRADIENT_CSS }} />
+      <div className="flex justify-between mb-0.5">
+        {cats.map(c => (
+          <span key={c.label} className="text-[9px] text-white/50" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {getAmt(c.t)}
+          </span>
+        ))}
+      </div>
+      <div className="flex justify-between">
+        {cats.map(c => (
+          <span
+            key={c.label}
+            className="text-[9px] font-semibold"
+            style={{ color: lerpColor(c.t) }}
+          >
+            {c.label}
+          </span>
+        ))}
+      </div>
+      <p className="text-[8px] text-white/25 text-center mt-1.5">Click any country → market profile</p>
+    </div>
+  );
 }
 
 // ── Dynamic map title ─────────────────────────────────────────────────────────
@@ -708,47 +774,33 @@ export default function MapPage() {
             </button>
 
 
-            {/* Legend */}
-            <div className="absolute bottom-4 left-4 md:bottom-6 md:left-4 z-[1000]">
-              <button
-                onClick={() => setLegendOpen(v => !v)}
-                className="md:hidden flex items-center gap-2 bg-card/95 backdrop-blur border border-border px-3 py-2 rounded-xl text-xs font-semibold"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
-                {legendOpen ? "Hide legend" : "Legend"}
-              </button>
-
-              <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-card/95 backdrop-blur border border-border p-4 rounded-xl shadow-xl mt-2 md:mt-0 gap-4 max-h-[50vh] overflow-y-auto`}>
-                {showChoropleth && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Investment Scale</p>
-                    <div
-                      className="h-2 w-28 rounded-full mb-1.5"
-                      style={{ background: "linear-gradient(to right, rgba(15,23,42,0.6), rgba(0,77,42,0.9), #00a855, #00e676)" }}
-                    />
-                    <div className="flex justify-between text-[10px] text-muted-foreground/70">
-                      <span>None</span>
-                      <span>{fmt(maxInvestment)}</span>
+            {/* Sector legend — bottom left */}
+            {showMarkers && (
+              <div className="absolute bottom-4 left-4 md:bottom-6 md:left-4 z-[1000]">
+                <button
+                  onClick={() => setLegendOpen(v => !v)}
+                  className="md:hidden flex items-center gap-2 bg-card/95 backdrop-blur border border-border px-3 py-2 rounded-xl text-xs font-semibold"
+                >
+                  <span className="w-2 h-2 rounded-full bg-[#00e676]" />
+                  {legendOpen ? "Hide sectors" : "Sectors"}
+                </button>
+                <div className={`${legendOpen ? "flex" : "hidden"} md:flex flex-col bg-[rgba(11,15,26,0.88)] backdrop-blur border border-white/10 p-4 rounded-xl shadow-2xl mt-2 md:mt-0 gap-1.5 max-h-[40vh] overflow-y-auto`}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-1">Technologies</p>
+                  {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
+                    <div key={tech} className="flex items-center gap-2 text-[11px] text-white/70">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      {tech}
                     </div>
-                    <p className="text-[9px] text-muted-foreground/50 mt-1.5">Click country → profile</p>
-                  </div>
-                )}
-                {showMarkers && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Technologies</p>
-                    <div className="space-y-1.5">
-                      {Object.entries(SECTOR_COLORS).map(([tech, color]) => (
-                        <div key={tech} className="flex items-center gap-2 text-[11px] text-foreground/80">
-                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                          {tech}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-[9px] text-muted-foreground/50 mt-2">Dot size ∝ deal size</p>
-                  </div>
-                )}
+                  ))}
+                  <p className="text-[9px] text-white/25 mt-1">Dot size ∝ deal size</p>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Finance flow intensity bar — bottom center */}
+            {showChoropleth && (
+              <InvestmentScaleLegend maxInvestment={maxInvestment} />
+            )}
           </div>
         </div>
 
