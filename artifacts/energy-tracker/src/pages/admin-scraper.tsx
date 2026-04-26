@@ -143,6 +143,11 @@ export default function AdminScraperPage() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const specialLogEndRef = useRef<HTMLDivElement>(null);
 
+  const [adapterList, setAdapterList] = useState<{ key: string; schedule: string; defaultConfidence: number }[]>([]);
+  const [adapterRunning, setAdapterRunning] = useState<string | null>(null);
+  const [adapterLog, setAdapterLog] = useState<{ key: string; lines: string[] } | null>(null);
+  const [adapterResult, setAdapterResult] = useState<{ key: string; fetched: number; inserted: number; updated: number; flagged: number; rejected: number } | null>(null);
+
   const [scraperSources, setScraperSources] = useState<ScraperSource[]>([]);
   const [showAddFeed, setShowAddFeed] = useState(false);
   const [newFeedLabel, setNewFeedLabel] = useState("");
@@ -160,29 +165,86 @@ export default function AdminScraperPage() {
 
   async function loadData() {
     try {
-      const [sourcesRes, runsRes, statusRes, feedsRes, telemetryRes] = await Promise.all([
+      const [sourcesRes, runsRes, statusRes, feedsRes, telemetryRes, adaptersRes] = await Promise.all([
         fetch(`${API}/scraper/sources`, { headers: authHeaders() }),
         fetch(`${API}/scraper/runs?limit=100`, { headers: authHeaders() }),
         fetch(`${API}/scraper/status`, { headers: authHeaders() }),
         fetch(`${API}/scraper/source-feeds`, { headers: authHeaders() }),
         fetch(`${API}/scraper/rejection-telemetry`, { headers: authHeaders() }),
+        fetch(`${API}/adapters`, { headers: authHeaders() }),
       ]);
-      const [sourcesData, runsData, statusData, feedsData, telemetryData] = await Promise.all([
+      const [sourcesData, runsData, statusData, feedsData, telemetryData, adaptersData] = await Promise.all([
         sourcesRes.json(),
         runsRes.json(),
         statusRes.json(),
         feedsRes.json(),
         telemetryRes.json(),
+        adaptersRes.json(),
       ]);
       setSources(Array.isArray(sourcesData) ? sourcesData : []);
       setBySource(runsData.bySource ?? {});
       setPendingCount(statusData.pendingCount ?? 0);
       setScraperSources(Array.isArray(feedsData) ? feedsData : []);
       if (telemetryData && !telemetryData.error) setRejectionTelemetry(telemetryData);
+      if (Array.isArray(adaptersData)) setAdapterList(adaptersData);
     } catch {
       // ignore
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runSingleAdapter(key: string) {
+    if (adapterRunning || runningSource || specialRunning) return;
+    setAdapterRunning(key);
+    setAdapterLog({ key, lines: [`Starting ${key}…`] });
+    setAdapterResult(null);
+    try {
+      const res = await fetch(`${API}/adapters/${encodeURIComponent(key)}/run`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              if (parsed.stage === "complete" && parsed.report) {
+                const r = parsed.report;
+                setAdapterResult({
+                  key,
+                  fetched: r.rowsFetched ?? 0,
+                  inserted: r.rowsInserted ?? 0,
+                  updated: r.rowsUpdated ?? 0,
+                  flagged: r.rowsFlagged ?? 0,
+                  rejected: r.rowsRejected ?? 0,
+                });
+                setAdapterLog((prev) => prev ? {
+                  ...prev,
+                  lines: [...prev.lines, `✓ Done — fetched:${r.rowsFetched} inserted:${r.rowsInserted} updated:${r.rowsUpdated} flagged:${r.rowsFlagged} rejected:${r.rowsRejected}`],
+                } : prev);
+              } else if (parsed.message) {
+                setAdapterLog((prev) => prev ? { ...prev, lines: [...prev.lines, parsed.message] } : prev);
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch (err) {
+      setAdapterLog((prev) => prev ? { ...prev, lines: [...prev.lines, `✗ ${String(err)}`] } : prev);
+    } finally {
+      setAdapterRunning(null);
+      await loadData();
+      await loadQueue();
     }
   }
 
@@ -628,6 +690,94 @@ export default function AdminScraperPage() {
               </div>
             )}
           </div>
+
+          {/* Structured Data Adapters */}
+          {adapterList.length > 0 && (
+            <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-foreground">Structured Data Adapters</h2>
+                <span className="text-xs text-muted-foreground ml-1">Live API &amp; CSV imports — no AI extraction needed</span>
+              </div>
+
+              <div className="divide-y divide-border">
+                {(() => {
+                  const ADAPTER_META: Record<string, { label: string; description: string; tier: string }> = {
+                    "api:gcf":        { label: "Green Climate Fund",        description: "Approved climate/energy projects for Africa from the GCF open data library.",           tier: "Tier 1 · JSON API" },
+                    "api:dfc":        { label: "US DFC Transactions",       description: "US Development Finance Corporation project transactions — energy sector + Africa.",     tier: "Tier 1 · JSON/HTML" },
+                    "api:afdb-energy":{ label: "AfDB Energy Portal",        description: "African Development Bank energy project database via IATI and Africa Energy Portal.",   tier: "Tier 1 · JSON/HTML" },
+                    "api:ifc":        { label: "IFC Investment Projects",    description: "International Finance Corporation disclosure portal and World Bank Group Finances.",    tier: "Tier 1 · JSON API" },
+                    "api:gem":        { label: "Global Energy Monitor",      description: "Bulk CSV power-plant tracker (solar, wind, gas) filtered for African countries.",      tier: "Tier 2 · Bulk CSV" },
+                    "api:aiddata":    { label: "AidData Chinese Finance",    description: "Chinese development finance dataset 2000–2021, energy sector + Africa (20 k+ projects).", tier: "Tier 2 · Bulk CSV" },
+                    "api:worldbank":  { label: "World Bank Projects",        description: "African energy projects from the World Bank Projects & Operations search API.",         tier: "Tier 1 · JSON API" },
+                  };
+
+                  // Filter to only adapters the guide describes (structured ones) — skip rss/dfi/html adapters
+                  const structuredAdapters = adapterList.filter(a => a.key.startsWith("api:"));
+
+                  return structuredAdapters.map((adapter) => {
+                    const meta = ADAPTER_META[adapter.key];
+                    const isRunning = adapterRunning === adapter.key;
+                    const stat = bySource[adapter.key];
+                    const lastRunAt = stat?.lastRun?.startedAt;
+                    const showLog = adapterLog?.key === adapter.key;
+
+                    return (
+                      <div key={adapter.key}>
+                        <div className="px-6 py-4 flex items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-medium text-foreground text-sm">{meta?.label ?? adapter.key}</span>
+                              <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{adapter.key}</span>
+                              <span className="text-xs text-muted-foreground">{meta?.tier}</span>
+                              <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded border border-border">conf {Math.round(adapter.defaultConfidence * 100)}%</span>
+                              {isRunning && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-1">{meta?.description}</p>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              {lastRunAt && <span>Last run {ago(lastRunAt)}</span>}
+                              {stat && stat.totalInserted > 0 && <span className="text-green-400">+{stat.totalInserted} inserted</span>}
+                              {stat && stat.runCount > 0 && <span>{stat.runCount} run{stat.runCount !== 1 ? "s" : ""}</span>}
+                              {!stat && <span className="text-muted-foreground/50">Never run</span>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => runSingleAdapter(adapter.key)}
+                            disabled={!!adapterRunning || !!runningSource || !!specialRunning}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                            {isRunning ? "Running…" : "Run now"}
+                          </button>
+                        </div>
+
+                        {/* Per-adapter SSE log */}
+                        {showLog && adapterLog!.lines.length > 0 && (
+                          <div className="border-t border-border mx-6 mb-4 rounded-lg bg-muted/30 p-3 max-h-32 overflow-y-auto font-mono text-xs space-y-0.5">
+                            {adapterLog!.lines.map((line, i) => (
+                              <div key={i} className={line.startsWith("✗") ? "text-red-400" : line.startsWith("✓") ? "text-green-400" : "text-muted-foreground"}>{line}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Result summary */}
+                        {adapterResult?.key === adapter.key && !adapterRunning && (
+                          <div className="border-t border-border mx-6 mb-4 rounded-lg bg-green-500/5 border border-green-500/20 px-4 py-2 flex items-center gap-5 text-xs">
+                            <span className="text-green-400 font-semibold">Complete</span>
+                            <span className="text-muted-foreground">Fetched <span className="text-foreground">{adapterResult.fetched}</span></span>
+                            <span className="text-muted-foreground">Inserted <span className="text-green-400 font-medium">{adapterResult.inserted}</span></span>
+                            <span className="text-muted-foreground">Updated <span className="text-blue-400 font-medium">{adapterResult.updated}</span></span>
+                            <span className="text-muted-foreground">Flagged <span className="text-yellow-400 font-medium">{adapterResult.flagged}</span></span>
+                            {adapterResult.rejected > 0 && <span className="text-muted-foreground">Rejected <span className="text-red-400 font-medium">{adapterResult.rejected}</span></span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* Source Feeds Card */}
           <div className="bg-card border border-border rounded-xl mb-8 overflow-hidden">
