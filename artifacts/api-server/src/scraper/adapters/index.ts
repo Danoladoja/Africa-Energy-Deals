@@ -27,6 +27,12 @@ import { dfiBIIAdapter } from "./dfi-bii.js";
 import { apoGroupAdapter } from "./apo-group.js";
 import { seedGoogleAlertsAdapters } from "./google-alerts.js";
 import { worldBankApiAdapter } from "./api-worldbank.js";
+import { gcfApiAdapter } from "./api-gcf.js";
+import { dfcTransactionAdapter } from "./api-dfc.js";
+import { afdbEnergyAdapter } from "./api-afdb-energy.js";
+import { gemAdapter } from "./api-gem.js";
+import { ifcInvestmentAdapter } from "./api-ifc.js";
+import { aidDataAdapter } from "./api-aiddata.js";
 
 export const ADAPTER_REGISTRY: BaseSourceAdapter[] = [
   dfiAfDBAdapter,
@@ -37,6 +43,14 @@ export const ADAPTER_REGISTRY: BaseSourceAdapter[] = [
   dfiBIIAdapter,
   apoGroupAdapter,
   worldBankApiAdapter,
+  // Structured data adapters (Tier 1: JSON APIs, confidence 1.0)
+  gcfApiAdapter,           // Green Climate Fund — open data library
+  dfcTransactionAdapter,   // US DFC transaction data
+  afdbEnergyAdapter,       // Africa Energy Portal (AfDB)
+  ifcInvestmentAdapter,    // IFC investment projects
+  // Structured data adapters (Tier 2: bulk CSV, confidence 0.90–0.95)
+  gemAdapter,              // Global Energy Monitor — power plant tracker
+  aidDataAdapter,          // AidData — Chinese development finance
   ...seedGoogleAlertsAdapters,
 ];
 

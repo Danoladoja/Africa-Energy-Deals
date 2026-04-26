@@ -1,0 +1,100 @@
+# Structured Data Adapters — Replit Integration Guide
+
+## What This Is
+
+Six new structured data adapters for the AfriEnergy Tracker scraper pipeline. Each follows the existing `BaseSourceAdapter` pattern (same as `api-worldbank.ts`) and plugs into the `ADAPTER_REGISTRY` in `adapters/index.ts`.
+
+These adapters add **6 new data sources** that collectively bring an estimated **530–1,350+ new projects** into the tracker — transforming it from ~156 projects to potentially 700–1,500+.
+
+## Files to Deploy
+
+Copy all files to `artifacts/api-server/src/scraper/adapters/`:
+
+| File | Source | Type | Confidence | Est. Projects |
+|------|--------|------|------------|---------------|
+| `api-gcf.ts` | Green Climate Fund API | JSON API | 1.0 | 30–50 |
+| `api-dfc.ts` | US DFC Transaction Data | JSON/HTML | 1.0 | 50–100 |
+| `api-afdb-energy.ts` | Africa Energy Portal (AfDB) | JSON/HTML | 1.0 | 100–300 |
+| `api-ifc.ts` | IFC Investment Projects | JSON API | 1.0 | 50–100 |
+| `api-gem.ts` | Global Energy Monitor | Bulk CSV | 0.95 | 200–500+ |
+| `api-aiddata.ts` | AidData Chinese Finance | Bulk CSV | 0.90 | 100–300 |
+
+## Integration Steps
+
+### Step 1: Copy Adapter Files
+
+Place all six `api-*.ts` files in:
+```
+artifacts/api-server/src/scraper/adapters/
+```
+
+### Step 2: Update the Registry
+
+Replace `adapters/index.ts` with the provided version, OR manually add these imports and registry entries:
+
+```typescript
+// Add imports after the worldBankApiAdapter import:
+import { gcfApiAdapter } from "./api-gcf.js";
+import { dfcTransactionAdapter } from "./api-dfc.js";
+import { afdbEnergyAdapter } from "./api-afdb-energy.js";
+import { gemAdapter } from "./api-gem.js";
+import { ifcInvestmentAdapter } from "./api-ifc.js";
+import { aidDataAdapter } from "./api-aiddata.js";
+
+// Add to ADAPTER_REGISTRY array (before ...seedGoogleAlertsAdapters):
+  // Structured data adapters (Tier 1: JSON APIs, confidence 1.0)
+  gcfApiAdapter,           // Green Climate Fund — open data library
+  dfcTransactionAdapter,   // US DFC transaction data
+  afdbEnergyAdapter,       // Africa Energy Portal (AfDB)
+  ifcInvestmentAdapter,    // IFC investment projects
+  // Structured data adapters (Tier 2: bulk CSV, confidence 0.90–0.95)
+  gemAdapter,              // Global Energy Monitor — power plant tracker
+  aidDataAdapter,          // AidData — Chinese development finance
+```
+
+### Step 3: Verify TypeScript Compilation
+
+```bash
+cd artifacts/api-server
+npx tsc --noEmit
+```
+
+All adapters import only from `../base.js` (the existing `BaseSourceAdapter`) — no new dependencies required.
+
+### Step 4: Test Individual Adapters
+
+Each adapter can be tested individually via the existing adapter runner infrastructure. From the admin Data Pipeline page, each new adapter should appear in the adapter list with its key (e.g., `api:gcf`, `api:dfc`).
+
+## Architecture Notes
+
+- **No new dependencies**: All adapters use only built-in Node.js APIs and the existing `BaseSourceAdapter` infrastructure (httpFetch with retry/caching/rate-limiting).
+- **CSV parsing**: GEM and AidData adapters include a lightweight built-in CSV parser — no external CSV library needed.
+- **HTML fallback**: AfDB, DFC, and IFC adapters handle both JSON and HTML responses, with built-in HTML table parsing as a fallback when APIs return HTML pages.
+- **Deduplication**: All adapters rely on the existing `deduplicate()` method in BaseSourceAdapter (URL + fuzzy name matching).
+- **Rate limiting**: All adapters set `maxRps = 1` to be respectful of external APIs.
+- **Cron schedules**: Tier 1 adapters run weekly; Tier 2 adapters run monthly or quarterly, matching source update frequencies.
+
+## Adapter Schedule Summary
+
+| Adapter | Key | Cron | Frequency |
+|---------|-----|------|-----------|
+| GCF | `api:gcf` | `0 4 * * 0` | Weekly (Sunday 4am) |
+| DFC | `api:dfc` | `0 5 1 * *` | Monthly (1st at 5am) |
+| AfDB Energy | `api:afdb-energy` | `0 3 * * 0` | Weekly (Sunday 3am) |
+| IFC | `api:ifc` | `0 4 * * 1` | Weekly (Monday 4am) |
+| GEM | `api:gem` | `0 2 1 * *` | Monthly (1st at 2am) |
+| AidData | `api:aiddata` | `0 6 1 1,4,7,10 *` | Quarterly |
+
+## What Each Adapter Does
+
+1. **GCF** (`api-gcf.ts`): Queries the Green Climate Fund Open Data Library API for approved climate/energy projects in Africa. Falls back to the GCF website JSON feed if the primary API is down.
+
+2. **DFC** (`api-dfc.ts`): Fetches US Development Finance Corporation transaction data. Handles both JSON and HTML responses from the DFC projects portal. Filters for energy sector + African countries.
+
+3. **AfDB Energy** (`api-afdb-energy.ts`): Probes multiple AfDB endpoints (IATI data portal, Africa Energy Portal, projects portal) for energy project data. Tries JSON first, falls back to HTML table parsing.
+
+4. **IFC** (`api-ifc.ts`): Queries IFC disclosure portal and World Bank Group Finances One API for investment projects in African energy sectors.
+
+5. **GEM** (`api-gem.ts`): Downloads CSV files from Global Energy Monitor's global power plant trackers (solar, wind, coal, gas). Filters for African countries. Includes capacity (MW), status, ownership, and coordinates.
+
+6. **AidData** (`api-aiddata.ts`): Imports the AidData Global Chinese Development Finance Dataset (CSV). Covers 20,000+ Chinese-financed projects (2000–2021), filtered for energy sector + Africa. Captures a financing dimension no other source covers.
