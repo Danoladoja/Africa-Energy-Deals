@@ -98,7 +98,7 @@ router.post("/scraper/run", async (_req, res) => {
 
   try {
     const sourceGroups = getSourceGroups();
-    const adapterKeys = Object.keys(ADAPTER_REGISTRY);
+    const adapterKeys = ADAPTER_REGISTRY.map((a) => a.key);
     const totalSteps = sourceGroups.length + adapterKeys.length;
     let completedSteps = 0;
 
@@ -415,6 +415,19 @@ router.get("/scraper/sources", async (_req, res) => {
       .limit(200);
 
     const seen = new Map<string, { name: string; description: string; feedCount: number; isRunning: boolean }>();
+
+    // First: seed with ALL registered adapters so new adapters appear
+    // even before their first run
+    for (const adapter of ADAPTER_REGISTRY) {
+      seen.set(adapter.key, {
+        name: adapter.key,
+        description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
+        feedCount: 1,
+        isRunning: false,
+      });
+    }
+
+    // Then: overlay with historical run data (preserves existing entries)
     for (const r of rows) {
       const key = r.adapterKey ?? r.name;
       if (!seen.has(key)) seen.set(key, { name: key, description: r.name, feedCount: 1, isRunning: false });
