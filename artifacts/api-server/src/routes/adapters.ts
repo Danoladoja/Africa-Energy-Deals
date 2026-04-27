@@ -416,20 +416,14 @@ router.get("/scraper/sources", async (_req, res) => {
 
     const seen = new Map<string, { name: string; description: string; feedCount: number; isRunning: boolean }>();
 
-    // First: seed with ALL registered adapters so new adapters appear
-    // even before their first run
-    for (const adapter of ADAPTER_REGISTRY) {
-      seen.set(adapter.key, {
-        name: adapter.key,
-        description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
-        feedCount: 1,
-        isRunning: false,
-      });
-    }
-
-    // Then: overlay with historical run data (preserves existing entries)
+    // Only build source groups from DB rows — legacy named groups like "Nigeria",
+    // "Energy Media", etc. Adapter keys (dfi:*, api:*, rss:*) are exposed via
+    // GET /api/adapters and shown in the dedicated Adapter Registry UI.
+    // Mixing them here caused "Unknown source group: dfi:afdb" errors.
     for (const r of rows) {
       const key = r.adapterKey ?? r.name;
+      // Skip adapter-style keys — they belong in the Adapter Registry section
+      if (key.includes(":")) continue;
       if (!seen.has(key)) seen.set(key, { name: key, description: r.name, feedCount: 1, isRunning: false });
     }
     res.json(Array.from(seen.values()));
