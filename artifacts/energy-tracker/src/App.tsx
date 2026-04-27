@@ -268,7 +268,7 @@ function Router() {
           {() => <AdminRoute component={AdminDashboard} />}
         </Route>
         <Route path="/admin/scraper">
-          {() => <AdminRoute component={AdminDashboard} />}
+          {() => <AdminRoute component={AdminScraperPage} />}
         </Route>
         <Route path="/review/auth" component={ReviewAuthCallback} />
         <Route path="/review">
