@@ -11,6 +11,9 @@ RUN pnpm install --no-frozen-lockfile
 ENV PORT=3000
 ENV BASE_PATH=/
 
+# Cache bust: 2026-04-28T15:40
+ARG CACHEBUST=1
+
 RUN pnpm --filter @workspace/energy-tracker run build
 
 RUN pnpm add -w tsx express
