@@ -212,10 +212,10 @@ export class AidDataAdapter extends BaseSourceAdapter {
 
       for (const url of githubUrls) {
         try {
-          const resp = await this.httpFetch(url, {
-            headers: { "Accept": "text/csv,text/plain,*/*" },
-            responseType: "text",
-          }) as string;
+                    const { response: aidResp } = await this.httpFetch(url, {
+            headers: { "Accept": "text/csv,text/plain,*/*" },          
+                    });
+          const resp = await aidResp.text();
           
           // Check it's actual CSV, not a 404 HTML page
           if (resp && !resp.includes("<!DOCTYPE") && !resp.includes("404") && resp.includes(",")) {
@@ -233,10 +233,10 @@ export class AidDataAdapter extends BaseSourceAdapter {
         try {
           // The dataset page may have a direct CSV/XLSX link
           const pageUrl = "https://www.aiddata.org/data/aiddatas-global-chinese-development-finance-dataset-version-3-0";
-          const html = await this.httpFetch(pageUrl, {
-            headers: { "Accept": "text/html" },
-            responseType: "text",
-          }) as string;
+                  const { response: pageResp } = await this.httpFetch(pageUrl, {
+            headers: { "Accept": "text/html" },          
+                  });
+        const html = await pageResp.text();
 
           // Look for download links
           const csvLinkMatch = html.match(/href="([^"]*\.csv[^"]*)"/i);
@@ -245,9 +245,9 @@ export class AidDataAdapter extends BaseSourceAdapter {
           const downloadUrl = csvLinkMatch?.[1] || xlsxLinkMatch?.[1];
           if (downloadUrl) {
             const fullUrl = downloadUrl.startsWith("http") ? downloadUrl : `https://www.aiddata.org${downloadUrl}`;
-            csvText = await this.httpFetch(fullUrl, {
-              responseType: "text",
-            }) as string;
+                        const { response: csvResp } = await this.httpFetch(fullUrl, {          
+            });
+            csvText = await csvResp.text();
             sourceUrl = fullUrl;
           }
         } catch (e) {
