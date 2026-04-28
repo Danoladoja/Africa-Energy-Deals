@@ -768,9 +768,15 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
         </div>
         <div className="divide-y divide-border">
           {[
-            { endpoint: "seed",        label: "Import Seed Data",  description: "66 verified projects across 17+ countries. Auto-approved, confidence 95%.", icon: <Download className="w-4 h-4" />, color: "text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20" },
-            { endpoint: "world-bank",  label: "World Bank API",    description: "Fetches live African energy projects from the World Bank Projects API. Goes into review queue.", icon: <Globe className="w-4 h-4" />, color: "text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20" },
-          ].map(({ endpoint, label, description, icon, color }) => {
+            { endpoint: "seed",            label: "Import Seed Data",              description: "66 verified projects across 17+ countries. Auto-approved, confidence 95%.",                        icon: <Download className="w-4 h-4" />, color: "text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20" },
+            { endpoint: "world-bank",      label: "World Bank API",                description: "Fetches live African energy projects from the World Bank Projects API. Goes into review queue.",  icon: <Globe className="w-4 h-4" />,    color: "text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20" },
+            { endpoint: "api:gcf",         label: "Green Climate Fund",            description: "GCF open data library — approved projects with funding amounts and country allocations.",          icon: <Globe className="w-4 h-4" />,    color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20", isAdapter: true },
+            { endpoint: "api:dfc",         label: "US DFC Transactions",           description: "US International Development Finance Corporation — active transaction data for Africa.",            icon: <Globe className="w-4 h-4" />,    color: "text-indigo-400 border-indigo-500/20 bg-indigo-500/10 hover:bg-indigo-500/20",  isAdapter: true },
+            { endpoint: "api:afdb-energy", label: "Africa Energy Portal (AfDB)",   description: "African Development Bank energy portal — country-level energy project data.",                    icon: <Globe className="w-4 h-4" />,    color: "text-amber-400 border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20",    isAdapter: true },
+            { endpoint: "api:ifc",         label: "IFC Investment Projects",       description: "International Finance Corporation — disclosed investment projects in African energy.",              icon: <Globe className="w-4 h-4" />,    color: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10 hover:bg-cyan-500/20",        isAdapter: true },
+            { endpoint: "api:gem",         label: "Global Energy Monitor",         description: "Global power plant tracker — bulk CSV of operating, planned, and retired energy facilities.",      icon: <Globe className="w-4 h-4" />,    color: "text-rose-400 border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20",        isAdapter: true },
+            { endpoint: "api:aiddata",     label: "AidData (Chinese Finance)",     description: "AidData Chinese development finance — loans and grants for African energy infrastructure.",        icon: <Globe className="w-4 h-4" />,    color: "text-orange-400 border-orange-500/20 bg-orange-500/10 hover:bg-orange-500/20", isAdapter: true },
+          ].map(({ endpoint, label, description, icon, color, isAdapter }) => {
             const isRunning = specialRunning === label;
             return (
               <div key={endpoint} className="px-6 py-4 flex items-start gap-4">
@@ -781,7 +787,7 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
                   </div>
                   <p className="text-xs text-muted-foreground">{description}</p>
                 </div>
-                <button onClick={() => runSpecial(endpoint, label)} disabled={!!specialRunning || !!runningSource} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${color}`}>
+                <button onClick={() => isAdapter ? runSource(endpoint) : runSpecial(endpoint, label)} disabled={!!specialRunning || !!runningSource} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${color}`}>
                   {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : icon}
                   {isRunning ? "Running..." : "Run"}
                 </button>

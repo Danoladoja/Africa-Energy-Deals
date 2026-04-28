@@ -416,16 +416,18 @@ router.get("/scraper/sources", async (_req, res) => {
 
     const seen = new Map<string, { name: string; description: string; feedCount: number; isRunning: boolean }>();
 
-    // First: seed with ALL registered adapters so new adapters appear
-        // even before their first run
-        for (const adapter of ADAPTER_REGISTRY) {
-                seen.set(adapter.key, {
-                          name: adapter.key,
-                          description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
-                          feedCount: 1,
-                          isRunning: false,
-                });
-        }
+    // Seed registered adapters that belong in Source Groups.
+    // api:* adapters are shown in the "Curated Data Sources" section instead,
+    // so we skip them here to avoid duplication.
+    for (const adapter of ADAPTER_REGISTRY) {
+      if (adapter.key.startsWith("api:")) continue;
+      seen.set(adapter.key, {
+        name: adapter.key,
+        description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
+        feedCount: 1,
+        isRunning: false,
+      });
+    }
     
         // Then: overlay with historical run data (preserves existing entries)
         for (const r of rows) {
