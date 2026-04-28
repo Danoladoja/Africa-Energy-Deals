@@ -135,10 +135,10 @@ export class GCFApiAdapter extends BaseSourceAdapter {
   async fetch(): Promise<RawRow[]> {
     try {
       // GCF data page is a Next.js SSR page with project data embedded in __NEXT_DATA__
-      const html = await this.httpFetch(GCFApiAdapter.DATA_URL, {
+      const { response: gcfResp } = await this.httpFetch(GCFApiAdapter.DATA_URL, {
         headers: { "Accept": "text/html,application/xhtml+xml" },
-        responseType: "text",
-      }) as string;
+      });
+      const html = await gcfResp.text();
 
       // Extract __NEXT_DATA__ JSON from the HTML
       const nextDataMatch = html.match(/<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
