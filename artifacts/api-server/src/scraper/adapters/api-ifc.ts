@@ -157,9 +157,10 @@ export class IFCInvestmentAdapter extends BaseSourceAdapter {
       const wbUrl = "https://search.worldbank.org/api/v2/projects?format=json&source=IFC&regionname=Africa&sector=Energy&rows=500&os=0";
       
       try {
-        const wbData = await this.httpFetch(wbUrl, {
+                  const { response: wbResp } = await this.httpFetch(wbUrl, {
           headers: { "Accept": "application/json" },
-        }) as any;
+                  });
+          const wbData = await wbResp.json();
         
         const projects = wbData?.projects || {};
         const projectList = Object.values(projects) as any[];
@@ -195,9 +196,10 @@ export class IFCInvestmentAdapter extends BaseSourceAdapter {
       if (allRows.length === 0) {
         try {
           const socrataUrl = "https://finances.worldbank.org/resource/efin-cagm.json?$where=region_name like '%25Africa%25'&$limit=500";
-          const socrataData = await this.httpFetch(socrataUrl, {
+            const { response: socResp } = await this.httpFetch(socrataUrl, {
             headers: { "Accept": "application/json" },
-          }) as any[];
+                    });
+            const socrataData = await socResp.json();
           
           if (Array.isArray(socrataData)) {
             for (const r of socrataData) {
