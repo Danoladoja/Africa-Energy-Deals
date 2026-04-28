@@ -148,9 +148,10 @@ export class AfDBEnergyAdapter extends BaseSourceAdapter {
 
       while (page <= maxPages) {
         const url = `${AfDBEnergyAdapter.API_BASE}?sector=F&page=${page}`;
-        const data = await this.httpFetch(url, {
+                const { response: afdbResp } = await this.httpFetch(url, {
           headers: { "Accept": "application/json" },
-        }) as any;
+                });
+        const data = await afdbResp.json();
 
         // The API returns an object with activities array
         const activities: any[] = data?.data || data?.activities || data?.results || [];
