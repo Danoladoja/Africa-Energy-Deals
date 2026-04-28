@@ -15,7 +15,7 @@
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface DFCRow {
   project_name?: string;
@@ -30,12 +30,12 @@ interface DFCRow {
   [key: string]: unknown;
 }
 
-// African countries — names as they appear in DFC data
+// African countries â names as they appear in DFC data
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cameroon", "Central African Republic", "Chad", "Comoros",
   "Congo (Brazzaville)", "Congo (Kinshasa)", "Congo, Democratic Republic of the",
-  "Congo, Republic of the", "Cote d'Ivoire", "Côte d'Ivoire", "Djibouti",
+  "Congo, Republic of the", "Cote d'Ivoire", "CÃ´te d'Ivoire", "Djibouti",
   "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon",
   "Gambia", "Gambia, The", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
   "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
@@ -86,7 +86,7 @@ function mapTechnology(sector: string, subSector?: string): string | null {
   return null;
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class DFCTransactionAdapter extends BaseSourceAdapter {
   readonly key = "api:dfc";
@@ -95,147 +95,92 @@ export class DFCTransactionAdapter extends BaseSourceAdapter {
   readonly maxRps = 1;
 
   // DFC transaction data download page
-  private static readonly DATA_URL = "https://www.dfc.gov/our-impact/transaction-data";
-  // Direct Excel download URL (may change — we try to find it from the page)
+  private static readonly DATA_URL = "https://www3.dfc.gov/OPICProjects";
+  // Direct Excel download URL (may change â we try to find it from the page)
   private static readonly EXCEL_FALLBACK = "https://www3.dfc.gov/DFCProjects";
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
-
     try {
-      // DFC exposes an active projects portal with JSON capabilities
-      const apiUrl = "https://www3.dfc.gov/DFCProjects";
-      const { response, cached } = await this.httpFetch(apiUrl, {
-        headers: { Accept: "text/html, application/json" },
-      });
+      // DFC embeds project data as inline JavaScript for Infragistics igGrid
+      // at www3.dfc.gov/OPICProjects — it's NOT a JSON API
+      const html = await this.httpFetch(DFCApiAdapter.DATA_URL, {
+        headers: { "Accept": "text/html,application/xhtml+xml" },
+        responseType: "text",
+      }) as string;
 
-      if (cached) return [];
+      // The page embeds data in a JavaScript variable for the igGrid widget
+      // Look for patterns like: var datasource = [...] or .igGrid({ dataSource: [...]
+      let records: any[] = [];
 
-      // Try to get JSON from the projects portal
-      const contentType = response.headers.get("content-type") ?? "";
-
-      if (contentType.includes("json")) {
-        const data = await response.json() as any;
-        const projects: DFCRow[] = Array.isArray(data) ? data : (data?.projects ?? data?.data ?? []);
-
-        for (const p of projects) {
-          const country = String(p.country ?? "").trim();
-          const sector = String(p.sector ?? "").trim();
-          const subSector = String(p.sub_sector ?? "").trim();
-
-          if (isAfricanCountry(country) && isEnergySector(sector, subSector)) {
-            results.push(p as RawRow);
-          }
+      // Try to find JSON array in script tags
+      // Pattern 1: var ds = [{...}, {...}]
+      const varMatch = html.match(/var\s+\w+\s*=\s*(\[\s*\{[\s\S]*?\}\s*\]);/);
+      if (varMatch) {
+        try {
+          records = JSON.parse(varMatch[1]);
+        } catch (e) {
+          // Try eval-style parsing for non-strict JSON
+          console.warn("[api:dfc] Could not parse as strict JSON, trying alternative extraction");
         }
-      } else {
-        // HTML response — parse the page for data or download link
-        const html = await response.text();
+      }
 
-        // Try to extract tabular data from the HTML
-        // DFC's projects page often has inline data or a data table
-        const rows = this.parseHTMLTable(html);
-        for (const row of rows) {
-          const country = String(row.country ?? "").trim();
-          const sector = String(row.sector ?? "").trim();
-          const subSector = String(row.sub_sector ?? "").trim();
-
-          if (isAfricanCountry(country) && isEnergySector(sector, subSector)) {
-            results.push(row as RawRow);
+      // Pattern 2: dataSource: [{...}]
+      if (!records.length) {
+        const dsMatch = html.match(/dataSource\s*:\s*(\[\s*\{[\s\S]*?\}\s*\])\s*[,}]/);
+        if (dsMatch) {
+          try {
+            records = JSON.parse(dsMatch[1]);
+          } catch (e) {
+            console.warn("[api:dfc] Could not parse dataSource JSON");
           }
         }
       }
+
+      // Pattern 3: look for a large JSON array anywhere
+      if (!records.length) {
+        const bigArrayMatch = html.match(/(\[\s*\{"Year"[\s\S]*?\}\s*\])/);
+        if (bigArrayMatch) {
+          try {
+            records = JSON.parse(bigArrayMatch[1]);
+          } catch (e) {
+            console.warn("[api:dfc] Could not parse Year-keyed JSON array");
+          }
+        }
+      }
+
+      if (!records.length) {
+        console.error("[api:dfc] Could not extract project data from HTML page");
+        (this as any)._lastFetchError = "Could not extract igGrid data from HTML";
+        return [];
+      }
+
+      // Filter for African region projects
+      const rows: RawRow[] = [];
+      for (const r of records) {
+        const region = r.Region || "";
+        if (!region.toLowerCase().includes("africa")) continue;
+
+        rows.push({
+          year: r.Year || "",
+          region: region,
+          country: r.Country || "",
+          project_type: r.ProjectType || "",
+          project_name: r.Project_Name || r.ProjectName || "",
+          description: r.Project_Description || r.ProjectDescription || "",
+          commitment: r.OPICCommitment || r.Commitment || 0,
+          project_url: r.Project_Profile_URL || "",
+          is_framework: r.IsFramework || false,
+        } as any);
+      }
+
+      console.log(`[api:dfc] Fetched ${rows.length} African projects from ${records.length} total DFC records`);
+      return rows;
     } catch (err) {
-      console.error(`[${this.key}] Fetch failed: ${err instanceof Error ? err.message : err}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:dfc] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
     }
-
-    console.log(`[${this.key}] Fetched ${results.length} African energy transactions from DFC`);
-    return results;
-  }
-
-  /**
-   * Basic HTML table parser for DFC projects page.
-   * Extracts rows from <table> elements with column headers.
-   */
-  private parseHTMLTable(html: string): DFCRow[] {
-    const rows: DFCRow[] = [];
-
-    try {
-      // Find table headers to determine column mapping
-      const tableMatch = html.match(/<table[^>]*>([\s\S]*?)<\/table>/gi);
-      if (!tableMatch) return rows;
-
-      for (const table of tableMatch) {
-        // Extract header row
-        const headerMatch = table.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i) ??
-          table.match(/<tr[^>]*>([\s\S]*?)<\/tr>/i);
-        if (!headerMatch) continue;
-
-        const headers: string[] = [];
-        const thRegex = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
-        let hMatch;
-        while ((hMatch = thRegex.exec(headerMatch[1])) !== null) {
-          headers.push(hMatch[1].replace(/<[^>]+>/g, "").trim().toLowerCase());
-        }
-
-        if (headers.length < 2) continue;
-
-        // Map column indices
-        const colMap: Record<string, number> = {};
-        headers.forEach((h, i) => {
-          if (h.includes("project") || h.includes("name")) colMap.project_name = i;
-          if (h.includes("country")) colMap.country = i;
-          if (h.includes("sector")) colMap.sector = i;
-          if (h.includes("sub") && h.includes("sector")) colMap.sub_sector = i;
-          if (h.includes("amount") || h.includes("commitment") || h.includes("value")) colMap.commitment_amount = i;
-          if (h.includes("year") || h.includes("fiscal")) colMap.fiscal_year = i;
-          if (h.includes("product") || h.includes("type")) colMap.product_type = i;
-          if (h.includes("status")) colMap.status = i;
-        });
-
-        // Extract body rows
-        const bodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-        const body = bodyMatch ? bodyMatch[1] : table;
-        const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-        let rMatch;
-        let isFirst = true;
-
-        while ((rMatch = rowRegex.exec(body)) !== null) {
-          if (isFirst && !bodyMatch) { isFirst = false; continue; } // Skip header row if no tbody
-          isFirst = false;
-
-          const cells: string[] = [];
-          const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-          let cMatch;
-          while ((cMatch = cellRegex.exec(rMatch[1])) !== null) {
-            cells.push(cMatch[1].replace(/<[^>]+>/g, "").trim());
-          }
-
-          if (cells.length < 2) continue;
-
-          const row: DFCRow = {};
-          if (colMap.project_name !== undefined) row.project_name = cells[colMap.project_name];
-          if (colMap.country !== undefined) row.country = cells[colMap.country];
-          if (colMap.sector !== undefined) row.sector = cells[colMap.sector];
-          if (colMap.sub_sector !== undefined) row.sub_sector = cells[colMap.sub_sector];
-          if (colMap.commitment_amount !== undefined) {
-            const amt = parseFloat(cells[colMap.commitment_amount].replace(/[,$]/g, ""));
-            if (isFinite(amt)) row.commitment_amount = amt;
-          }
-          if (colMap.fiscal_year !== undefined) {
-            const fy = parseInt(cells[colMap.fiscal_year], 10);
-            if (isFinite(fy)) row.fiscal_year = fy;
-          }
-          if (colMap.product_type !== undefined) row.product_type = cells[colMap.product_type];
-          if (colMap.status !== undefined) row.status = cells[colMap.status];
-
-          if (row.project_name) rows.push(row);
-        }
-      }
-    } catch (e) {
-      console.warn(`[${this.key}] HTML parsing error: ${e instanceof Error ? e.message : e}`);
-    }
-
-    return rows;
   }
 
   normalize(row: RawRow): CandidateDraft | null {
@@ -249,12 +194,12 @@ export class DFCTransactionAdapter extends BaseSourceAdapter {
     const subSector = String(p.sub_sector ?? "").trim();
     const technology = mapTechnology(sector, subSector);
 
-    // Commitment amount — DFC reports in USD, convert to millions
+    // Commitment amount â DFC reports in USD, convert to millions
     let dealSizeUsdMn: number | null = null;
     if (typeof p.commitment_amount === "number" && p.commitment_amount > 0) {
-      // Amounts might already be in millions or in raw USD — detect by magnitude
+      // Amounts might already be in millions or in raw USD â detect by magnitude
       dealSizeUsdMn = p.commitment_amount > 100_000
-        ? p.commitment_amount / 1_000_000  // Raw USD → millions
+        ? p.commitment_amount / 1_000_000  // Raw USD â millions
         : p.commitment_amount;              // Already in millions
     }
 
@@ -281,7 +226,7 @@ export class DFCTransactionAdapter extends BaseSourceAdapter {
       offtaker: null,
       dealStage: "Financial Close",
       status: "Under Construction",
-      description: [sector, subSector, p.product_type].filter(Boolean).join(" — ").slice(0, 500) || null,
+      description: [sector, subSector, p.product_type].filter(Boolean).join(" â ").slice(0, 500) || null,
       capacityMw: null,
       announcedYear,
       financialCloseDate: null,
