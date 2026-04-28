@@ -1,5 +1,5 @@
 /**
- * BaseSourceAdapter — abstract base class for all DFI / RSS / HTML source adapters.
+ * BaseSourceAdapter â abstract base class for all DFI / RSS / HTML source adapters.
  *
  * Additive pattern: runs ALONGSIDE the existing flat-function scraper without
  * touching any of its code. Each adapter registers itself in the adapter registry
@@ -10,7 +10,7 @@ import { db, scraperRunsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { deduplicateBatch, deduplicateBatchByUrl } from "../services/batch-dedup.js";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ââ Types ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export interface RawRow {
   [key: string]: unknown;
@@ -74,11 +74,11 @@ interface CacheEntry {
   fetchedAt: number;
 }
 
-// ── In-process cache (per-adapter, keyed by URL) ──────────────────────────────
+// ââ In-process cache (per-adapter, keyed by URL) ââââââââââââââââââââââââââââââ
 
 const _cache = new Map<string, CacheEntry>();
 
-// ── Rate limiter (per-adapter token bucket) ───────────────────────────────────
+// ââ Rate limiter (per-adapter token bucket) âââââââââââââââââââââââââââââââââââ
 
 interface RateLimiterState {
   tokens: number;
@@ -110,7 +110,7 @@ async function waitForToken(adapterKey: string, maxRps: number): Promise<void> {
   }
 }
 
-// ── Abstract base ─────────────────────────────────────────────────────────────
+// ââ Abstract base âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export abstract class BaseSourceAdapter {
   abstract readonly key: string;
@@ -120,6 +120,8 @@ export abstract class BaseSourceAdapter {
 
   abstract fetch(): Promise<RawRow[]>;
   abstract normalize(row: RawRow): CandidateDraft | null;
+  /** Set by adapters when fetch fails — included in run report for admin visibility */
+  public _lastFetchError?: string;
 
   deduplicate(candidates: CandidateDraft[]): CandidateDraft[] {
     const seen = new Set<string>();
@@ -252,7 +254,7 @@ export abstract class BaseSourceAdapter {
         // Stage 1: adapter-level URL exact dedup (existing)
         const adapterDeduped = this.deduplicate(normalized);
 
-        // Stage 2: intra-batch name+country dedup — merges candidates that
+        // Stage 2: intra-batch name+country dedup â merges candidates that
         //          refer to the same project from different articles/feeds
         const urlDeduped = deduplicateBatchByUrl(adapterDeduped);
         const batchResult = deduplicateBatch(urlDeduped);
@@ -298,12 +300,12 @@ export abstract class BaseSourceAdapter {
       errors: report.errors.length > 0 ? report.errors.join("\n") : null,
     }).where(eq(scraperRunsTable.id, runRow.id));
 
-    console.log(`[Adapter:${this.key}] Done — inserted:${report.rowsInserted} updated:${report.rowsUpdated} flagged:${report.rowsFlagged} rejected:${report.rowsRejected} errors:${report.errors.length}`);
+    console.log(`[Adapter:${this.key}] Done â inserted:${report.rowsInserted} updated:${report.rowsUpdated} flagged:${report.rowsFlagged} rejected:${report.rowsRejected} errors:${report.errors.length}`);
     return report;
   }
 }
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
+// ââ Shared helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export function parseAmountUsd(raw: unknown): number | null {
   if (typeof raw === "number" && isFinite(raw) && raw > 0) return raw / 1_000_000;
