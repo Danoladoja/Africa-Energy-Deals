@@ -10,14 +10,14 @@
  * - WBG Data Catalog: https://datacatalog.worldbank.org/search/dataset/0037737
  * - WBG Finances One: https://financesone.worldbank.org/
  *
- * Structured JSON — confidence 1.0, no LLM needed.
+ * Structured JSON â confidence 1.0, no LLM needed.
  *
  * Key: api:ifc | defaultConfidence: 1.0 | Schedule: weekly
  */
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface IFCProject {
   project_name?: string;
@@ -51,13 +51,13 @@ interface IFCProject {
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
-  "Comoros", "Congo", "Congo, Dem. Rep.", "Congo, Rep.", "Côte d'Ivoire",
+  "Comoros", "Congo", "Congo, Dem. Rep.", "Congo, Rep.", "CÃ´te d'Ivoire",
   "Cote d'Ivoire", "Democratic Republic of the Congo", "Djibouti", "Egypt",
   "Egypt, Arab Rep.", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia",
   "Gabon", "Gambia", "Gambia, The", "Ghana", "Guinea", "Guinea-Bissau",
   "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali",
   "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger",
-  "Nigeria", "Rwanda", "São Tomé and Príncipe", "Senegal", "Seychelles",
+  "Nigeria", "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Senegal", "Seychelles",
   "Sierra Leone", "Somalia", "South Africa", "South Sudan", "Sudan",
   "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
   // Regional
@@ -129,7 +129,7 @@ function mapStatus(status: string): string {
   return "Announced";
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class IFCInvestmentAdapter extends BaseSourceAdapter {
   readonly key = "api:ifc";
@@ -141,56 +141,96 @@ export class IFCInvestmentAdapter extends BaseSourceAdapter {
   private static readonly ENDPOINTS = [
     // IFC disclosure portal API
     "https://disclosures.ifc.org/enterprise-search-api/search?query=*&type=InvestmentProject",
-    // WBG Finances One — IFC projects
+    // WBG Finances One â IFC projects
     "https://financesone.worldbank.org/api/data/IFC?format=json",
     // IFC project list JSON
     "https://disclosures.ifc.org/api/projects",
   ];
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
-
-    for (const endpoint of IFCInvestmentAdapter.ENDPOINTS) {
+    try {
+      // IFC project data via World Bank Finances Socrata-style API
+      // This dataset covers IFC Investment Services Projects
+      const allRows: RawRow[] = [];
+      
+      // Approach 1: World Bank Projects API for IFC-funded projects in Africa/Energy
+      const wbUrl = "https://search.worldbank.org/api/v2/projects?format=json&source=IFC&regionname=Africa&sector=Energy&rows=500&os=0";
+      
       try {
-        const { response, cached } = await this.httpFetch(endpoint, {
-          headers: { Accept: "application/json" },
-        });
-
-        if (cached) return [];
-
-        const data = await response.json() as any;
-
-        // Handle various response shapes
-        const projects: IFCProject[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.response?.docs)
-            ? data.response.docs
-            : Array.isArray(data?.data)
-              ? data.data
-              : Array.isArray(data?.results)
-                ? data.results
-                : Array.isArray(data?.projects)
-                  ? data.projects
-                  : [];
-
-        for (const p of projects) {
-          if (isAfricanProject(p) && isEnergyProject(p)) {
-            results.push(p as RawRow);
-          }
+        const wbData = await this.httpFetch(wbUrl, {
+          headers: { "Accept": "application/json" },
+        }) as any;
+        
+        const projects = wbData?.projects || {};
+        const projectList = Object.values(projects) as any[];
+        
+        for (const p of projectList) {
+          if (!p || typeof p !== "object") continue;
+          
+          const countryName = p.countryname || p.country_name || "";
+          const sectorNames = (p.sector || []).map((s: any) => s.Name || "").join(", ");
+          
+          allRows.push({
+            id: p.id || "",
+            project_name: p.project_name || "",
+            country: countryName,
+            region: p.regionname || "Africa",
+            sector: sectorNames || "Energy",
+            status: p.status || "",
+            approval_date: p.boardapprovaldate || "",
+            closing_date: p.closingdate || "",
+            total_commitment: p.totalcommamt || 0,
+            lending_instrument: p.lendinginstr || "",
+            source_url: p.id ? `https://disclosures.ifc.org/project-detail/SPI/${p.id}` : "",
+            source: "IFC",
+          } as any);
         }
-
-        if (results.length > 0) {
-          console.log(`[${this.key}] Got ${results.length} African energy projects from ${endpoint}`);
-          return results;
-        }
-      } catch (err) {
-        console.warn(`[${this.key}] Endpoint ${endpoint} failed: ${err instanceof Error ? err.message : err}`);
-        continue;
+        
+        console.log(`[api:ifc] Fetched ${allRows.length} projects from World Bank API`);
+      } catch (wbErr) {
+        console.warn(`[api:ifc] World Bank API failed: ${wbErr instanceof Error ? wbErr.message : wbErr}`);
       }
-    }
+      
+      // Approach 2: Try Socrata API for IFC financial data
+      if (allRows.length === 0) {
+        try {
+          const socrataUrl = "https://finances.worldbank.org/resource/efin-cagm.json?$where=region_name like '%25Africa%25'&$limit=500";
+          const socrataData = await this.httpFetch(socrataUrl, {
+            headers: { "Accept": "application/json" },
+          }) as any[];
+          
+          if (Array.isArray(socrataData)) {
+            for (const r of socrataData) {
+              allRows.push({
+                id: r.project_number || r.project_id || "",
+                project_name: r.project_name || "",
+                country: r.country || r.country_name || "",
+                region: r.region_name || "Africa",
+                sector: r.industry_group_name || r.sector || "Energy",
+                status: r.project_status || "",
+                total_commitment: r.total_ifc_commitment_us_ || r.net_commitment || 0,
+                source_url: "",
+                source: "IFC-Socrata",
+              } as any);
+            }
+            console.log(`[api:ifc] Fetched ${allRows.length} projects from Socrata API`);
+          }
+        } catch (socErr) {
+          console.warn(`[api:ifc] Socrata API failed: ${socErr instanceof Error ? socErr.message : socErr}`);
+        }
+      }
 
-    console.log(`[${this.key}] Fetched ${results.length} African energy IFC projects`);
-    return results;
+      if (allRows.length === 0) {
+        (this as any)._lastFetchError = "Both World Bank and Socrata APIs returned no data";
+      }
+      
+      return allRows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:ifc] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
   }
 
   normalize(row: RawRow): CandidateDraft | null {
@@ -202,7 +242,7 @@ export class IFCInvestmentAdapter extends BaseSourceAdapter {
     const country = String(p.country ?? p.country_name ?? "").trim() || null;
     const technology = mapTechnology(p);
 
-    // Deal size — IFC reports total investment or total project cost
+    // Deal size â IFC reports total investment or total project cost
     const rawAmount = p.total_ifc_investment ?? p.ifc_investment ?? p.total_project_cost ?? null;
     let dealSizeUsdMn: number | null = null;
     if (typeof rawAmount === "number" && rawAmount > 0) {
