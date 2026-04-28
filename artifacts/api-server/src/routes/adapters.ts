@@ -6,7 +6,7 @@
  * POST   /api/scraper/run                   — run ALL source groups + adapters sequentially (SSE)
  * POST   /api/scraper/run/:sourceName       — run a specific legacy source group (SSE)
  * POST   /api/scraper/cancel               — cancel the current "run all" in progress
- * GET    /api/scraper/runs                  — recent scraper runs with rejection telemetry
+ * GET    /api/scraperruns                  — recent scraper runs with rejection telemetry
  * GET    /api/scraper/status                — pipeline status summary
  * GET    /api/scraper/sources               — source groups list
  * GET    /api/scraper/rejection-telemetry   — rejection summary from most recent runs
@@ -40,7 +40,9 @@ router.use(adminAuthMiddleware);
 // ── Adapter registry ──────────────────────────────────────────────────────────
 
 router.get("/adapters", (_req, res) => {
-  res.json(getAdapterMeta());
+  const meta = getAdapterMeta();
+    const filtered = meta.filter((a: any) => !a.key?.startsWith("api:"));
+    res.json(filtered);
 });
 
 router.post("/adapters/:key/run", async (req, res) => {
