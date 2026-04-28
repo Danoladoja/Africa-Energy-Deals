@@ -9,14 +9,14 @@
  * Also probes: https://projectsportal.afdb.org/dataportal/
  *
  * Attempts JSON API first; falls back to HTML table parsing.
- * Structured data — confidence 1.0, no LLM needed.
+ * Structured data â confidence 1.0, no LLM needed.
  *
  * Key: api:afdb-energy | defaultConfidence: 1.0 | Schedule: weekly
  */
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface AfDBProject {
   project_name?: string;
@@ -48,13 +48,13 @@ interface AfDBProject {
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
-  "Comoros", "Congo", "Côte d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
+  "Comoros", "Congo", "CÃ´te d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
   "Democratic Republic of the Congo", "DRC", "Djibouti", "Egypt",
   "Equatorial Guinea", "Eritrea", "Eswatini", "Swaziland", "Ethiopia", "Gabon",
   "Gambia", "The Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
   "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
   "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria",
-  "Rwanda", "São Tomé and Príncipe", "Sao Tome and Principe", "Senegal",
+  "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Sao Tome and Principe", "Senegal",
   "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
   "Sudan", "Tanzania", "United Republic of Tanzania", "Togo", "Tunisia",
   "Uganda", "Zambia", "Zimbabwe",
@@ -119,7 +119,7 @@ function mapStatus(status: string): string {
   return "Announced";
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class AfDBEnergyAdapter extends BaseSourceAdapter {
   readonly key = "api:afdb-energy";
@@ -139,141 +139,65 @@ export class AfDBEnergyAdapter extends BaseSourceAdapter {
   ];
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
-
-    for (const endpoint of AfDBEnergyAdapter.ENDPOINTS) {
-      try {
-        const { response, cached } = await this.httpFetch(endpoint, {
-          headers: { Accept: "application/json, text/html" },
-        });
-
-        if (cached) return [];
-
-        const contentType = response.headers.get("content-type") ?? "";
-
-        if (contentType.includes("json")) {
-          const data = await response.json() as any;
-          const projects: AfDBProject[] = Array.isArray(data)
-            ? data
-            : Array.isArray(data?.data)
-              ? data.data
-              : Array.isArray(data?.projects)
-                ? data.projects
-                : Array.isArray(data?.results)
-                  ? data.results
-                  : [];
-
-          for (const p of projects) {
-            if (isEnergyProject(p)) {
-              results.push(p as RawRow);
-            }
-          }
-
-          if (results.length > 0) {
-            console.log(`[${this.key}] Got ${results.length} energy projects from ${endpoint}`);
-            return results;
-          }
-        } else {
-          // HTML response — try to parse project table
-          const html = await response.text();
-          const rows = this.parseHTMLProjects(html);
-          for (const row of rows) {
-            if (isEnergyProject(row)) {
-              results.push(row as RawRow);
-            }
-          }
-
-          if (results.length > 0) {
-            console.log(`[${this.key}] Parsed ${results.length} energy projects from HTML at ${endpoint}`);
-            return results;
-          }
-        }
-      } catch (err) {
-        console.warn(`[${this.key}] Endpoint ${endpoint} failed: ${err instanceof Error ? err.message : err}`);
-        continue;
-      }
-    }
-
-    console.log(`[${this.key}] Fetched ${results.length} African energy projects from AfDB portals`);
-    return results;
-  }
-
-  /**
-   * Parse HTML project listings from AfDB portals.
-   */
-  private parseHTMLProjects(html: string): AfDBProject[] {
-    const rows: AfDBProject[] = [];
-
     try {
-      const tableMatch = html.match(/<table[^>]*>([\s\S]*?)<\/table>/gi);
-      if (!tableMatch) return rows;
+      // MapAfrica API: sector=F is Energy/Power sector
+      // Paginated with 100 results per page
+      const allRows: RawRow[] = [];
+      let page = 1;
+      const maxPages = 10; // Safety limit
 
-      for (const table of tableMatch) {
-        const headerMatch = table.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i) ??
-          table.match(/<tr[^>]*>([\s\S]*?)<\/tr>/i);
-        if (!headerMatch) continue;
+      while (page <= maxPages) {
+        const url = `${AfDBEnergyAdapter.API_BASE}?sector=F&page=${page}`;
+        const data = await this.httpFetch(url, {
+          headers: { "Accept": "application/json" },
+        }) as any;
 
-        const headers: string[] = [];
-        const thRegex = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
-        let hMatch;
-        while ((hMatch = thRegex.exec(headerMatch[1])) !== null) {
-          headers.push(hMatch[1].replace(/<[^>]+>/g, "").trim().toLowerCase());
+        // The API returns an object with activities array
+        const activities: any[] = data?.data || data?.activities || data?.results || [];
+        if (Array.isArray(data)) {
+          // Sometimes the API returns a flat array
+          activities.push(...data);
         }
 
-        if (headers.length < 2) continue;
+        if (!activities.length) break;
 
-        const colMap: Record<string, number> = {};
-        headers.forEach((h, i) => {
-          if (h.includes("project") || h.includes("title") || h.includes("name")) colMap.project_name = i;
-          if (h.includes("country")) colMap.country = i;
-          if (h.includes("sector")) colMap.sector = i;
-          if (h.includes("amount") || h.includes("cost") || h.includes("value")) colMap.total_cost = i;
-          if (h.includes("date") || h.includes("approval") || h.includes("year")) colMap.approval_date = i;
-          if (h.includes("status")) colMap.status = i;
-        });
-
-        const bodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-        const body = bodyMatch ? bodyMatch[1] : table;
-        const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-        let rMatch;
-        let isFirst = true;
-
-        while ((rMatch = rowRegex.exec(body)) !== null) {
-          if (isFirst && !bodyMatch) { isFirst = false; continue; }
-          isFirst = false;
-
-          const cells: string[] = [];
-          const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-          let cMatch;
-          while ((cMatch = cellRegex.exec(rMatch[1])) !== null) {
-            cells.push(cMatch[1].replace(/<[^>]+>/g, "").trim());
-          }
-
-          if (cells.length < 2) continue;
-
-          const row: AfDBProject = {};
-          if (colMap.project_name !== undefined) row.project_name = cells[colMap.project_name];
-          if (colMap.country !== undefined) row.country = cells[colMap.country];
-          if (colMap.sector !== undefined) row.sector = cells[colMap.sector];
-          if (colMap.total_cost !== undefined) {
-            const amt = parseFloat(cells[colMap.total_cost].replace(/[,$]/g, ""));
-            if (isFinite(amt)) row.total_cost = amt;
-          }
-          if (colMap.approval_date !== undefined) row.approval_date = cells[colMap.approval_date];
-          if (colMap.status !== undefined) row.status = cells[colMap.status];
-
-          // Extract project URL from any link in the row
-          const linkMatch = rMatch[1].match(/href="([^"]*project[^"]*)"/i);
-          if (linkMatch) row.project_url = linkMatch[1];
-
-          if (row.project_name) rows.push(row);
+        for (const a of activities) {
+          const country = a.recipient_country || a.country || "";
+          const title = a.title || "";
+          const id = a.iati_identifier || a.afdb_identifier_ref || a.id || "";
+          
+          // Map status
+          let status = a.activity_status || a.afdb_status || "";
+          
+          allRows.push({
+            id: id,
+            title: title,
+            country: country,
+            country_codes: a.country_codes || "",
+            region: a.region || "Africa",
+            sector: "Energy",
+            sector_code: a.sector_code || "23111",
+            status: status,
+            start_date: a.activity_date_planned_start || a.activity_date_actual_start || "",
+            end_date: a.activity_date_planned_end || "",
+            adf_cycle: a.adf_cycle || "",
+            source_url: id ? `https://mapafrica.afdb.org/en/project/${id}` : "",
+          } as any);
         }
+
+        // Check if there are more pages
+        if (activities.length < 100) break;
+        page++;
       }
-    } catch (e) {
-      console.warn(`[${this.key}] HTML parsing error: ${e instanceof Error ? e.message : e}`);
-    }
 
-    return rows;
+      console.log(`[api:afdb-energy] Fetched ${allRows.length} energy projects across ${page} pages`);
+      return allRows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:afdb-energy] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
   }
 
   normalize(row: RawRow): CandidateDraft | null {
@@ -284,12 +208,12 @@ export class AfDBEnergyAdapter extends BaseSourceAdapter {
 
     const country = String(p.country ?? p.country_name ?? "").trim() || null;
 
-    // Deal size — convert to USD millions
+    // Deal size â convert to USD millions
     const rawAmount = p.total_cost ?? p.amount ?? p.usd_amount ?? p.loan_amount ?? null;
     let dealSizeUsdMn: number | null = null;
     if (typeof rawAmount === "number" && rawAmount > 0) {
       dealSizeUsdMn = rawAmount > 100_000
-        ? rawAmount / 1_000_000  // Raw USD → millions
+        ? rawAmount / 1_000_000  // Raw USD â millions
         : rawAmount;              // Already in millions
     }
 
