@@ -1,5 +1,5 @@
 /**
- * Global Energy Monitor (GEM) — Africa Energy Tracker Adapter
+ * Global Energy Monitor (GEM) â Africa Energy Tracker Adapter
  *
  * Downloads CSV/Excel datasets from GEM's open trackers:
  * - Global Solar Power Tracker
@@ -19,7 +19,7 @@
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface GEMPlant {
   project_name?: string;
@@ -51,17 +51,17 @@ interface GEMPlant {
   [key: string]: unknown;
 }
 
-// African countries — ISO names as used by GEM
+// African countries â ISO names as used by GEM
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
-  "Comoros", "Congo", "Republic of the Congo", "Côte d'Ivoire", "Cote d'Ivoire",
+  "Comoros", "Congo", "Republic of the Congo", "CÃ´te d'Ivoire", "Cote d'Ivoire",
   "Democratic Republic of the Congo", "Djibouti", "Egypt",
   "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon",
   "Gambia", "The Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
   "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
   "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria",
-  "Rwanda", "São Tomé and Príncipe", "Sao Tome and Principe", "Senegal",
+  "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Sao Tome and Principe", "Senegal",
   "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
   "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
 ]);
@@ -103,7 +103,7 @@ function mapStatus(gemStatus: string): string {
   return "Announced";
 }
 
-// ── CSV Parser (lightweight, no external dependency) ────────────────────────
+// ââ CSV Parser (lightweight, no external dependency) ââââââââââââââââââââââââ
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
@@ -151,7 +151,7 @@ function parseCSV(text: string): Record<string, string>[] {
   return rows;
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class GEMAdapter extends BaseSourceAdapter {
   readonly key = "api:gem";
@@ -171,91 +171,86 @@ export class GEMAdapter extends BaseSourceAdapter {
   private static readonly TRACKER_PAGE = "https://globalenergymonitor.org/projects/africa-energy-tracker/";
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
+    try {
+      // Global Energy Monitor requires registration with CAPTCHA to download tracker CSVs.
+      // The direct CSV download URLs change with each data release.
+      // Current approach: try known URL patterns, report clear error if blocked.
+      
+      const trackerUrls = [
+        // Solar tracker
+        { name: "Solar", url: "https://globalenergymonitor.org/wp-content/uploads/2025/Global-Solar-Power-Tracker-January-2025.csv" },
+        { name: "Solar-alt", url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Solar-Power-Tracker-July-2024.csv" },
+        // Wind tracker
+        { name: "Wind", url: "https://globalenergymonitor.org/wp-content/uploads/2025/Global-Wind-Power-Tracker-January-2025.csv" },
+        { name: "Wind-alt", url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Wind-Power-Tracker-July-2024.csv" },
+      ];
 
-    // Try direct CSV downloads
-    for (const url of GEMAdapter.TRACKER_URLS) {
-      try {
-        const { response, cached } = await this.httpFetch(url, {
-          headers: { Accept: "text/csv, application/octet-stream" },
-        });
+      const allRows: RawRow[] = [];
+      let fetchErrors: string[] = [];
 
-        if (cached) continue;
+      for (const tracker of trackerUrls) {
+        try {
+          const csvText = await this.httpFetch(tracker.url, {
+            headers: { "Accept": "text/csv,text/plain,*/*" },
+            responseType: "text",
+          }) as string;
 
-        const text = await response.text();
-        if (!text || text.length < 100) continue;
-
-        const rows = parseCSV(text);
-        for (const row of rows) {
-          const country = row.country ?? row.country_name ?? "";
-          if (isAfricanCountry(country)) {
-            // Normalize CSV columns to GEMPlant shape
-            const plant: GEMPlant = {
-              project_name: row.project_name ?? row.plant_name ?? row.name ?? row.unit_name,
-              country: country,
-              subnational: row.subnational ?? row.state ?? row.region,
-              capacity_mw: parseFloat(row.capacity_mw ?? row.capacity ?? row["capacity__mw_"] ?? "0") || undefined,
-              status: row.status,
-              technology: row.technology ?? row.fuel ?? row.type,
-              owner: row.owner ?? row.parent ?? row.operator,
-              developer: row.developer,
-              year: parseInt(row.year ?? row.start_year ?? row.commissioning_year ?? "", 10) || undefined,
-              latitude: parseFloat(row.latitude ?? row.lat ?? "") || undefined,
-              longitude: parseFloat(row.longitude ?? row.lon ?? row.lng ?? "") || undefined,
-              wiki_url: row.wiki_url ?? row.url ?? row.wiki,
-            };
-            results.push(plant as RawRow);
-          }
-        }
-      } catch (err) {
-        console.warn(`[${this.key}] CSV download failed for ${url}: ${err instanceof Error ? err.message : err}`);
-      }
-    }
-
-    // If no CSV downloads worked, try the tracker page for links
-    if (results.length === 0) {
-      try {
-        const { response } = await this.httpFetch(GEMAdapter.TRACKER_PAGE, {
-          headers: { Accept: "text/html" },
-        });
-
-        const html = await response.text();
-        // Extract CSV/XLSX download links
-        const linkRegex = /href="([^"]*(?:\.csv|\.xlsx?|download)[^"]*)"/gi;
-        let linkMatch;
-        const downloadLinks: string[] = [];
-
-        while ((linkMatch = linkRegex.exec(html)) !== null) {
-          const href = linkMatch[1];
-          if (href.includes("tracker") || href.includes("energy") || href.includes("power")) {
-            downloadLinks.push(href.startsWith("http") ? href : `https://globalenergymonitor.org${href}`);
-          }
-        }
-
-        for (const link of downloadLinks.slice(0, 5)) {
-          try {
-            const { response: dlResponse } = await this.httpFetch(link, {});
-            const text = await dlResponse.text();
-            if (text.length > 100) {
-              const rows = parseCSV(text);
-              for (const row of rows) {
-                const country = row.country ?? "";
-                if (isAfricanCountry(country)) {
-                  results.push(row as RawRow);
-                }
-              }
-            }
-          } catch {
+          // Check if we got actual CSV data vs an HTML login/registration page
+          if (csvText.includes("<!DOCTYPE") || csvText.includes("<html") || csvText.includes("captcha")) {
+            fetchErrors.push(`${tracker.name}: returned HTML (registration wall)`);
             continue;
           }
-        }
-      } catch (err) {
-        console.error(`[${this.key}] Tracker page fetch failed: ${err instanceof Error ? err.message : err}`);
-      }
-    }
 
-    console.log(`[${this.key}] Fetched ${results.length} African power plants from GEM`);
-    return results;
+          // Parse CSV - basic parsing for GEM tracker format
+          const lines = csvText.split("\n");
+          if (lines.length < 2) continue;
+          
+          const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+          const countryIdx = headers.findIndex(h => h.toLowerCase().includes("country"));
+          const nameIdx = headers.findIndex(h => h.toLowerCase().includes("project") || h.toLowerCase().includes("name"));
+          const capacityIdx = headers.findIndex(h => h.toLowerCase().includes("capacity"));
+          const statusIdx = headers.findIndex(h => h.toLowerCase().includes("status"));
+          
+          for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            // Simple CSV split (doesn't handle quoted commas perfectly)
+            const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+            const country = countryIdx >= 0 ? cols[countryIdx] : "";
+            
+            // We filter for African countries in normalize(), pass all through
+            allRows.push({
+              project_name: nameIdx >= 0 ? cols[nameIdx] : "",
+              country: country,
+              capacity_mw: capacityIdx >= 0 ? parseFloat(cols[capacityIdx]) || 0 : 0,
+              status: statusIdx >= 0 ? cols[statusIdx] : "",
+              tracker_type: tracker.name.replace("-alt", ""),
+              raw_cols: cols,
+              raw_headers: headers,
+            } as any);
+          }
+          
+          console.log(`[api:gem] Parsed ${lines.length - 1} rows from ${tracker.name} tracker`);
+        } catch (e) {
+          fetchErrors.push(`${tracker.name}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      if (allRows.length === 0 && fetchErrors.length > 0) {
+        const msg = "GEM trackers require registration with CAPTCHA. " +
+          "Manual download needed. Errors: " + fetchErrors.join("; ");
+        console.error(`[api:gem] ${msg}`);
+        (this as any)._lastFetchError = msg;
+      } else {
+        console.log(`[api:gem] Total rows fetched: ${allRows.length}`);
+      }
+
+      return allRows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:gem] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
   }
 
   normalize(row: RawRow): CandidateDraft | null {
