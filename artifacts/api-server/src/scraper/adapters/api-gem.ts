@@ -172,51 +172,89 @@ export class GEMAdapter extends BaseSourceAdapter {
 
   async fetch(): Promise<RawRow[]> {
     try {
-      // Global Energy Monitor requires registration with CAPTCHA to download tracker CSVs.
-      // The direct CSV download URLs change with each data release.
-      // Current approach: try known URL patterns, report clear error if blocked.
+      // GEM Africa Energy Tracker map data is publicly hosted as GeoJSON on DigitalOcean Spaces
+      // The config.js at github.io/maps/trackers/africa-energy/ points to the latest version
+      // Current URL pattern: publicgemdata.nyc3.cdn.digitaloceanspaces.com/hydro/{YYYY-MM}/africa-energy_map_{date}.geojson
       
-      const trackerUrls = [
-        // Solar tracker
-        { name: "Solar", url: "https://globalenergymonitor.org/wp-content/uploads/2025/Global-Solar-Power-Tracker-January-2025.csv" },
-        { name: "Solar-alt", url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Solar-Power-Tracker-July-2024.csv" },
-        // Wind tracker
-        { name: "Wind", url: "https://globalenergymonitor.org/wp-content/uploads/2025/Global-Wind-Power-Tracker-January-2025.csv" },
-        { name: "Wind-alt", url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Wind-Power-Tracker-July-2024.csv" },
-      ];
+      // Step 1: Get the current GeoJSON URL from the tracker config
+      let geojsonUrl = "";
+      try {
+        const configResp = await this.httpFetch(
+          "https://globalenergymonitor.github.io/maps/trackers/africa-energy/config.js",
+          { responseType: "text" }
+        ) as string;
+        
+        // config.js sets window.config = { ... geojson: "url" ... }
+        const urlMatch = configResp.match(/geojson[\s]*:[\s]*["']([^"']+)["']/);
+        if (urlMatch) {
+          geojsonUrl = urlMatch[1];
+        }
+      } catch (e) {
+        console.warn(`[api:gem] Could not fetch config.js: ${e instanceof Error ? e.message : e}`);
+      }
+      
+      // Fallback to known URL if config fetch failed
+      if (!geojsonUrl) {
+        geojsonUrl = "https://publicgemdata.nyc3.cdn.digitaloceanspaces.com/hydro/2026-03/africa-energy_map_2026-03-19.geojson";
+      }
+      
+      // Step 2: Fetch the GeoJSON data
+      const data = await this.httpFetch(geojsonUrl, {
+        headers: { "Accept": "application/json" },
+      }) as any;
+      
+      if (!data || data.type !== "FeatureCollection" || !Array.isArray(data.features)) {
+        console.error("[api:gem] Response is not a valid GeoJSON FeatureCollection");
+        (this as any)._lastFetchError = "Invalid GeoJSON response";
+        return [];
+      }
+      
+      // Step 3: Map GeoJSON features to RawRow format
+      const rows: RawRow[] = [];
+      for (const feature of data.features) {
+        const p = feature.properties || {};
+        const coords = feature.geometry?.coordinates || [0, 0];
+        
+        // The tracker-custom field identifies the source tracker (GSPT=Solar, GWPT=Wind, etc.)
+        const trackerType = p["tracker-custom"] || "";
+        const fuel = p.fuel || "";
+        const status = p.status || "";
+        const name = p.name || p["plant-name-in-local-language-/-script"] || "";
+        const country = (p.areas || "").replace(/;\s*$/, "");
+        
+        rows.push({
+          project_name: name,
+          country: country,
+          region: p.region || "Africa",
+          subregion: p.subregion || "",
+          fuel: fuel,
+          tracker_type: trackerType,
+          capacity_mw: p.capacity || p["scaling-capacity"] || null,
+          status: status,
+          start_year: p["start-year"] || "",
+          retired_year: p["retired-year"] || "",
+          owner: p.owner || "",
+          operator: p["operator(s)"] || "",
+          parent: p.parent || "",
+          latitude: coords[1],
+          longitude: coords[0],
+          city: p.city || "",
+          subnational: p.subnat || "",
+          gem_id: p.id || p.pid || "",
+          source_url: p.url || "",
+        } as any);
+      }
+      
+      console.log(`[api:gem] Fetched ${rows.length} energy projects from GEM Africa Energy Tracker GeoJSON (${data.features.length} total features)`);
+      return rows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:gem] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
+  }
 
-      const allRows: RawRow[] = [];
-      let fetchErrors: string[] = [];
-
-      for (const tracker of trackerUrls) {
-        try {
-          const csvText = await this.httpFetch(tracker.url, {
-            headers: { "Accept": "text/csv,text/plain,*/*" },
-            responseType: "text",
-          }) as string;
-
-          // Check if we got actual CSV data vs an HTML login/registration page
-          if (csvText.includes("<!DOCTYPE") || csvText.includes("<html") || csvText.includes("captcha")) {
-            fetchErrors.push(`${tracker.name}: returned HTML (registration wall)`);
-            continue;
-          }
-
-          // Parse CSV - basic parsing for GEM tracker format
-          const lines = csvText.split("\n");
-          if (lines.length < 2) continue;
-          
-          const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-          const countryIdx = headers.findIndex(h => h.toLowerCase().includes("country"));
-          const nameIdx = headers.findIndex(h => h.toLowerCase().includes("project") || h.toLowerCase().includes("name"));
-          const capacityIdx = headers.findIndex(h => h.toLowerCase().includes("capacity"));
-          const statusIdx = headers.findIndex(h => h.toLowerCase().includes("status"));
-          
-          for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            // Simple CSV split (doesn't handle quoted commas perfectly)
-            const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
-            const country = countryIdx >= 0 ? cols[countryIdx] : "";
-            
             // We filter for African countries in normalize(), pass all through
             allRows.push({
               project_name: nameIdx >= 0 ? cols[nameIdx] : "",
