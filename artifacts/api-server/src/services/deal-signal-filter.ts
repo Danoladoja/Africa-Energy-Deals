@@ -82,6 +82,11 @@ const BYPASS_ADAPTERS = new Set([
   "dfi:bii",
   "api:worldbank",
   "api:gem",
+    "api:gcf",
+  "api:dfc",
+    "api:afdb-energy",
+    "api:ifc",
+    "api:aiddata",
 ]);
 
 /**
