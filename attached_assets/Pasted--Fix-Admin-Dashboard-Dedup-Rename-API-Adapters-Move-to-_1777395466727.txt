@@ -1,0 +1,126 @@
+# Fix Admin Dashboard: Dedup, Rename API Adapters, Move to Curated Section
+
+## Problem Summary
+
+The admin page at `/admin` (Data Pipeline & Queue section) has three issues:
+
+1. **Duplication**: `api:worldbank` appears in the "Source Groups" section AND as "World Bank API" in the "Curated Data Sources" section — showing the same data source twice.
+
+2. **Fuzzy naming**: The 6 new API adapters show ugly technical descriptions like `"Adapter: api:gcf (schedule: 0 4 * * 0)"` instead of human-readable names.
+
+3. **Wrong section**: The new `api:*` adapters (api:gcf, api:dfc, api:afdb-energy, api:ifc, api:gem, api:aiddata) should be in the "Curated Data Sources" section alongside "World Bank API" and "Import Seed Data" — NOT mixed into the "Source Groups" section with the legacy scraper groups.
+
+## Files to Edit
+
+### File 1: `artifacts/api-server/src/routes/adapters.ts`
+
+**Location**: The `GET /scraper/sources` endpoint (around line 435-468).
+
+**Current code** (lines ~448-457):
+```typescript
+    // First: seed with ALL registered adapters so new adapters appear
+    // even before their first run
+    for (const adapter of ADAPTER_REGISTRY) {
+      seen.set(adapter.key, {
+        name: adapter.key,
+        description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
+        feedCount: 1,
+        isRunning: false,
+      });
+    }
+```
+
+**Replace with** — only seed DFI/RSS/Google Alerts adapters (not `api:*` ones, since those will be in the Curated section):
+```typescript
+    // Seed registered adapters that belong in Source Groups.
+    // api:* adapters are shown in the "Curated Data Sources" section instead,
+    // so we skip them here to avoid duplication.
+    for (const adapter of ADAPTER_REGISTRY) {
+      if (adapter.key.startsWith("api:")) continue; // shown in Curated section
+      seen.set(adapter.key, {
+        name: adapter.key,
+        description: `Adapter: ${adapter.key} (schedule: ${adapter.schedule})`,
+        feedCount: 1,
+        isRunning: false,
+      });
+    }
+```
+
+This removes `api:worldbank`, `api:gcf`, `api:dfc`, `api:afdb-energy`, `api:ifc`, `api:gem`, and `api:aiddata` from the Source Groups response — they'll be shown in the Curated section instead.
+
+---
+
+### File 2: `artifacts/energy-tracker/src/pages/admin-dashboard.tsx`
+
+**Location**: The `PipelineSection` component, specifically the "Curated Data Sources" section (around lines 358-404).
+
+**Current hardcoded array** (lines ~366-368):
+```typescript
+          {[
+            { endpoint: "seed",        label: "Import Seed Data",  description: "66 verified projects across 17+ countries. Auto-approved, confidence 95%.", icon: <Download className="w-4 h-4" />, color: "text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20" },
+            { endpoint: "world-bank",  label: "World Bank API",    description: "Fetches live African energy projects from the World Bank Projects API. Goes into review queue.", icon: <Globe className="w-4 h-4" />, color: "text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20" },
+          ].map(({ endpoint, label, description, icon, color }) => {
+```
+
+**Replace with** — add all 6 new API adapters with human-readable names:
+```typescript
+          {[
+            { endpoint: "seed",        label: "Import Seed Data",          description: "66 verified projects across 17+ countries. Auto-approved, confidence 95%.",                          icon: <Download className="w-4 h-4" />, color: "text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20" },
+            { endpoint: "world-bank",  label: "World Bank API",            description: "Fetches live African energy projects from the World Bank Projects API. Goes into review queue.",    icon: <Globe className="w-4 h-4" />,    color: "text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20" },
+            { endpoint: "api:gcf",     label: "Green Climate Fund",        description: "GCF open data library — approved projects with funding amounts and country allocations.",            icon: <Globe className="w-4 h-4" />,    color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20", isAdapter: true },
+            { endpoint: "api:dfc",     label: "US DFC Transactions",       description: "US International Development Finance Corporation — active transaction data for Africa.",              icon: <Globe className="w-4 h-4" />,    color: "text-indigo-400 border-indigo-500/20 bg-indigo-500/10 hover:bg-indigo-500/20", isAdapter: true },
+            { endpoint: "api:afdb-energy", label: "Africa Energy Portal (AfDB)", description: "African Development Bank energy portal — country-level energy project data.",                  icon: <Globe className="w-4 h-4" />,    color: "text-amber-400 border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20", isAdapter: true },
+            { endpoint: "api:ifc",     label: "IFC Investment Projects",   description: "International Finance Corporation — disclosed investment projects in African energy.",                icon: <Globe className="w-4 h-4" />,    color: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10 hover:bg-cyan-500/20", isAdapter: true },
+            { endpoint: "api:gem",     label: "Global Energy Monitor",     description: "Global power plant tracker — bulk CSV of operating, planned, and retired energy facilities.",        icon: <Globe className="w-4 h-4" />,    color: "text-rose-400 border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20", isAdapter: true },
+            { endpoint: "api:aiddata", label: "AidData (Chinese Finance)", description: "AidData Chinese development finance — loans and grants for African energy infrastructure.",          icon: <Globe className="w-4 h-4" />,    color: "text-orange-400 border-orange-500/20 bg-orange-500/10 hover:bg-orange-500/20", isAdapter: true },
+          ].map(({ endpoint, label, description, icon, color, isAdapter }) => {
+```
+
+**Also update the `runSpecial` call** in the button's `onClick` handler (around line 380). The current handler calls `runSpecial(endpoint, label)` which hits `/api/scraper/${endpoint}`. But the new API adapters need to hit `/api/adapters/${endpoint}/run` instead.
+
+**Current button code** (~line 380):
+```typescript
+                <button onClick={() => runSpecial(endpoint, label)} disabled={!!specialRunning || !!runningSource} className={`...`}>
+```
+
+**Replace with** — route API adapters to the correct endpoint:
+```typescript
+                <button onClick={() => isAdapter ? runSource(endpoint) : runSpecial(endpoint, label)} disabled={!!specialRunning || !!runningSource} className={`...`}>
+```
+
+This way:
+- "Import Seed Data" still calls `POST /api/scraper/seed` (via `runSpecial`)
+- "World Bank API" still calls `POST /api/scraper/world-bank` (via `runSpecial`)
+- All `api:*` adapters call `POST /api/adapters/${key}/run` (via `runSource`, which already handles adapter routing — see lines 298-305)
+
+## What the Result Should Look Like
+
+After these changes, the admin Data Pipeline page should show:
+
+**Curated Data Sources** section (8 items):
+1. Import Seed Data
+2. World Bank API
+3. Green Climate Fund
+4. US DFC Transactions
+5. Africa Energy Portal (AfDB)
+6. IFC Investment Projects
+7. Global Energy Monitor
+8. AidData (Chinese Finance)
+
+**Source Groups** section (should show only DFI scrapers, RSS adapters, Google Alerts, and legacy named groups like "Nigeria", "Energy Media", etc. — NO `api:*` entries):
+- dfi:afdb, dfi:ifc, dfi:dfc, dfi:proparco, dfi:fmo, dfi:bii
+- rss:apo
+- rss:google_alerts:* (multiple)
+- Nigeria, East Africa, Energy Media, etc. (legacy source groups from DB)
+
+## Testing
+
+1. Run `pnpm --filter @workspace/energy-tracker run build` to rebuild the frontend
+2. Start the dev server
+3. Go to `/admin` → "Data Pipeline & Queue"
+4. Verify:
+   - Curated section shows all 8 sources with proper names
+   - Source Groups does NOT contain any `api:*` entries
+   - Clicking "Run" on any Curated API adapter works (streams SSE progress)
+   - "Run All Sources" in Source Groups still works
+5. Commit all changes and push to master (triggers Railway redeploy)
