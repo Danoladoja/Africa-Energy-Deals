@@ -701,7 +701,12 @@ function PipelineSection({ sources, bySource, loadData, loadQueue }: {
     setRunningSource(sourceName); setRunLogSource(sourceName === "__all__" ? "All Sources" : sourceName);
     setRunLog([{ stage: "fetching", message: sourceName === "__all__" ? "Starting all source groups..." : `Starting "${sourceName}"...` }]);
     try {
-      const url = sourceName === "__all__" ? `${API}/scraper/run` : `${API}/scraper/run/${encodeURIComponent(sourceName)}`;
+      const isAdapter = sourceName !== "__all__" && sourceName.includes(":");
+      const url = sourceName === "__all__"
+        ? `${API}/scraper/run`
+        : isAdapter
+          ? `${API}/adapters/${encodeURIComponent(sourceName)}/run`
+          : `${API}/scraper/run/${encodeURIComponent(sourceName)}`;
       const res = await fetch(url, { method: "POST", headers: authHeaders() });
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
