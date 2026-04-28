@@ -2,7 +2,7 @@
  * Green Climate Fund (GCF) API Adapter
  *
  * Pulls approved climate/energy projects from the GCF Open Data Library.
- * Structured JSON source — no LLM extraction needed. Confidence is always 1.0.
+ * Structured JSON source â no LLM extraction needed. Confidence is always 1.0.
  *
  * API: https://data.greenclimate.fund  (Open Data Library)
  * Docs: https://developer.gcfund.org/
@@ -15,7 +15,7 @@
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── GCF API response types ──────────────────────────────────────────────────
+// ââ GCF API response types ââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface GCFProject {
   ref?: string;
@@ -43,13 +43,13 @@ interface GCFProject {
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
-  "Comoros", "Congo", "Côte d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
+  "Comoros", "Congo", "CÃ´te d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
   "Democratic Republic of the Congo", "DRC", "Djibouti", "Egypt",
   "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon",
   "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya", "Lesotho",
   "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
   "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria",
-  "Rwanda", "São Tomé and Príncipe", "Senegal", "Seychelles", "Sierra Leone",
+  "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Senegal", "Seychelles", "Sierra Leone",
   "Somalia", "South Africa", "South Sudan", "Sudan", "Tanzania",
   "United Republic of Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
 ]);
@@ -121,7 +121,7 @@ function mapStatus(gcfStatus: string): string {
   return "Announced";
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class GCFApiAdapter extends BaseSourceAdapter {
   readonly key = "api:gcf";
@@ -130,64 +130,79 @@ export class GCFApiAdapter extends BaseSourceAdapter {
   readonly maxRps = 1;
 
   // GCF Open Data Library API endpoint
-  private static readonly API_BASE = "https://data.greenclimate.fund/public/api/projects";
+  private static readonly DATA_URL = "https://data.greenclimate.fund/public/data/projects";
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
-
     try {
-      // Try the primary API endpoint
-      const { response, cached } = await this.httpFetch(GCFApiAdapter.API_BASE, {
-        headers: { Accept: "application/json" },
-      });
+      // GCF data page is a Next.js SSR page with project data embedded in __NEXT_DATA__
+      const html = await this.httpFetch(GCFApiAdapter.DATA_URL, {
+        headers: { "Accept": "text/html,application/xhtml+xml" },
+        responseType: "text",
+      }) as string;
 
-      if (cached) return [];
-
-      const data = await response.json() as any;
-
-      // The API may return { data: [...] } or a direct array
-      const projects: GCFProject[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
-
-      for (const p of projects) {
-        if (isAfricanProject(p) && isEnergyProject(p)) {
-          results.push(p as RawRow);
-        }
+      // Extract __NEXT_DATA__ JSON from the HTML
+      const nextDataMatch = html.match(/<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (!nextDataMatch) {
+        console.error("[api:gcf] Could not find __NEXT_DATA__ in HTML response");
+        return [];
       }
-    } catch (err) {
-      console.warn(`[${this.key}] Primary API failed, trying approved projects page: ${err instanceof Error ? err.message : err}`);
 
-      // Fallback: GCF approved projects JSON feed
+      let nextData: any;
       try {
-        const fallbackUrl = "https://www.greenclimate.fund/api/projects/all";
-        const { response: fbResponse, cached: fbCached } = await this.httpFetch(fallbackUrl, {
-          headers: { Accept: "application/json" },
-        });
-
-        if (fbCached) return [];
-
-        const fbData = await fbResponse.json() as any;
-        const fbProjects: GCFProject[] = Array.isArray(fbData)
-          ? fbData
-          : Array.isArray(fbData?.data)
-            ? fbData.data
-            : [];
-
-        for (const p of fbProjects) {
-          if (isAfricanProject(p) && isEnergyProject(p)) {
-            results.push(p as RawRow);
-          }
-        }
-      } catch (fbErr) {
-        console.error(`[${this.key}] Fallback also failed: ${fbErr instanceof Error ? fbErr.message : fbErr}`);
+        nextData = JSON.parse(nextDataMatch[1]);
+      } catch (e) {
+        console.error("[api:gcf] Failed to parse __NEXT_DATA__ JSON");
+        return [];
       }
-    }
 
-    console.log(`[${this.key}] Fetched ${results.length} African energy projects from GCF`);
-    return results;
+      // Navigate to the projects array: props.pageProps.data.data
+      const projects: any[] = nextData?.props?.pageProps?.data?.data ?? [];
+      if (!projects.length) {
+        console.warn("[api:gcf] No projects found in __NEXT_DATA__");
+        return [];
+      }
+
+      // Map real GCF fields to our GCFProject interface
+      const rows: RawRow[] = [];
+      for (const p of projects) {
+        const countries: string[] = (p.Countries || []).map((c: any) => c.CountryName || c.Name || "");
+        const africanCountries = countries.filter((c: string) => isAfricanProject({ countries }));
+
+        // Only include projects with at least one African country
+        if (!africanCountries.length && !isAfricanProject({ country: countries.join(", ") })) continue;
+
+        // Energy filter: check sector, theme, and project name
+        const sector = p.Sector || "";
+        const theme = p.Theme || "";
+        const name = p.ProjectName || "";
+        if (!isEnergyProject({ sector, theme, project_name: name })) continue;
+
+        rows.push({
+          ref: p.ApprovedRef || p.ProjectsID || "",
+          project_name: name,
+          country: africanCountries.join(", ") || countries.join(", "),
+          countries: africanCountries.length ? africanCountries : countries,
+          sector: sector,
+          theme: theme,
+          status: p.Type || "APPROVED",
+          approved_date: p.BMDate || "",
+          funding_amount: p.TotalGCFBudgetUSD || p.ProjectSize || 0,
+          co_financing: p.TotalCoBudgetUSD || 0,
+          total_project_value: p.TotalBudgetUSD || 0,
+          accredited_entity: (p.EntityData || []).map((e: any) => e.Acronym || e.Name || "").join(", "),
+          project_url: p.ApprovedRef ? `https://www.greenclimate.fund/project/${p.ApprovedRef}` : "",
+          description: p.ProjectName || "",
+        } as any);
+      }
+
+      console.log(`[api:gcf] Fetched ${rows.length} African energy projects from ${projects.length} total`);
+      return rows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:gcf] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
   }
 
   normalize(row: RawRow): CandidateDraft | null {
