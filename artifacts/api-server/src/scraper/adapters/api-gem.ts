@@ -1,5 +1,5 @@
 /**
- * Global Energy Monitor (GEM) â Africa Energy Tracker Adapter
+ * Global Energy Monitor (GEM) Ã¢ÂÂ Africa Energy Tracker Adapter
  *
  * Downloads CSV/Excel datasets from GEM's open trackers:
  * - Global Solar Power Tracker
@@ -19,7 +19,7 @@
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Types Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 interface GEMPlant {
   project_name?: string;
@@ -51,17 +51,17 @@ interface GEMPlant {
   [key: string]: unknown;
 }
 
-// African countries â ISO names as used by GEM
+// African countries Ã¢ÂÂ ISO names as used by GEM
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
-  "Comoros", "Congo", "Republic of the Congo", "CÃ´te d'Ivoire", "Cote d'Ivoire",
+  "Comoros", "Congo", "Republic of the Congo", "CÃÂ´te d'Ivoire", "Cote d'Ivoire",
   "Democratic Republic of the Congo", "Djibouti", "Egypt",
   "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon",
   "Gambia", "The Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
   "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
   "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria",
-  "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Sao Tome and Principe", "Senegal",
+  "Rwanda", "SÃÂ£o TomÃÂ© and PrÃÂ­ncipe", "Sao Tome and Principe", "Senegal",
   "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
   "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
 ]);
@@ -103,7 +103,7 @@ function mapStatus(gemStatus: string): string {
   return "Announced";
 }
 
-// ââ CSV Parser (lightweight, no external dependency) ââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ CSV Parser (lightweight, no external dependency) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
@@ -151,7 +151,7 @@ function parseCSV(text: string): Record<string, string>[] {
   return rows;
 }
 
-// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Adapter Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 export class GEMAdapter extends BaseSourceAdapter {
   readonly key = "api:gem";
@@ -255,41 +255,6 @@ export class GEMAdapter extends BaseSourceAdapter {
     }
   }
 
-            // We filter for African countries in normalize(), pass all through
-            allRows.push({
-              project_name: nameIdx >= 0 ? cols[nameIdx] : "",
-              country: country,
-              capacity_mw: capacityIdx >= 0 ? parseFloat(cols[capacityIdx]) || 0 : 0,
-              status: statusIdx >= 0 ? cols[statusIdx] : "",
-              tracker_type: tracker.name.replace("-alt", ""),
-              raw_cols: cols,
-              raw_headers: headers,
-            } as any);
-          }
-          
-          console.log(`[api:gem] Parsed ${lines.length - 1} rows from ${tracker.name} tracker`);
-        } catch (e) {
-          fetchErrors.push(`${tracker.name}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-
-      if (allRows.length === 0 && fetchErrors.length > 0) {
-        const msg = "GEM trackers require registration with CAPTCHA. " +
-          "Manual download needed. Errors: " + fetchErrors.join("; ");
-        console.error(`[api:gem] ${msg}`);
-        (this as any)._lastFetchError = msg;
-      } else {
-        console.log(`[api:gem] Total rows fetched: ${allRows.length}`);
-      }
-
-      return allRows;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[api:gem] Fetch failed: ${msg}`);
-      (this as any)._lastFetchError = msg;
-      return [];
-    }
-  }
 
   normalize(row: RawRow): CandidateDraft | null {
     const p = row as GEMPlant;
