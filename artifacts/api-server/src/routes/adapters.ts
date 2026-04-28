@@ -432,6 +432,7 @@ router.get("/scraper/sources", async (_req, res) => {
         // Then: overlay with historical run data (preserves existing entries)
         for (const r of rows) {
                 const key = r.adapterKey ?? r.name;
+                    if (key.startsWith("api:")) continue;
           if (!seen.has(key)) seen.set(key, { name: key, description: r.name, feedCount: 1, isRunning: false });
     }
     res.json(Array.from(seen.values()));  } catch (err) {
