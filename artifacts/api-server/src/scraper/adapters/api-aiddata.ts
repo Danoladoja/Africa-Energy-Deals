@@ -1,14 +1,14 @@
 /**
- * AidData — Global Chinese Development Finance Dataset Adapter
+ * AidData â Global Chinese Development Finance Dataset Adapter
  *
  * Imports the AidData GCDF dataset (Version 3.0) which covers 20,000+
- * Chinese-financed development projects across 165 countries (2000–2021),
+ * Chinese-financed development projects across 165 countries (2000â2021),
  * 9,405 with geocoded locations. Filters for energy sector + Africa.
  *
  * Source: https://www.aiddata.org/data/aiddatas-geospatial-global-chinese-development-finance-dataset-version-3-0
  * GitHub: https://github.com/aiddata/gcdf-geospatial-data
  *
- * Bulk CSV dataset — imported periodically on new releases.
+ * Bulk CSV dataset â imported periodically on new releases.
  * Confidence: 0.90 (academic dataset, well-sourced but historical)
  *
  * Key: api:aiddata | defaultConfidence: 0.90 | Schedule: quarterly
@@ -16,7 +16,7 @@
 
 import { BaseSourceAdapter, type RawRow, type CandidateDraft } from "../base.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface AidDataProject {
   project_title?: string;
@@ -51,18 +51,18 @@ interface AidDataProject {
   [key: string]: unknown;
 }
 
-// African countries — names as used in AidData
+// African countries â names as used in AidData
 const AFRICAN_COUNTRIES = new Set([
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
   "Cabo Verde", "Cape Verde", "Cameroon", "Central African Republic", "Chad",
   "Comoros", "Congo", "Republic of the Congo", "Republic of Congo",
-  "Côte d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
+  "CÃ´te d'Ivoire", "Cote d'Ivoire", "Ivory Coast",
   "Democratic Republic of the Congo", "DRC", "DR Congo", "Djibouti", "Egypt",
   "Equatorial Guinea", "Eritrea", "Eswatini", "Swaziland", "Ethiopia", "Gabon",
   "Gambia", "The Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
   "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania",
   "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria",
-  "Rwanda", "São Tomé and Príncipe", "Sao Tome and Principe", "Senegal",
+  "Rwanda", "SÃ£o TomÃ© and PrÃ­ncipe", "Sao Tome and Principe", "Senegal",
   "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
   "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
 ]);
@@ -135,7 +135,7 @@ function mapStatus(status: string): string {
   return "Under Construction"; // Most AidData projects are historical commitments
 }
 
-// ── CSV Parser ──────────────────────────────────────────────────────────────
+// ââ CSV Parser ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
@@ -177,7 +177,7 @@ function parseCSV(text: string): Record<string, string>[] {
   return rows;
 }
 
-// ── Adapter ─────────────────────────────────────────────────────────────────
+// ââ Adapter âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export class AidDataAdapter extends BaseSourceAdapter {
   readonly key = "api:aiddata";
@@ -196,61 +196,116 @@ export class AidDataAdapter extends BaseSourceAdapter {
   ];
 
   async fetch(): Promise<RawRow[]> {
-    const results: RawRow[] = [];
+    try {
+      // AidData GCDF 3.0 - Chinese Development Finance
+      // Primary: Try GitHub raw CSV from the geospatial-data repo
+      // The repo structure uses data/ or output/ directories
+      const githubUrls = [
+        "https://raw.githubusercontent.com/aiddata/gcdf-geospatial-data/main/data/gcdf_3.0.csv",
+        "https://raw.githubusercontent.com/aiddata/gcdf-geospatial-data/main/final_input.csv",
+        "https://raw.githubusercontent.com/aiddata/gcdf-geospatial-data/main/output/gcdf_3.0.csv",
+        "https://raw.githubusercontent.com/aiddata/gcdf-geospatial-data/master/data/gcdf_3.0.csv",
+      ];
 
-    for (const url of AidDataAdapter.DATA_URLS) {
-      try {
-        const { response, cached } = await this.httpFetch(url, {
-          headers: { Accept: "text/csv, application/octet-stream, */*" },
-        });
+      let csvText = "";
+      let sourceUrl = "";
 
-        if (cached) return [];
-
-        const text = await response.text();
-        if (!text || text.length < 200) continue;
-
-        const rows = parseCSV(text);
-
-        for (const row of rows) {
-          const country = row.recipient ?? row.recipient_country ?? row.country ?? "";
-          if (!isAfricanCountry(country)) continue;
-
-          const project: AidDataProject = {
-            project_title: row.project_title ?? row.title,
-            project_id: row.project_id ?? row.aiddata_id ?? row.id,
-            recipient: country,
-            sector: row.sector ?? row.sector_name,
-            crs_sector_name: row.crs_sector_name,
-            flow_class: row.flow_class,
-            flow_type: row.flow_type,
-            amount_usd: parseFloat(row.amount_usd ?? row.amount_constant_usd_2021 ?? row.commitment_amount_usd ?? "0") || undefined,
-            year: parseInt(row.year ?? row.commitment_year ?? "", 10) || undefined,
-            status: row.status,
-            funding_agency: row.funding_agency ?? row.lender,
-            implementing_agency: row.implementing_agency,
-            description: row.description,
-            latitude: parseFloat(row.latitude ?? "") || undefined,
-            longitude: parseFloat(row.longitude ?? "") || undefined,
-            source_url: row.source_url ?? row.source,
-          };
-
-          if (isEnergyProject(project)) {
-            results.push(project as RawRow);
+      for (const url of githubUrls) {
+        try {
+          const resp = await this.httpFetch(url, {
+            headers: { "Accept": "text/csv,text/plain,*/*" },
+            responseType: "text",
+          }) as string;
+          
+          // Check it's actual CSV, not a 404 HTML page
+          if (resp && !resp.includes("<!DOCTYPE") && !resp.includes("404") && resp.includes(",")) {
+            csvText = resp;
+            sourceUrl = url;
+            break;
           }
+        } catch (e) {
+          continue;
         }
-
-        if (results.length > 0) {
-          console.log(`[${this.key}] Parsed ${results.length} African energy projects from AidData`);
-          return results;
-        }
-      } catch (err) {
-        console.warn(`[${this.key}] Download failed for ${url}: ${err instanceof Error ? err.message : err}`);
-        continue;
       }
-    }
 
-    console.log(`[${this.key}] Fetched ${results.length} African energy projects from AidData`);
-    return results;
+      // If GitHub didn't work, try the direct download page
+      if (!csvText) {
+        try {
+          // The dataset page may have a direct CSV/XLSX link
+          const pageUrl = "https://www.aiddata.org/data/aiddatas-global-chinese-development-finance-dataset-version-3-0";
+          const html = await this.httpFetch(pageUrl, {
+            headers: { "Accept": "text/html" },
+            responseType: "text",
+          }) as string;
+
+          // Look for download links
+          const csvLinkMatch = html.match(/href="([^"]*\.csv[^"]*)"/i);
+          const xlsxLinkMatch = html.match(/href="([^"]*\.xlsx[^"]*)"/i);
+          
+          const downloadUrl = csvLinkMatch?.[1] || xlsxLinkMatch?.[1];
+          if (downloadUrl) {
+            const fullUrl = downloadUrl.startsWith("http") ? downloadUrl : `https://www.aiddata.org${downloadUrl}`;
+            csvText = await this.httpFetch(fullUrl, {
+              responseType: "text",
+            }) as string;
+            sourceUrl = fullUrl;
+          }
+        } catch (e) {
+          console.warn(`[api:aiddata] AidData page fetch failed: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+
+      if (!csvText) {
+        const msg = "Could not fetch AidData GCDF dataset from any known URL";
+        console.error(`[api:aiddata] ${msg}`);
+        (this as any)._lastFetchError = msg;
+        return [];
+      }
+
+      // Parse CSV
+      const rows: RawRow[] = [];
+      const lines = csvText.split("\n");
+      if (lines.length < 2) return [];
+      
+      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+      
+      // Find relevant column indices
+      const countryIdx = headers.findIndex(h => h.includes("recipient") || h.includes("country"));
+      const titleIdx = headers.findIndex(h => h.includes("title") || h.includes("project") || h.includes("description"));
+      const amountIdx = headers.findIndex(h => h.includes("amount") || h.includes("usd") || h.includes("commitment"));
+      const yearIdx = headers.findIndex(h => h.includes("year") || h.includes("commitment_year"));
+      const sectorIdx = headers.findIndex(h => h.includes("sector") || h.includes("crs"));
+      const flowIdx = headers.findIndex(h => h.includes("flow") || h.includes("type"));
+      const statusIdx = headers.findIndex(h => h.includes("status") || h.includes("recommended"));
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        
+        const country = countryIdx >= 0 ? cols[countryIdx] : "";
+        const sector = sectorIdx >= 0 ? cols[sectorIdx] : "";
+        const title = titleIdx >= 0 ? cols[titleIdx] : "";
+
+        rows.push({
+          country: country,
+          title: title,
+          amount_usd: amountIdx >= 0 ? parseFloat(cols[amountIdx]) || 0 : 0,
+          year: yearIdx >= 0 ? cols[yearIdx] : "",
+          sector: sector,
+          flow_type: flowIdx >= 0 ? cols[flowIdx] : "",
+          status: statusIdx >= 0 ? cols[statusIdx] : "",
+          source_url: sourceUrl,
+        } as any);
+      }
+
+      console.log(`[api:aiddata] Parsed ${rows.length} records from GCDF dataset`);
+      return rows;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[api:aiddata] Fetch failed: ${msg}`);
+      (this as any)._lastFetchError = msg;
+      return [];
+    }
   }
 
   normalize(row: RawRow): CandidateDraft | null {
@@ -262,7 +317,7 @@ export class AidDataAdapter extends BaseSourceAdapter {
     const country = String(p.recipient ?? p.recipient_country ?? p.country ?? "").trim() || null;
     const technology = mapTechnology(p);
 
-    // Deal size — AidData reports in raw USD
+    // Deal size â AidData reports in raw USD
     let dealSizeUsdMn: number | null = null;
     const rawAmount = p.amount_usd ?? p.amount_constant_usd_2021 ?? p.commitment_amount_usd ?? null;
     if (typeof rawAmount === "number" && rawAmount > 0) {
