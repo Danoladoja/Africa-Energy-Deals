@@ -103,10 +103,10 @@ export class DFCTransactionAdapter extends BaseSourceAdapter {
     try {
       // DFC embeds project data as inline JavaScript for Infragistics igGrid
       // at www3.dfc.gov/OPICProjects — it's NOT a JSON API
-      const html = await this.httpFetch(DFCApiAdapter.DATA_URL, {
+      const { response: dfcResp } = await this.httpFetch(DFCApiAdapter.DATA_URL, {
         headers: { "Accept": "text/html,application/xhtml+xml" },
-        responseType: "text",
-      }) as string;
+      });
+      const html = await dfcResp.text();
 
       // The page embeds data in a JavaScript variable for the igGrid widget
       // Look for patterns like: var datasource = [...] or .igGrid({ dataSource: [...]
