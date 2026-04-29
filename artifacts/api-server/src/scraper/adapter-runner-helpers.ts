@@ -165,6 +165,8 @@ export async function writeCandidate(
         ...(cleaned.dfiInvolvement && { dfiInvolvement: cleaned.dfiInvolvement }),
         ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
         ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
+                ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
+                        ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
         confidenceScore: cleaned.confidence,
         extractionSource: adapterKey,
       }).where(eq(projectsTable.id, existingId));
@@ -209,6 +211,8 @@ export async function writeCandidate(
           ...(cleaned.newsUrl && { newsUrl: cleaned.newsUrl }),
           ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
           ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
+                    ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
+                              ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
           confidenceScore: cleaned.confidence,
           extractionSource: adapterKey,
         }).where(eq(projectsTable.id, top.id));
@@ -284,8 +288,8 @@ export async function writeCandidate(
       capacityMw: cleaned.capacityMw,
       announcedYear: cleaned.announcedYear ?? new Date().getFullYear(),
       closedYear: null,
-      latitude: null,
-      longitude: null,
+      latitude: cleaned.latitude ?? null,
+      longitude: cleaned.longitude ?? null,
       sourceUrl: cleaned.sourceUrl,
       newsUrl: cleaned.newsUrl,
       isAutoDiscovered: true,

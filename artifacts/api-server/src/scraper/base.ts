@@ -11,12 +11,11 @@ import { eq } from "drizzle-orm";
 import { deduplicateBatch, deduplicateBatchByUrl } from "../services/batch-dedup.js";
 
 // ââ Types ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
 export interface RawRow {
   [key: string]: unknown;
 }
 
-export interface CandidateDraft {
+export interface CanddateDraft {
   projectName: string;
   country: string | null;
   technology: string | null;
@@ -35,6 +34,8 @@ export interface CandidateDraft {
   newsUrl: string | null;
   source: string;
   confidence: number;
+  latitude?: number | null;
+  longitude?: number | null;
   rawJson: Record<string, unknown> | null;
 }
 
