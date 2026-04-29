@@ -2293,30 +2293,96 @@ function statusBadge(status: string) {
   return <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">{status}</span>;
 }
 
+// ── Batch delete confirmation — choose which to keep per pair ────────────────
+interface BatchDeletePair {
+  idA: number; nameA: string; statusA: string;
+  idB: number; nameB: string; statusB: string;
+  keepChoice: "a" | "b" | null;
+}
+
+interface DismissedRow {
+  id: number; id_a: number; id_b: number;
+  dismissed_by: string; dismissed_at: string;
+  name_a: string | null; country_a: string | null; status_a: string | null;
+  name_b: string | null; country_b: string | null; status_b: string | null;
+}
+
 function DuplicateScannerSection() {
   const [pairs, setPairs] = useState<DupPair[]>([]);
   const [loading, setLoading] = useState(false);
   const [threshold, setThreshold] = useState(60);
   const [acting, setActing] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
+  const [tab, setTab] = useState<"scan" | "dismissed">("scan");
+
+  // Batch selection
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Batch delete modal
+  const [batchDeletePairs, setBatchDeletePairs] = useState<BatchDeletePair[] | null>(null);
+  const [batchActing, setBatchActing] = useState(false);
+
+  // Dismissed tab
+  const [dismissed, setDismissed] = useState<DismissedRow[]>([]);
+  const [dismissedLoading, setDismissedLoading] = useState(false);
 
   const scan = async () => {
     setLoading(true);
     setError(null);
+    setSelected(new Set());
     try {
       const res = await fetch(`${API}/admin/duplicates?threshold=${threshold / 100}`, { headers: authHeaders() });
       const data = await res.json();
       if (res.status === 401) throw new Error("Your session has expired. Please sign out and sign back in.");
       if (!res.ok) throw new Error(data.error ?? "Scan failed");
       setPairs(data.pairs ?? []);
-      setDismissed(new Set());
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadDismissed = async () => {
+    setDismissedLoading(true);
+    try {
+      const res = await fetch(`${API}/admin/dismissed-duplicates`, { headers: authHeaders() });
+      const data = await res.json();
+      setDismissed(data.dismissed ?? []);
+    } catch { /* ignore */ }
+    setDismissedLoading(false);
+  };
+
+  useEffect(() => {
+    if (tab === "dismissed") loadDismissed();
+  }, [tab]);
+
+  const persistKeepBoth = async (pairsToSave: { idA: number; idB: number }[]) => {
+    await fetch(`${API}/admin/dismissed-duplicates`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ pairs: pairsToSave }),
+    });
+  };
+
+  const keepBothSingle = async (p: DupPair) => {
+    setActing(`keepBoth-${p.id_a}-${p.id_b}`);
+    try {
+      await persistKeepBoth([{ idA: p.id_a, idB: p.id_b }]);
+      setPairs(prev => prev.filter(x => !(x.id_a === p.id_a && x.id_b === p.id_b)));
+      setSelected(prev => { const n = new Set(prev); n.delete(`${p.id_a}-${p.id_b}`); return n; });
+    } catch { setError("Failed to save Keep Both decision"); }
+    setActing(null);
+  };
+
+  const undismiss = async (rowId: number) => {
+    setActing(`undismiss-${rowId}`);
+    try {
+      await fetch(`${API}/admin/dismissed-duplicates/${rowId}`, { method: "DELETE", headers: authHeaders() });
+      setDismissed(prev => prev.filter(d => d.id !== rowId));
+    } catch { setError("Failed to undismiss pair"); }
+    setActing(null);
   };
 
   const merge = async (keepId: number, removeId: number) => {
@@ -2331,8 +2397,8 @@ function DuplicateScannerSection() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Merge failed");
-      // Dismiss any pair containing either project
       setPairs(prev => prev.filter(p => p.id_a !== keepId && p.id_a !== removeId && p.id_b !== keepId && p.id_b !== removeId));
+      setSelected(prev => { const n = new Set(prev); n.delete(`${keepId}-${removeId}`); n.delete(`${removeId}-${keepId}`); return n; });
       setConfirm(null);
     } catch (e: any) {
       setError(e.message);
@@ -2352,8 +2418,12 @@ function DuplicateScannerSection() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Delete failed");
-      // Remove all pairs that include this project
       setPairs(prev => prev.filter(p => p.id_a !== id && p.id_b !== id));
+      setSelected(prev => {
+        const n = new Set(prev);
+        for (const k of [...n]) { if (k.startsWith(`${id}-`) || k.endsWith(`-${id}`)) n.delete(k); }
+        return n;
+      });
       setConfirm(null);
     } catch (e: any) {
       setError(e.message);
@@ -2367,21 +2437,14 @@ function DuplicateScannerSection() {
     setError(null);
     try {
       const [resA, resB] = await Promise.all([
-        fetch(`${API}/admin/projects/delete`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ id: idA, reason: "admin deleted both — neither fit for tracker" }),
-        }),
-        fetch(`${API}/admin/projects/delete`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ id: idB, reason: "admin deleted both — neither fit for tracker" }),
-        }),
+        fetch(`${API}/admin/projects/delete`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ id: idA, reason: "admin deleted both — neither fit for tracker" }) }),
+        fetch(`${API}/admin/projects/delete`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ id: idB, reason: "admin deleted both — neither fit for tracker" }) }),
       ]);
       const [dataA, dataB] = await Promise.all([resA.json(), resB.json()]);
       if (!resA.ok) throw new Error(dataA.error ?? `Failed to delete #${idA}`);
       if (!resB.ok) throw new Error(dataB.error ?? `Failed to delete #${idB}`);
       setPairs(prev => prev.filter(p => p.id_a !== idA && p.id_b !== idA && p.id_a !== idB && p.id_b !== idB));
+      setSelected(new Set());
       setConfirm(null);
     } catch (e: any) {
       setError(e.message);
@@ -2390,47 +2453,316 @@ function DuplicateScannerSection() {
     }
   };
 
-  const visiblePairs = pairs.filter(p => !dismissed.has(`${p.id_a}-${p.id_b}`) && !dismissed.has(`${p.id_b}-${p.id_a}`));
+  // ── Batch actions ────────────────────────────────────────────────────────────
+  const selectedPairs = pairs.filter(p => selected.has(`${p.id_a}-${p.id_b}`));
+
+  const batchKeepBoth = async () => {
+    if (!selectedPairs.length) return;
+    setBatchActing(true);
+    try {
+      await persistKeepBoth(selectedPairs.map(p => ({ idA: p.id_a, idB: p.id_b })));
+      const removedKeys = new Set(selectedPairs.map(p => `${p.id_a}-${p.id_b}`));
+      setPairs(prev => prev.filter(p => !removedKeys.has(`${p.id_a}-${p.id_b}`)));
+      setSelected(new Set());
+    } catch { setError("Batch Keep Both failed"); }
+    setBatchActing(false);
+  };
+
+  const openBatchDelete = () => {
+    setBatchDeletePairs(selectedPairs.map(p => ({
+      idA: p.id_a, nameA: p.name_a, statusA: p.status_a,
+      idB: p.id_b, nameB: p.name_b, statusB: p.status_b,
+      keepChoice: null,
+    })));
+  };
+
+  const executeBatchDelete = async () => {
+    if (!batchDeletePairs) return;
+    const unresolved = batchDeletePairs.filter(p => p.keepChoice === null);
+    if (unresolved.length > 0) {
+      setError(`Please choose which to keep for all ${unresolved.length} remaining pair(s).`);
+      return;
+    }
+    setBatchActing(true);
+    setError(null);
+    try {
+      for (const p of batchDeletePairs) {
+        const deleteId = p.keepChoice === "a" ? p.idB : p.idA;
+        await fetch(`${API}/admin/projects/delete`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ id: deleteId, reason: "batch delete — admin chose which to keep" }),
+        });
+        setPairs(prev => prev.filter(x => x.id_a !== p.idA || x.id_b !== p.idB));
+      }
+      setSelected(new Set());
+      setBatchDeletePairs(null);
+    } catch (e: any) { setError(e.message); }
+    setBatchActing(false);
+  };
+
+  const toggleSelect = (key: string) => setSelected(prev => {
+    const n = new Set(prev);
+    n.has(key) ? n.delete(key) : n.add(key);
+    return n;
+  });
+
+  const toggleAll = () => {
+    if (selected.size === pairs.length) setSelected(new Set());
+    else setSelected(new Set(pairs.map(p => `${p.id_a}-${p.id_b}`)));
+  };
 
   return (
     <div className="p-8 max-w-5xl">
-      <div className="mb-6">
+      <div className="mb-5">
         <h1 className="text-2xl font-bold text-foreground">Duplicate Scanner</h1>
-        <p className="text-sm text-muted-foreground mt-1">Find and merge likely duplicate projects, or delete rejected/invalid entries entirely.</p>
+        <p className="text-sm text-muted-foreground mt-1">Find and merge likely duplicate projects, keep both when they're distinct, or delete rejected/invalid entries.</p>
       </div>
 
-      <div className="flex items-center gap-4 mb-6 flex-wrap">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground whitespace-nowrap">Similarity threshold</label>
-          <input
-            type="number" min={30} max={95} step={5}
-            value={threshold}
-            onChange={e => setThreshold(Number(e.target.value))}
-            className="w-20 px-2 py-1.5 rounded-lg bg-card border border-border text-sm text-foreground"
-          />
-          <span className="text-sm text-muted-foreground">%</span>
-        </div>
-        <button
-          onClick={scan}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSearch className="w-4 h-4" />}
-          {loading ? "Scanning…" : "Scan for Duplicates"}
-        </button>
-        {pairs.length > 0 && !loading && (
-          <span className="text-sm text-muted-foreground">{visiblePairs.length} pair{visiblePairs.length !== 1 ? "s" : ""} found</span>
-        )}
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {(["scan", "dismissed"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${tab === t ? "text-foreground border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {t === "scan" ? "Scan Results" : `Dismissed (Keep Both)`}
+            {t === "dismissed" && dismissed.length > 0 && (
+              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-muted/50 text-muted-foreground">{dismissed.length}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {error && (
         <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
+          <button onClick={() => setError(null)} className="ml-auto text-red-400/60 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
-      {/* Confirmation modal */}
+      {/* ── SCAN TAB ──────────────────────────────────────────────────────────── */}
+      {tab === "scan" && (
+        <>
+          {/* Controls */}
+          <div className="flex items-center gap-4 mb-5 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground whitespace-nowrap">Similarity threshold</label>
+              <input
+                type="number" min={30} max={95} step={5}
+                value={threshold}
+                onChange={e => setThreshold(Number(e.target.value))}
+                className="w-20 px-2 py-1.5 rounded-lg bg-card border border-border text-sm text-foreground"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <button
+              onClick={scan}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSearch className="w-4 h-4" />}
+              {loading ? "Scanning…" : "Scan for Duplicates"}
+            </button>
+            {pairs.length > 0 && !loading && (
+              <>
+                <span className="text-sm text-muted-foreground">{pairs.length} pair{pairs.length !== 1 ? "s" : ""} found</span>
+                <button onClick={toggleAll} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
+                  {selected.size === pairs.length ? "Deselect all" : "Select all"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Batch action bar */}
+          {selected.size > 0 && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-foreground">{selected.size} pair{selected.size !== 1 ? "s" : ""} selected</span>
+              <div className="flex gap-2 ml-auto flex-wrap">
+                <button
+                  onClick={batchKeepBoth}
+                  disabled={batchActing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                >
+                  {batchActing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  Keep Both (all selected)
+                </button>
+                <button
+                  onClick={openBatchDelete}
+                  disabled={batchActing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Duplicates…
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Clear selection
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pair cards */}
+          {pairs.length > 0 && (
+            <div className="space-y-3">
+              {pairs.map(p => {
+                const key = `${p.id_a}-${p.id_b}`;
+                const isSelected = selected.has(key);
+                const hasRejected = p.status_a === "rejected" || p.status_b === "rejected";
+                const hasNonApproved = p.status_a !== "approved" || p.status_b !== "approved";
+                const projects = [
+                  { id: p.id_a, name: p.name_a, dev: p.developer_a, cap: p.capacity_a, size: p.deal_size_a, status: p.status_a },
+                  { id: p.id_b, name: p.name_b, dev: p.developer_b, cap: p.capacity_b, size: p.deal_size_b, status: p.status_b },
+                ];
+                return (
+                  <div key={key} className={`bg-card border rounded-xl overflow-hidden transition-colors ${isSelected ? "border-primary/40 ring-1 ring-primary/20" : hasRejected ? "border-red-500/30" : "border-border"}`}>
+                    <div className={`px-4 py-2 border-b flex items-center gap-3 ${hasRejected ? "bg-red-500/5 border-red-500/20" : "bg-muted/20 border-border"}`}>
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(key)}
+                        className="w-3.5 h-3.5 accent-primary cursor-pointer shrink-0"
+                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xs font-semibold text-amber-400">{p.score}% similar · {p.country_a}</span>
+                        {hasRejected && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 font-medium flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> contains rejected
+                          </span>
+                        )}
+                        {!hasRejected && hasNonApproved && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">pending review</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-border">
+                      {projects.map((proj, i) => (
+                        <div key={i} className={`p-4 ${proj.status === "rejected" ? "bg-red-500/3" : ""}`}>
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <p className="text-sm font-medium text-foreground leading-snug">{proj.name}</p>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => setConfirm({ type: "delete", id: proj.id, name: proj.name, status: proj.status })}
+                                disabled={!!acting}
+                                title="Delete this project"
+                                className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <a href={`/review/queue/${proj.id}`} target="_blank" rel="noopener noreferrer" className="p-1 rounded text-muted-foreground hover:text-primary">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">ID #{proj.id}</p>
+                          {proj.dev && <p className="text-xs text-muted-foreground truncate">{proj.dev}</p>}
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {proj.cap != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">{proj.cap} MW</span>}
+                            {proj.size != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">${proj.size}M</span>}
+                            {statusBadge(proj.status)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-4 py-3 border-t border-border flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => setConfirm({ type: "merge", keepId: p.id_a, removeId: p.id_b, keepName: p.name_a, removeName: p.name_b })}
+                        disabled={!!acting}
+                        className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
+                      >
+                        Keep #{p.id_a}, remove #{p.id_b}
+                      </button>
+                      <button
+                        onClick={() => setConfirm({ type: "merge", keepId: p.id_b, removeId: p.id_a, keepName: p.name_b, removeName: p.name_a })}
+                        disabled={!!acting}
+                        className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
+                      >
+                        Keep #{p.id_b}, remove #{p.id_a}
+                      </button>
+                      <button
+                        onClick={() => keepBothSingle(p)}
+                        disabled={!!acting}
+                        className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/15 transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                        title="These are distinct projects — save this decision permanently"
+                      >
+                        {acting === `keepBoth-${p.id_a}-${p.id_b}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        Keep Both
+                      </button>
+                      <button
+                        onClick={() => setConfirm({ type: "deleteBoth", idA: p.id_a, nameA: p.name_a, statusA: p.status_a, idB: p.id_b, nameB: p.name_b, statusB: p.status_b })}
+                        disabled={!!acting}
+                        className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                        title="Delete both — neither belongs in the tracker"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Both
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!loading && pairs.length === 0 && (
+            <div className="text-center py-16 border border-dashed border-border rounded-2xl text-muted-foreground text-sm">
+              Click "Scan for Duplicates" to search for similar project names within the same country.
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── DISMISSED TAB ─────────────────────────────────────────────────────── */}
+      {tab === "dismissed" && (
+        <div>
+          <p className="text-sm text-muted-foreground mb-4">
+            These pairs were marked "Keep Both" — they are excluded from all future scans. Un-dismiss to bring them back.
+          </p>
+          {dismissedLoading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
+          {!dismissedLoading && dismissed.length === 0 && (
+            <div className="text-center py-16 border border-dashed border-border rounded-2xl text-muted-foreground text-sm">
+              No dismissed pairs yet. Use "Keep Both" on the Scan Results tab to save decisions here.
+            </div>
+          )}
+          {dismissed.length > 0 && (
+            <div className="space-y-2">
+              {dismissed.map(d => (
+                <div key={d.id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-medium text-foreground truncate">{d.name_a ?? `#${d.id_a}`}</span>
+                      <span className="text-xs text-muted-foreground">vs</span>
+                      <span className="text-sm font-medium text-foreground truncate">{d.name_b ?? `#${d.id_b}`}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {d.country_a} · dismissed {new Date(d.dismissed_at).toLocaleDateString()} by {d.dismissed_by}
+                      {d.status_a && <> · {statusBadge(d.status_a)}</>}
+                      {d.status_b && <> {statusBadge(d.status_b)}</>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => undismiss(d.id)}
+                    disabled={acting === `undismiss-${d.id}`}
+                    className="shrink-0 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                    title="Un-dismiss — pair will appear in future scans again"
+                  >
+                    {acting === `undismiss-${d.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                    Un-dismiss
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Confirmation modal ─────────────────────────────────────────────────── */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
@@ -2444,59 +2776,34 @@ function DuplicateScannerSection() {
                   Missing fields on the kept record will be filled from the removed one.
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => merge(confirm.keepId, confirm.removeId)}
-                    disabled={!!acting}
-                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-sm font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => merge(confirm.keepId, confirm.removeId)} disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-sm font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     Merge & Delete
                   </button>
-                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
-                    Cancel
-                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">Cancel</button>
                 </div>
               </>
             ) : confirm.type === "delete" ? (
               <>
-                <div className="flex items-center gap-2 mb-2">
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                  <h2 className="text-base font-semibold text-foreground">Permanently Delete Project</h2>
-                </div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Delete <span className="font-medium text-foreground">"{confirm.name}"</span> (#{confirm.id})?
-                </p>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Status: <span className="font-medium">{confirm.status}</span> · This removes the project from the database entirely and cannot be undone.
-                </p>
+                <div className="flex items-center gap-2 mb-2"><Trash2 className="w-4 h-4 text-red-400" /><h2 className="text-base font-semibold text-foreground">Permanently Delete Project</h2></div>
+                <p className="text-sm text-muted-foreground mb-1">Delete <span className="font-medium text-foreground">"{confirm.name}"</span> (#{confirm.id})?</p>
+                <p className="text-xs text-muted-foreground mb-4">Status: <span className="font-medium">{confirm.status}</span> · This removes the project from the database entirely and cannot be undone.</p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => deleteProject(confirm.id, `admin deleted ${confirm.status} project`)}
-                    disabled={!!acting}
-                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => deleteProject(confirm.id, `admin deleted ${confirm.status} project`)} disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     Delete Permanently
                   </button>
-                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
-                    Cancel
-                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">Cancel</button>
                 </div>
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2 mb-2">
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                  <h2 className="text-base font-semibold text-foreground">Delete Both Projects</h2>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Neither project is fit for the tracker. Both will be permanently removed from the database — this cannot be undone.
-                </p>
+                <div className="flex items-center gap-2 mb-2"><Trash2 className="w-4 h-4 text-red-400" /><h2 className="text-base font-semibold text-foreground">Delete Both Projects</h2></div>
+                <p className="text-sm text-muted-foreground mb-3">Neither project is fit for the tracker. Both will be permanently removed — this cannot be undone.</p>
                 <div className="space-y-2 mb-4">
-                  {[
-                    { id: confirm.idA, name: confirm.nameA, status: confirm.statusA },
-                    { id: confirm.idB, name: confirm.nameB, status: confirm.statusB },
-                  ].map(proj => (
+                  {[{ id: confirm.idA, name: confirm.nameA, status: confirm.statusA }, { id: confirm.idB, name: confirm.nameB, status: confirm.statusB }].map(proj => (
                     <div key={proj.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/15">
                       <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
                       <span className="text-sm text-foreground font-medium truncate">{proj.name}</span>
@@ -2506,17 +2813,12 @@ function DuplicateScannerSection() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => deleteBoth(confirm.idA, confirm.idB)}
-                    disabled={!!acting}
-                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => deleteBoth(confirm.idA, confirm.idB)} disabled={!!acting}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     Delete Both Permanently
                   </button>
-                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
-                    Cancel
-                  </button>
+                  <button onClick={() => setConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">Cancel</button>
                 </div>
               </>
             )}
@@ -2524,105 +2826,53 @@ function DuplicateScannerSection() {
         </div>
       )}
 
-      {visiblePairs.length > 0 && (
-        <div className="space-y-3">
-          {visiblePairs.map(p => {
-            const key = `${p.id_a}-${p.id_b}`;
-            const hasRejected = p.status_a === "rejected" || p.status_b === "rejected";
-            const hasNonApproved = p.status_a !== "approved" || p.status_b !== "approved";
-            const projects = [
-              { id: p.id_a, name: p.name_a, dev: p.developer_a, cap: p.capacity_a, size: p.deal_size_a, status: p.status_a },
-              { id: p.id_b, name: p.name_b, dev: p.developer_b, cap: p.capacity_b, size: p.deal_size_b, status: p.status_b },
-            ];
-            return (
-              <div key={key} className={`bg-card border rounded-xl overflow-hidden ${hasRejected ? "border-red-500/30" : "border-border"}`}>
-                <div className={`px-4 py-2 border-b flex items-center justify-between ${hasRejected ? "bg-red-500/5 border-red-500/20" : "bg-muted/20 border-border"}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-amber-400">{p.score}% similar · {p.country_a}</span>
-                    {hasRejected && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 font-medium flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> contains rejected
-                      </span>
-                    )}
-                    {!hasRejected && hasNonApproved && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">pending review</span>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 divide-x divide-border">
-                  {projects.map((proj, i) => (
-                    <div key={i} className={`p-4 ${proj.status === "rejected" ? "bg-red-500/3" : ""}`}>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-medium text-foreground leading-snug">{proj.name}</p>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => setConfirm({ type: "delete", id: proj.id, name: proj.name, status: proj.status })}
-                            disabled={!!acting}
-                            title="Delete this project"
-                            className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          <a href={`/review/queue/${proj.id}`} target="_blank" rel="noopener noreferrer" className="p-1 rounded text-muted-foreground hover:text-primary">
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
+      {/* ── Batch Delete modal ─────────────────────────────────────────────────── */}
+      {batchDeletePairs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-2xl w-full shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              <h2 className="text-base font-semibold text-foreground">Batch Delete — Choose Which to Keep</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">For each pair, select which project to keep. The other will be permanently deleted.</p>
+            <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+              {batchDeletePairs.map((p, i) => (
+                <div key={i} className="border border-border rounded-xl p-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    {([["a", p.idA, p.nameA, p.statusA], ["b", p.idB, p.nameB, p.statusB]] as const).map(([side, id, name, status]) => (
+                      <button
+                        key={side}
+                        onClick={() => setBatchDeletePairs(prev => prev!.map((x, j) => j === i ? { ...x, keepChoice: side } : x))}
+                        className={`p-3 rounded-lg border text-left transition-colors ${p.keepChoice === side ? "border-primary bg-primary/10" : "border-border hover:border-primary/40 hover:bg-primary/5"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${p.keepChoice === side ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                          <span className="text-xs text-muted-foreground">Keep #{id}</span>
                         </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-1">ID #{proj.id}</p>
-                      {proj.dev && <p className="text-xs text-muted-foreground truncate">{proj.dev}</p>}
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {proj.cap != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">{proj.cap} MW</span>}
-                        {proj.size != null && <span className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">${proj.size}M</span>}
-                        {statusBadge(proj.status)}
-                      </div>
-                    </div>
-                  ))}
+                        <p className="text-sm font-medium text-foreground leading-snug">{name}</p>
+                        <div className="mt-1">{statusBadge(status)}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {p.keepChoice === null && (
+                    <p className="text-xs text-amber-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Choose which to keep</p>
+                  )}
                 </div>
-                <div className="px-4 py-3 border-t border-border flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => setConfirm({ type: "merge", keepId: p.id_a, removeId: p.id_b, keepName: p.name_a, removeName: p.name_b })}
-                    disabled={!!acting}
-                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
-                  >
-                    Keep #{p.id_a}, remove #{p.id_b}
-                  </button>
-                  <button
-                    onClick={() => setConfirm({ type: "merge", keepId: p.id_b, removeId: p.id_a, keepName: p.name_b, removeName: p.name_a })}
-                    disabled={!!acting}
-                    className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 min-w-[120px]"
-                  >
-                    Keep #{p.id_b}, remove #{p.id_a}
-                  </button>
-                  <button
-                    onClick={() => setConfirm({ type: "deleteBoth", idA: p.id_a, nameA: p.name_a, statusA: p.status_a, idB: p.id_b, nameB: p.name_b, statusB: p.status_b })}
-                    disabled={!!acting}
-                    className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
-                    title="Delete both — neither belongs in the tracker"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete Both
-                  </button>
-                  <button
-                    onClick={() => setDismissed(s => new Set([...s, key]))}
-                    className="px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
-                    title="Dismiss this pair"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!loading && pairs.length > 0 && visiblePairs.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground text-sm">All pairs handled.</div>
-      )}
-
-      {!loading && pairs.length === 0 && (
-        <div className="text-center py-16 border border-dashed border-border rounded-2xl text-muted-foreground text-sm">
-          Click "Scan for Duplicates" to search for similar project names within the same country.
+              ))}
+            </div>
+            {error && <p className="text-xs text-red-400 mt-3 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{error}</p>}
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+              <button
+                onClick={executeBatchDelete}
+                disabled={batchActing || batchDeletePairs.some(p => p.keepChoice === null)}
+                className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {batchActing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete {batchDeletePairs.length} Duplicate{batchDeletePairs.length !== 1 ? "s" : ""}
+              </button>
+              <button onClick={() => { setBatchDeletePairs(null); setError(null); }} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

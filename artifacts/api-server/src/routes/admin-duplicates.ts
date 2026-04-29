@@ -6,8 +6,9 @@ import {
   urlAuditTable,
   contributorSubmissionsTable,
   reviewerAuditLogTable,
+  dismissedDuplicatesTable,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, or, and } from "drizzle-orm";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 const router = Router();
@@ -17,6 +18,7 @@ router.use("/admin/projects/merge", adminAuthMiddleware);
 router.use("/admin/projects/delete", adminAuthMiddleware);
 router.use("/admin/projects/patch", adminAuthMiddleware);
 router.use("/admin/setup-extensions", adminAuthMiddleware);
+router.use("/admin/dismissed-duplicates", adminAuthMiddleware);
 
 // POST /api/admin/setup-extensions — idempotently install pg_trgm and its indexes
 // Use this to fix a fresh database (e.g. Railway) that has never had pg_trgm created.
@@ -64,6 +66,7 @@ router.post("/admin/setup-extensions", async (_req, res) => {
 });
 
 // GET /api/admin/duplicates — scan for likely duplicate project pairs using pg_trgm
+// Automatically excludes pairs previously dismissed as "keep both"
 router.get("/admin/duplicates", async (req, res) => {
   try {
     const threshold = Math.max(0.3, Math.min(0.95, parseFloat(String(req.query.threshold ?? "0.6"))));
@@ -103,6 +106,11 @@ router.get("/admin/duplicates", async (req, res) => {
           COALESCE(a.normalized_name, lower(a.project_name)),
           COALESCE(b.normalized_name, lower(b.project_name))
         ) > $1
+          AND NOT EXISTS (
+            SELECT 1 FROM dismissed_duplicates dd
+            WHERE (dd.id_a = a.id AND dd.id_b = b.id)
+               OR (dd.id_a = b.id AND dd.id_b = a.id)
+          )
         ORDER BY similarity(
           COALESCE(a.normalized_name, lower(a.project_name)),
           COALESCE(b.normalized_name, lower(b.project_name))
@@ -297,4 +305,79 @@ router.post("/admin/projects/delete", async (req, res) => {
   }
 });
 
+// GET /api/admin/dismissed-duplicates — list all dismissed "keep both" pairs with project names
+router.get("/admin/dismissed-duplicates", async (_req, res) => {
+  try {
+    const client = await pool.connect();
+    let rows: unknown[];
+    try {
+      const result = await client.query(`
+        SELECT
+          dd.id,
+          dd.id_a,
+          dd.id_b,
+          dd.dismissed_by,
+          dd.dismissed_at,
+          a.project_name AS name_a,
+          a.country      AS country_a,
+          a.review_status AS status_a,
+          b.project_name AS name_b,
+          b.country      AS country_b,
+          b.review_status AS status_b
+        FROM dismissed_duplicates dd
+        LEFT JOIN energy_projects a ON a.id = dd.id_a
+        LEFT JOIN energy_projects b ON b.id = dd.id_b
+        ORDER BY dd.dismissed_at DESC
+        LIMIT 500
+      `);
+      rows = result.rows;
+    } finally {
+      client.release();
+    }
+    res.json({ dismissed: rows });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/admin/dismissed-duplicates — save a "keep both" decision for one or more pairs
+router.post("/admin/dismissed-duplicates", async (req, res) => {
+  try {
+    const { pairs, dismissedBy } = req.body as {
+      pairs: { idA: number; idB: number }[];
+      dismissedBy?: string;
+    };
+    if (!Array.isArray(pairs) || pairs.length === 0) {
+      return res.status(400).json({ error: "pairs array is required" });
+    }
+    const actor = dismissedBy ?? "admin";
+    for (const { idA, idB } of pairs) {
+      const minId = Math.min(idA, idB);
+      const maxId = Math.max(idA, idB);
+      // Upsert — ignore if already dismissed
+      await db.execute(sql`
+        INSERT INTO dismissed_duplicates (id_a, id_b, dismissed_by)
+        VALUES (${minId}, ${maxId}, ${actor})
+        ON CONFLICT DO NOTHING
+      `);
+    }
+    res.json({ success: true, count: pairs.length });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// DELETE /api/admin/dismissed-duplicates/:id — undismiss a pair by its row id
+router.delete("/admin/dismissed-duplicates/:id", async (req, res) => {
+  try {
+    const rowId = parseInt(String(req.params.id));
+    if (isNaN(rowId)) return res.status(400).json({ error: "Invalid id" });
+    await db.delete(dismissedDuplicatesTable).where(eq(dismissedDuplicatesTable.id, rowId));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
+

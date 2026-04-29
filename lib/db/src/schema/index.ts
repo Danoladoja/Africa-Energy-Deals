@@ -11,3 +11,4 @@ export * from "./external-intelligence";
 export * from "./reviewers";
 export * from "./scraper-sources";
 export * from "./contributors";
+export * from "./dismissed-duplicates";
