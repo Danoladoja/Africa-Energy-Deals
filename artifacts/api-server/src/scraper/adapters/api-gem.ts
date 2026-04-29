@@ -388,7 +388,7 @@ export class GEMAdapter extends BaseSourceAdapter {
       offtaker: null,
       dealStage: status,
       status,
-      description: `${technology} power plant` + (validCapacity ? ` (${validCapacity} MW)` : ""),
+      description: `${technology} power plant` + (validCapacity ? ` (${validCapacity} MW)` : "") + (estimatedDealSize ? ` [Est. ${estimatedDealSize}M — industry benchmark]` : ""),
       capacityMw: validCapacity,
       announcedYear,
       financialCloseDate: null,
@@ -398,7 +398,7 @@ export class GEMAdapter extends BaseSourceAdapter {
       confidence: this.defaultConfidence,
       latitude: lat,
       longitude: lng,
-      rawJson: { ...(p as Record<string, unknown>) },
+      rawJson: { ...(p as Record<string, unknown>), ...(estimatedDealSize ? { dealSizeEstimated: true, estimateMethod: "capacity_benchmark", estimatePerMw: COST_PER_MW[technology] ?? null } : {}) },
     };
   }
 }
