@@ -118,6 +118,22 @@ router.get("/review/:id", async (req, res) => {
   }
 });
 
+// POST /api/review/bulk-approve — approve all pending (and needs_source) projects at once
+router.post("/review/bulk-approve", async (req: ReviewerRequest, res) => {
+  try {
+    const reviewerEmail = req.reviewerEmail ?? "unknown";
+    const updated = await db
+      .update(projectsTable)
+      .set({ reviewStatus: "approved", approvedBy: reviewerEmail })
+      .where(inArray(projectsTable.reviewStatus, ["pending", "needs_source"]))
+      .returning({ id: projectsTable.id });
+
+    res.json({ approved: updated.length });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // PATCH /api/review/:id/status — approve, reject, reopen, or set needs_source
 // Writes an audit trail entry for every status change.
 router.patch("/review/:id/status", async (req: ReviewerRequest, res) => {

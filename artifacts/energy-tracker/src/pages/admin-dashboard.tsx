@@ -1283,14 +1283,14 @@ function QueueSection({ onPendingCountChange }: { onPendingCountChange: (n: numb
 
   async function bulkApproveAll() {
     try {
-      await fetch(`${API}/scraper/review-all`, {
+      const res = await fetch(`${API}/review/bulk-approve`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ action: "approve" }),
       });
-      setItems([]);
-      await fetchStats();
-      showToast("All pending items approved");
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as { approved: number };
+      await Promise.all([fetchStats(), fetchItems(filter, 1)]);
+      showToast(`${data.approved} project${data.approved === 1 ? "" : "s"} approved`);
     } catch { showToast("Bulk action failed", false); }
   }
 
