@@ -61,7 +61,7 @@ router.get("/projects", async (req, res) => {
       minDealSize, maxDealSize, search,
       developer, dealStage, dfiInvolvement,
       financingType, climateFinanceTag, hasPPA, hasGrant,
-      page = "1", limit = "50",
+      page = "1", limit = "500",
     } = req.query;
 
     const conditions = [eq(projectsTable.reviewStatus, "approved")];
@@ -84,7 +84,7 @@ router.get("/projects", async (req, res) => {
     const whereClause = and(...conditions);
 
     const [projects, countResult] = await Promise.all([
-      db.select().from(projectsTable).where(whereClause).limit(Number(limit)).offset(Math.max(0, Number(offset) || 0)).orderBy(projectsTable.id),
+      db.select().from(projectsTable).where(whereClause).limit(Math.min(Number(limit), 5000)).offset(Math.max(0, Number(offset) || 0)).orderBy(projectsTable.id),
       db.select({ count: sql`count(*)` }).from(projectsTable).where(whereClause),
     ]);
 
