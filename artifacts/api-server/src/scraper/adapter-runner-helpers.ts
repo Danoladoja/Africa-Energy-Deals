@@ -165,12 +165,54 @@ export async function writeCandidate(
         ...(cleaned.dfiInvolvement && { dfiInvolvement: cleaned.dfiInvolvement }),
         ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
         ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
-                ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
-                        ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
+        ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
+        ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
         confidenceScore: cleaned.confidence,
         extractionSource: adapterKey,
       }).where(eq(projectsTable.id, existingId));
       return { inserted: false, updated: true, flagged: false };
+    }
+  }
+
+  // ── Step 4b: Source URL + name dedup (for adapters like GEM with no newsUrl) ─
+  //    If no newsUrl but we have a sourceUrl, try matching by source_url + fuzzy name
+  //    within the same country. This catches GEM re-runs where the project already
+  //    exists but was ingested from the same source tracker.
+  if (!cleaned.newsUrl && cleaned.sourceUrl && cleaned.country) {
+    const sourceClient = await pool.connect();
+    try {
+      await sourceClient.query("SET search_path TO public");
+      const sourceMatch = await sourceClient.query(
+        `SELECT id, project_name, deal_size_usd_mn,
+                similarity(COALESCE(normalized_name, lower(project_name)), $1) AS sim_score
+         FROM energy_projects
+         WHERE source_url = $2
+           AND country = $3
+           AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.4
+         ORDER BY sim_score DESC
+         LIMIT 1`,
+        [normalizedName, cleaned.sourceUrl, cleaned.country],
+      );
+      if (sourceMatch.rows.length > 0) {
+        const match = sourceMatch.rows[0] as {
+          id: number; project_name: string; deal_size_usd_mn: number | null; sim_score: number;
+        };
+        // Gap-fill: only write fields where the DB value is likely null
+        await db.update(projectsTable).set({
+          ...(cleaned.developer && { developer: cleaned.developer }),
+          ...(cleaned.financiers && { financiers: cleaned.financiers }),
+          ...(cleaned.dfiInvolvement && { dfiInvolvement: cleaned.dfiInvolvement }),
+          ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
+          ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
+          ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
+          ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
+          confidenceScore: cleaned.confidence,
+          extractionSource: adapterKey,
+        }).where(eq(projectsTable.id, match.id));
+        return { inserted: false, updated: true, flagged: false };
+      }
+    } finally {
+      sourceClient.release();
     }
   }
 
@@ -202,7 +244,7 @@ export async function writeCandidate(
       possibleDuplicateId = top.id;
       possibleDuplicateName = top.project_name;
 
-      if (top.sim_score > 0.8) {
+      if (top.sim_score > 0.65) {
         // Definite duplicate — selective gap-fill upsert, never overwrite non-null
         await db.update(projectsTable).set({
           ...(cleaned.developer && { developer: cleaned.developer }),
@@ -211,14 +253,14 @@ export async function writeCandidate(
           ...(cleaned.newsUrl && { newsUrl: cleaned.newsUrl }),
           ...(cleaned.dealSizeUsdMn !== null && { dealSizeUsdMn: cleaned.dealSizeUsdMn }),
           ...(cleaned.capacityMw !== null && { capacityMw: cleaned.capacityMw }),
-                    ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
-                              ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
+          ...(cleaned.latitude != null && { latitude: cleaned.latitude }),
+          ...(cleaned.longitude != null && { longitude: cleaned.longitude }),
           confidenceScore: cleaned.confidence,
           extractionSource: adapterKey,
         }).where(eq(projectsTable.id, top.id));
         return { inserted: false, updated: true, flagged: false };
       }
-      // 0.5–0.8 → possibly same project; continue to routing (will be flagged as review)
+      // 0.5–0.65 → possibly same project; continue to routing (will be flagged as review)
     }
   } finally {
     fuzzyClient.release();
@@ -248,7 +290,7 @@ export async function writeCandidate(
     possibleDuplicateId !== null &&
     duplicateSimilarity !== null &&
     duplicateSimilarity >= 0.5 &&
-    duplicateSimilarity <= 0.8
+    duplicateSimilarity <= 0.65
   ) {
     const pct = Math.round(duplicateSimilarity * 100);
     const note = `Possible duplicate of "${possibleDuplicateName}" (#${possibleDuplicateId}) — ${pct}% similar`;
