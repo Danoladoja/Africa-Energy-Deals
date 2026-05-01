@@ -6,7 +6,7 @@ const router: IRouter = Router();
 
 // Valid technology categories (canonical sectors)
 const VALID_TECHNOLOGIES = [
-  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
+  "Solar", "Wind", "Hyro", "Geothermal", "Oil & Gas",
   "Grid Expansion", "Battery & Storage", "Hydrogen",
   "Nuclear", "Bioenergy", "Clean Cooking", "Coal",
 ];
@@ -61,7 +61,7 @@ router.get("/projects", async (req, res) => {
       minDealSize, maxDealSize, search,
       developer, dealStage, dfiInvolvement,
       financingType, climateFinanceTag, hasPPA, hasGrant,
-      page = "1", limit = "500",
+      page = "1", limit = "5000",
     } = req.query;
 
     const conditions = [eq(projectsTable.reviewStatus, "approved")];
