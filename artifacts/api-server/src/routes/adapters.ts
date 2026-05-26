@@ -3,8 +3,10 @@
  *
  * GET    /api/adapters                       — list registered adapters
  * POST   /api/adapters/:key/run              — run one adapter (SSE)
+ * POST   /api/scraper/run-group/:group       — run all adapters in a group (SSE)
  * POST   /api/scraper/run                    — run all adapters sequentially (SSE)
  * GET    /api/scraper/runs                   — recent run history
+ * GET    /api/scraper/llm-usage              — daily LLM call budget & usage
  * POST   /api/scraper/check-urls             — trigger an ad-hoc URL sweep
  */
 
@@ -14,6 +16,7 @@ import { desc } from "drizzle-orm";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 import { ADAPTERS, getAdapter, runAdapter, runAllAdapters } from "../scraper/runner.js";
 import { runUrlCheckSweep } from "../scraper/url-checker.js";
+import { getLLMUsage } from "../scraper/llm.js";
 
 const router: IRouter = Router();
 router.use(adminAuthMiddleware);
@@ -121,6 +124,12 @@ router.get("/scraper/runs", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
+});
+
+// ── LLM usage / budget stats ────────────────────────────────────────────────
+
+router.get("/scraper/llm-usage", (_req, res) => {
+  res.json(getLLMUsage());
 });
 
 // ── URL check sweep (manual trigger) ─────────────────────────────────────────

@@ -20,5 +20,5 @@ export const govTanzaniaAdapter: RegisteredAdapter = {
     schedule: "weekly",
     defaultConfidence: 0.75,
   },
-  run: () => runGovernmentScrape({ country: "Tanzania", sources: SOURCES }),
+  run: () => runGovernmentScrape({ country: "Tanzania", sources: SOURCES, adapterKey: "gov-tanzania" }),
 };

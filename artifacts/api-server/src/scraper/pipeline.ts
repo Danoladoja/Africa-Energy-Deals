@@ -1,12 +1,20 @@
 /**
  * The ONE ingestion pipeline. Every candidate from every adapter flows through
- * `ingest()`. Five gates: hard requirements → normalize → dedup → score/route → insert.
+ * `ingestBatch()`. Five gates: hard requirements → normalize → dedup → score/route → insert.
  *
- * Replaces the old 9-step writeCandidate() that was spread across 7 service files.
+ * Optimizations over the original per-candidate approach:
+ * 1. Batch URL lookups — single query for all URLs in the batch
+ * 2. In-memory dedup within a batch (same URL or normalized name won't hit DB twice)
+ * 3. Single pool connection reused across the entire batch (no per-candidate churn)
+ * 4. Gap-fill diff check — only writes when fields actually change
+ * 5. pg_trgm GIN index migration included for fuzzy match performance
  */
 
 import { db, pool, projectsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import type pg from "pg";
+
+type PoolClient = pg.PoolClient;
 import {
   isRecognizedCountry,
   inferRegion,
@@ -26,9 +34,140 @@ export interface PipelineResult {
   reason?: string;
 }
 
+// ── In-memory dedup cache (reset per adapter run) ──────────────────────────
+
+class BatchDedupCache {
+  private seenUrls = new Set<string>();
+  private seenNames = new Map<string, string>(); // "country::normalizedName" → first projectName
+
+  hasUrl(url: string): boolean {
+    return this.seenUrls.has(url);
+  }
+
+  addUrl(url: string): void {
+    this.seenUrls.add(url);
+  }
+
+  hasName(normalizedName: string, country: string): boolean {
+    return this.seenNames.has(`${country}::${normalizedName}`);
+  }
+
+  addName(normalizedName: string, country: string): void {
+    this.seenNames.set(`${country}::${normalizedName}`, normalizedName);
+  }
+
+  clear(): void {
+    this.seenUrls.clear();
+    this.seenNames.clear();
+  }
+}
+
+// Module-level cache — cleared at the start of each adapter run via resetBatchCache()
+const batchCache = new BatchDedupCache();
+
+export function resetBatchCache(): void {
+  batchCache.clear();
+}
+
+// ── Batch URL pre-lookup ───────────────────────────────────────────────────
+
+interface UrlLookupResult {
+  url: string;
+  id: number;
+}
+
+/**
+ * Pre-fetch existing project IDs for a batch of URLs in a single query.
+ * Returns a Map from URL → existing project ID.
+ */
+async function batchUrlLookup(urls: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (urls.length === 0) return map;
+
+  // Query in chunks of 200 to avoid parameter limit issues
+  const CHUNK_SIZE = 200;
+  for (let i = 0; i < urls.length; i += CHUNK_SIZE) {
+    const chunk = urls.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(", ");
+
+    const client = await pool.connect();
+    try {
+      await client.query("SET search_path TO public");
+      const r = await client.query(
+        `SELECT id, news_url, news_url_2 FROM energy_projects
+         WHERE news_url IN (${placeholders}) OR news_url_2 IN (${placeholders})`,
+        [...chunk, ...chunk],
+      );
+      for (const row of r.rows as Array<{ id: number; news_url: string | null; news_url_2: string | null }>) {
+        if (row.news_url && chunk.includes(row.news_url)) map.set(row.news_url, row.id);
+        if (row.news_url_2 && chunk.includes(row.news_url_2)) map.set(row.news_url_2, row.id);
+      }
+    } finally {
+      client.release();
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Batch ingestion entry point. Call this instead of individual `ingest()` calls.
+ * Pre-fetches URL matches for the entire batch, then processes sequentially
+ * with a shared connection for fuzzy queries.
+ */
+export async function ingestBatch(
+  candidates: CandidateDraft[],
+  adapterKey: string,
+): Promise<PipelineResult[]> {
+  // Reset in-memory cache for this batch
+  resetBatchCache();
+
+  // Phase 1: Collect all URLs for batch lookup
+  const allUrls = candidates
+    .map((c) => c.newsUrl)
+    .filter((url): url is string => !!url);
+  const urlCache = await batchUrlLookup(allUrls);
+
+  // Phase 2: Process each candidate with shared connection for fuzzy queries
+  const results: PipelineResult[] = [];
+  const client = await pool.connect();
+  try {
+    await client.query("SET search_path TO public");
+
+    for (const candidate of candidates) {
+      try {
+        const r = await ingestWithClient(candidate, adapterKey, urlCache, client);
+        results.push(r);
+      } catch (e) {
+        results.push(skip(`ingest error: ${e instanceof Error ? e.message : String(e)}`));
+      }
+    }
+  } finally {
+    client.release();
+  }
+
+  return results;
+}
+
+/**
+ * Single-candidate ingestion (legacy API preserved for backward compat).
+ * Prefer ingestBatch() for adapter runs.
+ */
 export async function ingest(
   candidate: CandidateDraft,
   adapterKey: string,
+): Promise<PipelineResult> {
+  const results = await ingestBatch([candidate], adapterKey);
+  return results[0];
+}
+
+// ── Core ingestion logic (shared connection variant) ───────────────────────
+
+async function ingestWithClient(
+  candidate: CandidateDraft,
+  adapterKey: string,
+  urlCache: Map<string, number>,
+  client: PoolClient,
 ): Promise<PipelineResult> {
 
   // ── Gate 1: Hard requirements ─────────────────────────────
@@ -50,25 +189,37 @@ export async function ingest(
   const region = inferRegion(canonicalCountry);
   const dealSize = candidate.dealSizeUsdMn ?? estimateDealSize(candidate.capacityMw, candidate.technology);
 
+  // ── In-memory dedup (within this batch) ───────────────────
+  if (candidate.newsUrl && batchCache.hasUrl(candidate.newsUrl)) {
+    return skip("Duplicate URL within batch");
+  }
+  if (batchCache.hasName(normalizedName, canonicalCountry)) {
+    return skip("Duplicate name within batch");
+  }
+
+  // Mark as seen for subsequent candidates
+  if (candidate.newsUrl) batchCache.addUrl(candidate.newsUrl);
+  batchCache.addName(normalizedName, canonicalCountry);
+
   // ── Gate 3: Dedup (3 strategies, ordered by cost) ─────────
-  // 3a. Exact URL match (cheapest — index lookup)
+  // 3a. Exact URL match (batch pre-fetched — O(1) Map lookup)
   if (candidate.newsUrl) {
-    const urlMatch = await findByUrl(candidate.newsUrl);
-    if (urlMatch !== null) return gapFill(urlMatch, candidate, adapterKey);
+    const existingId = urlCache.get(candidate.newsUrl);
+    if (existingId != null) return gapFillSmart(existingId, candidate, adapterKey, client);
   }
 
   // 3b. Source URL + fuzzy name (structured sources like GEM with no newsUrl)
   if (!candidate.newsUrl && candidate.sourceUrl) {
-    const sourceMatch = await findBySourceAndName(
-      candidate.sourceUrl, normalizedName, canonicalCountry,
+    const sourceMatch = await findBySourceAndNameWithClient(
+      candidate.sourceUrl, normalizedName, canonicalCountry, client,
     );
-    if (sourceMatch !== null) return gapFill(sourceMatch, candidate, adapterKey);
+    if (sourceMatch !== null) return gapFillSmart(sourceMatch, candidate, adapterKey, client);
   }
 
-  // 3c. Fuzzy name match within same country (most expensive — pg_trgm)
-  const fuzzyMatch = await findFuzzyMatch(normalizedName, canonicalCountry);
+  // 3c. Fuzzy name match within same country (pg_trgm — uses GIN index)
+  const fuzzyMatch = await findFuzzyMatchWithClient(normalizedName, canonicalCountry, client);
   if (fuzzyMatch && fuzzyMatch.similarity > 0.65) {
-    return gapFill(fuzzyMatch.id, candidate, adapterKey);
+    return gapFillSmart(fuzzyMatch.id, candidate, adapterKey, client);
   }
 
   // ── Gate 4: Score & Route ─────────────────────────────────
@@ -131,95 +282,106 @@ export async function ingest(
   }
 }
 
-// ── Dedup queries ───────────────────────────────────────────
+// ── Dedup queries (shared connection variants) ─────────────────────────────
 
-async function findByUrl(newsUrl: string): Promise<number | null> {
-  const res = await db.execute(sql`
-    SELECT id FROM energy_projects
-    WHERE news_url = ${newsUrl} OR news_url_2 = ${newsUrl}
-    LIMIT 1
-  `);
-  if (res.rows.length === 0) return null;
-  return (res.rows[0] as { id: number }).id;
-}
-
-async function findBySourceAndName(
+async function findBySourceAndNameWithClient(
   sourceUrl: string,
   normalizedName: string,
   country: string,
+  client: PoolClient,
 ): Promise<number | null> {
-  const client = await pool.connect();
-  try {
-    await client.query("SET search_path TO public");
-    const r = await client.query(
-      `SELECT id,
-              similarity(COALESCE(normalized_name, lower(project_name)), $1) AS sim
-       FROM energy_projects
-       WHERE source_url = $2 AND country = $3
-         AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.4
-       ORDER BY sim DESC
-       LIMIT 1`,
-      [normalizedName, sourceUrl, country],
-    );
-    if (r.rows.length === 0) return null;
-    return (r.rows[0] as { id: number }).id;
-  } finally {
-    client.release();
-  }
+  const r = await client.query(
+    `SELECT id,
+            similarity(COALESCE(normalized_name, lower(project_name)), $1) AS sim
+     FROM energy_projects
+     WHERE source_url = $2 AND country = $3
+       AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.4
+     ORDER BY sim DESC
+     LIMIT 1`,
+    [normalizedName, sourceUrl, country],
+  );
+  if (r.rows.length === 0) return null;
+  return (r.rows[0] as { id: number }).id;
 }
 
 interface FuzzyHit { id: number; name: string; similarity: number; }
 
-async function findFuzzyMatch(
+async function findFuzzyMatchWithClient(
   normalizedName: string,
   country: string,
+  client: PoolClient,
 ): Promise<FuzzyHit | null> {
-  const client = await pool.connect();
-  try {
-    await client.query("SET search_path TO public");
-    const r = await client.query(
-      `SELECT id, project_name AS name,
-              similarity(COALESCE(normalized_name, lower(project_name)), $1) AS similarity
-       FROM energy_projects
-       WHERE country = $2
-         AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.5
-       ORDER BY similarity DESC
-       LIMIT 1`,
-      [normalizedName, country],
-    );
-    if (r.rows.length === 0) return null;
-    const row = r.rows[0] as { id: number; name: string; similarity: number };
-    return { id: row.id, name: row.name, similarity: Number(row.similarity) };
-  } finally {
-    client.release();
-  }
+  const r = await client.query(
+    `SELECT id, project_name AS name,
+            similarity(COALESCE(normalized_name, lower(project_name)), $1) AS similarity
+     FROM energy_projects
+     WHERE country = $2
+       AND similarity(COALESCE(normalized_name, lower(project_name)), $1) > 0.5
+     ORDER BY similarity DESC
+     LIMIT 1`,
+    [normalizedName, country],
+  );
+  if (r.rows.length === 0) return null;
+  const row = r.rows[0] as { id: number; name: string; similarity: number };
+  return { id: row.id, name: row.name, similarity: Number(row.similarity) };
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+// ── Smart gap-fill (only writes when fields actually differ) ───────────────
 
-/**
- * Gap-fill update: only write fields where the candidate has a non-null value.
- * Never overwrites existing data with null.
- */
-async function gapFill(
+async function gapFillSmart(
   existingId: number,
   c: CandidateDraft,
   adapterKey: string,
+  client: PoolClient,
 ): Promise<PipelineResult> {
-  await db.update(projectsTable).set({
-    ...(c.developer && { developer: c.developer }),
-    ...(c.financiers && { financiers: c.financiers, investors: c.financiers }),
-    ...(c.dfiInvolvement && { dfiInvolvement: c.dfiInvolvement }),
-    ...(c.newsUrl && { newsUrl: c.newsUrl }),
-    ...(c.dealSizeUsdMn != null && { dealSizeUsdMn: c.dealSizeUsdMn }),
-    ...(c.capacityMw != null && { capacityMw: c.capacityMw }),
-    ...(c.latitude != null && { latitude: c.latitude }),
-    ...(c.longitude != null && { longitude: c.longitude }),
-    confidenceScore: c.confidence,
-    extractionSource: adapterKey,
-  }).where(eq(projectsTable.id, existingId));
+  // Fetch current values for the fields we might update
+  const r = await client.query(
+    `SELECT developer, financiers, dfi_involvement, news_url,
+            deal_size_usd_mn, capacity_mw, latitude, longitude,
+            confidence_score, extraction_source
+     FROM energy_projects WHERE id = $1`,
+    [existingId],
+  );
+
+  if (r.rows.length === 0) {
+    return skip("Gap-fill target not found");
+  }
+
+  const existing = r.rows[0] as Record<string, unknown>;
+
+  // Build update payload — only include fields where candidate has a non-null value
+  // AND the existing value is either null or the candidate value is different
+  const updates: Record<string, unknown> = {};
+
+  if (c.developer && !existing.developer) updates.developer = c.developer;
+  if (c.financiers && !existing.financiers) {
+    updates.financiers = c.financiers;
+    updates.investors = c.financiers;
+  }
+  if (c.dfiInvolvement && !existing.dfi_involvement) updates.dfiInvolvement = c.dfiInvolvement;
+  if (c.newsUrl && !existing.news_url) updates.newsUrl = c.newsUrl;
+  if (c.dealSizeUsdMn != null && existing.deal_size_usd_mn == null) updates.dealSizeUsdMn = c.dealSizeUsdMn;
+  if (c.capacityMw != null && existing.capacity_mw == null) updates.capacityMw = c.capacityMw;
+  if (c.latitude != null && existing.latitude == null) updates.latitude = c.latitude;
+  if (c.longitude != null && existing.longitude == null) updates.longitude = c.longitude;
+
+  // Always update confidence + source if higher confidence
+  const existingConfidence = typeof existing.confidence_score === "number" ? existing.confidence_score : 0;
+  if (c.confidence > existingConfidence) {
+    updates.confidenceScore = c.confidence;
+    updates.extractionSource = adapterKey;
+  }
+
+  // Skip DB write entirely if nothing to change
+  if (Object.keys(updates).length === 0) {
+    return { inserted: false, updated: false, flagged: false, reason: "No new fields to gap-fill" };
+  }
+
+  await db.update(projectsTable).set(updates).where(eq(projectsTable.id, existingId));
   return { inserted: false, updated: true, flagged: false };
 }
+
+// ── Helpers ─────────────────────────────────────────────────
 
 interface Completeness { score: number; missing: string[]; }
 

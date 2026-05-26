@@ -1,31 +1,26 @@
 import app from "./app";
 import cron from "node-cron";
-import { runSourceGroup, getSourceGroups } from "./services/scraper.js";
 import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
 import { runStartupMigrations } from "./migrate.js";
-import { ADAPTER_REGISTRY, runAdapter } from "./scraper/adapter-runner.js";
+import { ADAPTERS, runAdapter } from "./scraper/runner.js";
+import { runUrlCheckSweep } from "./scraper/url-checker.js";
 import { db, projectsTable, scraperRunsTable } from "@workspace/db";
 import { lt, sql } from "drizzle-orm";
 import { PURGE_RETENTION_DAYS } from "@workspace/shared";
 
 const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error("PORT environment variable is required but was not provided.");
-}
-
+if (!rawPort) throw new Error("PORT environment variable is required but was not provided.");
 const port = Number(rawPort);
+if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
+// Map our simple cadence strings to cron expressions.
+const SCHEDULE_CRON: Record<"daily" | "weekly" | "monthly", string> = {
+  daily: "0 4 * * *",        // 04:00 UTC daily
+  weekly: "0 3 * * 0",       // 03:00 UTC Sundays
+  monthly: "0 2 1 * *",      // 02:00 UTC on the 1st
+};
 
 async function start() {
-  // Run idempotent schema migrations before accepting connections.
-  // A failed migration must NOT crash the server — it would cause Railway to
-  // enter an infinite crash-loop.  We log loudly and continue; the affected
-  // endpoints will 500 until the column is present, but every other endpoint
-  // keeps working and the column error is clearly visible in Railway logs.
   try {
     await runStartupMigrations();
   } catch (migrationErr) {
@@ -35,50 +30,39 @@ async function start() {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
 
-    // Stagger source group scrapes throughout the day (2 groups per hour starting at 06:00 UTC)
-    const groups = getSourceGroups().map((g) => g.name);
-
-    groups.forEach((groupName, i) => {
-      const hour = 6 + Math.floor(i / 2);
-      const minute = (i % 2) * 30;
-      const cronExpr = `${minute} ${hour} * * *`;
-
-      cron.schedule(cronExpr, async () => {
-        console.log(`[Scraper] Starting scheduled run for "${groupName}"...`);
-        try {
-          const result = await runSourceGroup(groupName, "schedule");
-          console.log(`[Scraper] "${groupName}" complete: ${result.discovered} new, ${result.updated} updated, ${result.flagged} flagged`);
-        } catch (err) {
-          console.error(`[Scraper] "${groupName}" error:`, err);
-        }
-      });
-
-      console.log(`[Scraper] "${groupName}" scheduled daily at ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} UTC`);
-    });
-
-    // Schedule new DFI / RSS adapters — each has its own cron expression
-    for (const adapter of ADAPTER_REGISTRY) {
+    // Schedule each adapter on its declared cadence.
+    for (const adapter of ADAPTERS) {
+      const cronExpr = SCHEDULE_CRON[adapter.config.schedule];
       try {
-        cron.schedule(adapter.schedule, async () => {
-          console.log(`[Adapter] Scheduled run: ${adapter.key}`);
+        cron.schedule(cronExpr, async () => {
+          console.log(`[Adapter] Scheduled run: ${adapter.config.key}`);
           try {
-            const r = await runAdapter(adapter.key, "schedule");
-            console.log(`[Adapter] ${adapter.key} complete — inserted:${r.rowsInserted} updated:${r.rowsUpdated} flagged:${r.rowsFlagged}`);
+            const r = await runAdapter(adapter, "schedule");
+            console.log(`[Adapter] ${adapter.config.key} complete — inserted:${r.inserted} updated:${r.updated} flagged:${r.flagged} rejected:${r.rejected}`);
           } catch (err) {
-            console.error(`[Adapter] ${adapter.key} error:`, err);
+            console.error(`[Adapter] ${adapter.config.key} error:`, err);
           }
         });
-        console.log(`[Adapter] "${adapter.key}" scheduled: ${adapter.schedule}`);
+        console.log(`[Adapter] "${adapter.config.key}" scheduled (${adapter.config.schedule} → ${cronExpr})`);
       } catch (err) {
-        console.warn(`[Adapter] Could not schedule "${adapter.key}": ${err}`);
+        console.warn(`[Adapter] Could not schedule "${adapter.config.key}": ${err}`);
       }
     }
 
+    // Daily URL re-check sweep (catches link rot for projects older than 30 days).
+    cron.schedule("0 5 * * *", async () => {
+      console.log("[UrlCheck] Starting daily sweep…");
+      try {
+        const r = await runUrlCheckSweep({ batchSize: 200, maxAgeDays: 30, delayMs: 500 });
+        console.log(`[UrlCheck] Done — checked:${r.checked} valid:${r.valid} broken:${r.broken} blocked:${r.blocked} timeout:${r.timeout}`);
+      } catch (err) {
+        console.error("[UrlCheck] Sweep error:", err);
+      }
+    });
+    console.log("[UrlCheck] Daily sweep scheduled at 05:00 UTC");
+
     startNewsletterScheduler();
 
-    // ── Daily auto-purge (03:00 UTC) ────────────────────────────────────────
-    // Enabled only when PURGE_ENABLED=true. Kill-switch lets us disable
-    // instantly if something looks wrong in the first 48 hours after deploy.
     if (process.env["PURGE_ENABLED"] === "true") {
       cron.schedule("0 3 * * *", async () => {
         console.log("[Purge] Running daily auto-purge…");

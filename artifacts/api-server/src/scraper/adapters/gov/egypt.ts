@@ -20,5 +20,5 @@ export const govEgyptAdapter: RegisteredAdapter = {
     schedule: "weekly",
     defaultConfidence: 0.75,
   },
-  run: () => runGovernmentScrape({ country: "Egypt", sources: SOURCES }),
+  run: () => runGovernmentScrape({ country: "Egypt", sources: SOURCES, adapterKey: "gov-egypt" }),
 };

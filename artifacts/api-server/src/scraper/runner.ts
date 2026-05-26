@@ -5,7 +5,7 @@
 
 import { db, scraperRunsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { ingest } from "./pipeline.js";
+import { ingestBatch } from "./pipeline.js";
 import { runUrlCheckSweep } from "./url-checker.js";
 import type { RegisteredAdapter } from "./adapters/types.js";
 
@@ -81,16 +81,13 @@ export async function runAdapter(
     errors = result.errors;
     onProgress?.(`[${adapter.config.key}] Fetched ${recordsFound} candidates (filtered ${result.meta.filteredOut})`);
 
-    for (const candidate of result.candidates) {
-      try {
-        const r = await ingest(candidate, adapter.config.key);
-        if (r.inserted) inserted++;
-        if (r.updated) updated++;
-        if (r.flagged) flagged++;
-        if (!r.inserted && !r.updated) rejected++;
-      } catch (e) {
-        errors.push(`ingest "${candidate.projectName}": ${e instanceof Error ? e.message : String(e)}`);
-      }
+    // Batch ingestion — single URL pre-lookup + shared connection for the whole batch
+    const results = await ingestBatch(result.candidates, adapter.config.key);
+    for (const r of results) {
+      if (r.inserted) inserted++;
+      if (r.updated) updated++;
+      if (r.flagged) flagged++;
+      if (!r.inserted && !r.updated) rejected++;
     }
   } catch (e) {
     errors.push(`run: ${e instanceof Error ? e.message : String(e)}`);

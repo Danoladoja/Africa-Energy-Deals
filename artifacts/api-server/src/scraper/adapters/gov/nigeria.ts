@@ -21,5 +21,5 @@ export const govNigeriaAdapter: RegisteredAdapter = {
     schedule: "weekly",
     defaultConfidence: 0.75,
   },
-  run: () => runGovernmentScrape({ country: "Nigeria", sources: SOURCES, maxArticles: 8 }),
+  run: () => runGovernmentScrape({ country: "Nigeria", sources: SOURCES, adapterKey: "gov-nigeria", maxArticles: 8 }),
 };

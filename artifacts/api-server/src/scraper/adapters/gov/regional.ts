@@ -27,5 +27,5 @@ export const govRegionalAdapter: RegisteredAdapter = {
     defaultConfidence: 0.75,
   },
   // Empty country string = don't override LLM's country extraction
-  run: () => runGovernmentScrape({ country: "", sources: SOURCES }),
+  run: () => runGovernmentScrape({ country: "", sources: SOURCES, adapterKey: "gov-regional" }),
 };

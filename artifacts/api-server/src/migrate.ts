@@ -397,6 +397,17 @@ export async function runStartupMigrations(): Promise<void> {
     ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS review_notes JSONB DEFAULT '[]'::jsonb
   `);
 
+  // ── Async URL validation (populated by url-checker sweep) ────────────────
+  await runMigration("energy_projects.url_status", `
+    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS url_status VARCHAR(20) DEFAULT 'unchecked'
+  `);
+  await runMigration("energy_projects.url_checked_at", `
+    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS url_checked_at TIMESTAMPTZ
+  `);
+  await runMigration("energy_projects.url_http_status", `
+    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS url_http_status INTEGER
+  `);
+
   // ── seed scraper_sources ──────────────────────────────────────────────────
   await runMigration("seed scraper_sources google alerts", `
     INSERT INTO scraper_sources (adapter_type, key, label, feed_url, created_by) VALUES

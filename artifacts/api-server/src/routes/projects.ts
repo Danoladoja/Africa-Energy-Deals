@@ -139,7 +139,7 @@ router.get("/projects/similar", async (req, res) => {
   }
 
   // Normalize the incoming name so it matches the normalized_name column in the DB
-  const { normalizeProjectName } = await import("../services/name-normalizer.js");
+  const { normalizeProjectName } = await import("../scraper/shared/countries.js");
   const name = normalizeProjectName(rawName);
 
   try {

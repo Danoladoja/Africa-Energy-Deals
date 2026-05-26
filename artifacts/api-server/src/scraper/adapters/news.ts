@@ -7,7 +7,7 @@
  */
 
 import Parser from "rss-parser";
-import { extractDealFromArticle } from "../llm.js";
+import { extractDealFromArticle, hasBudget } from "../llm.js";
 import type { CandidateDraft, AdapterResult, RegisteredAdapter } from "./types.js";
 
 const rssParser = new Parser({
@@ -93,13 +93,13 @@ async function run(): Promise<AdapterResult> {
       fetched += items.length;
 
       for (const item of items) {
-        if (llmCalls >= MAX_LLM_CALLS) break;
+        if (llmCalls >= MAX_LLM_CALLS || !hasBudget()) break;
         const title = (item.title ?? "").trim();
         const url = (item.link ?? "").trim();
         if (!title || !url) { filtered++; continue; }
 
         llmCalls++;
-        const draft = await extractDealFromArticle(title, item.contentSnippet ?? null, url);
+        const draft = await extractDealFromArticle(title, item.contentSnippet ?? null, url, "news");
         if (!draft) { filtered++; continue; }
 
         // Default status when LLM doesn't infer one.

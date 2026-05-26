@@ -6,7 +6,7 @@
  */
 
 import { fetchWithRetry } from "../../shared/http.js";
-import { extractDealFromGovernmentSource } from "../../llm.js";
+import { extractDealFromGovernmentSource, hasBudget } from "../../llm.js";
 import type { CandidateDraft, AdapterResult } from "../types.js";
 
 export interface GovSource {
@@ -18,6 +18,7 @@ export interface GovSource {
 export interface GovAdapterConfig {
   country: string;        // Empty string = don't override LLM's extraction
   sources: GovSource[];
+  adapterKey: string;     // For LLM cost tracking (e.g. "gov-kenya")
   maxArticles?: number;   // Cap LLM calls per run (default: 15)
 }
 
@@ -118,7 +119,7 @@ export async function runGovernmentScrape(config: GovAdapterConfig): Promise<Ada
     fetched += urls.length;
 
     for (const url of urls) {
-      if (llmCalls >= maxArticles) break;
+      if (llmCalls >= maxArticles || !hasBudget()) break;
 
       const text = await fetchPageText(url);
       if (!text || text.length < 100) {
@@ -133,6 +134,7 @@ export async function runGovernmentScrape(config: GovAdapterConfig): Promise<Ada
           text,
           url,
           config.country || undefined,
+          config.adapterKey,
         );
         if (candidate) {
           candidates.push(candidate);
