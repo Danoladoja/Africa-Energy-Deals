@@ -112,8 +112,8 @@ Return a JSON object with these fields:
   "confidence": number
 }
 
-Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Biomass, Nuclear,
-Oil & Gas, Transmission & Distribution, Battery Storage, Green Hydrogen, Coal.
+Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Bioenergy, Nuclear,
+Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Clean Cooking, Coal.
 
 If NOT an Africa energy investment deal, return null.
 Return ONLY valid JSON, no markdown.`;
@@ -143,8 +143,8 @@ Return a JSON object with these fields:
   "confidence": number
 }
 
-Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Biomass, Nuclear,
-Oil & Gas, Transmission & Distribution, Battery Storage, Green Hydrogen, Coal.
+Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Bioenergy, Nuclear,
+Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Clean Cooking, Coal.
 
 If NOT an Africa energy investment deal or project, return null.
 Return ONLY valid JSON, no markdown.`;

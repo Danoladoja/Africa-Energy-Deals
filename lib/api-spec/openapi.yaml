@@ -237,6 +237,9 @@ components:
         dealSizeUsdMn:
           type: number
           nullable: true
+        isEstimated:
+          type: boolean
+          description: True when dealSizeUsdMn is a capacity-based benchmark estimate, not a disclosed value
         investors:
           type: string
           nullable: true

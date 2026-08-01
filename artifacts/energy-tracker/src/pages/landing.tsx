@@ -42,6 +42,7 @@ interface LatestProject {
 
 function fmtDeal(mn?: number | null): string | null {
   if (mn == null) return null;
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T`;
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
   return `$${mn.toFixed(0)}M`;
 }
@@ -195,6 +196,7 @@ function getCountryColor(investment: number, maxInvestment: number): string {
 }
 
 function formatBillions(mn: number) {
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T`;
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
   return `$${mn.toFixed(0)}M`;
 }
@@ -407,7 +409,7 @@ export default function Landing() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:flex md:items-start md:justify-center w-full max-w-2xl gap-y-6 md:gap-0">
           {[
-            { value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—", label: "Total Investment" },
+            { value: stats ? formatBillions(stats.totalInvestmentUsdMn) : "—", label: "Disclosed Investment" },
             { value: stats ? stats.totalProjects.toString() : "—", label: "Total Projects" },
             { value: stats ? stats.totalCountries.toString() : "—", label: "Countries" },
             { value: stats ? String(stats.totalSectors ?? stats.totalTechnologies ?? "—") : "—", label: "Sectors" },

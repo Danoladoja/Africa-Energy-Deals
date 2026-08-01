@@ -56,10 +56,19 @@ const CLIMATE_TAG_COLORS: Record<string, { bg: string; text: string; border: str
   "Non-Climate":  { bg: "bg-slate-500/10",     text: "text-muted-foreground",    border: "border-slate-500/25" },
 };
 
-function formatDealSize(mn: number | null | undefined): string {
+function formatDealSize(mn: number | null | undefined, isEstimated?: boolean): string {
   if (!mn) return "Undisclosed";
-  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
-  return `$${mn.toFixed(0)}M`;
+  const suffix = isEstimated ? " est." : "";
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T${suffix}`;
+  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B${suffix}`;
+  return `$${mn.toFixed(0)}M${suffix}`;
+}
+
+// Display capacity with at most one decimal (raw values can carry float noise)
+function formatCapacity(mw: number | null | undefined): string {
+  if (!mw) return "N/A";
+  const rounded = Math.round(mw * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} MW`;
 }
 
 function getStatusColor(status: string) {
@@ -289,13 +298,13 @@ export default function DealDetail() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <MetricCard
                 icon={DollarSign}
-                label="Deal Size"
-                value={formatDealSize(project.dealSizeUsdMn)}
+                label={project.isEstimated && project.dealSizeUsdMn ? "Deal Size (est.)" : "Deal Size"}
+                value={formatDealSize(project.dealSizeUsdMn, project.isEstimated)}
               />
               <MetricCard
                 icon={Activity}
                 label="Capacity"
-                value={project.capacityMw ? `${project.capacityMw} MW` : "N/A"}
+                value={formatCapacity(project.capacityMw)}
               />
               <MetricCard
                 icon={Zap}

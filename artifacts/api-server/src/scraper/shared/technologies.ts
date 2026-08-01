@@ -20,16 +20,16 @@ export const TECHNOLOGIES = {
     aliases: ["geotherm"],
     costPerMw: 3.5,
   },
-  "Biomass": {
-    aliases: ["bioenergy", "biogas", "waste-to-energy", "bagasse", "wood pellet"],
+  "Bioenergy": {
+    aliases: ["biomass", "biogas", "waste-to-energy", "bagasse", "wood pellet", "bioenergy"],
     costPerMw: 2.5,
   },
-  "Battery Storage": {
-    aliases: ["bess", "battery", "energy storage"],
+  "Battery & Storage": {
+    aliases: ["battery storage", "bess", "battery", "energy storage"],
     costPerMw: 1.2,
   },
-  "Green Hydrogen": {
-    aliases: ["hydrogen", "electrolysis", "electrolyzer", "electrolyser"],
+  "Hydrogen": {
+    aliases: ["green hydrogen", "hydrogen", "electrolysis", "electrolyzer", "electrolyser", "ammonia"],
     costPerMw: 3.0,
   },
   "Nuclear": {
@@ -48,9 +48,16 @@ export const TECHNOLOGIES = {
     ],
     costPerMw: 0.8,
   },
-  "Transmission & Distribution": {
-    aliases: ["t&d", "grid", "transmission", "substation", "interconnect", "interconnector", "distribution"],
+  "Grid Expansion": {
+    aliases: [
+      "transmission & distribution", "t&d", "grid", "transmission", "substation",
+      "interconnect", "interconnector", "distribution", "rural electrification",
+    ],
     costPerMw: 0.5,
+  },
+  "Clean Cooking": {
+    aliases: ["cookstove", "cook stove", "clean cooking", "improved cooking"],
+    costPerMw: 0, // no MW benchmark — never estimate deal sizes for this sector
   },
 } as const;
 
@@ -59,7 +66,7 @@ export type TechnologyName = keyof typeof TECHNOLOGIES;
 const CANONICAL_NAMES = Object.keys(TECHNOLOGIES) as TechnologyName[];
 
 /**
- * True if `tech` is one of the 11 canonical technology names.
+ * True if `tech` is one of the canonical sector names (single source of truth\n * for the whole app — scraper, API validation, and frontend filters).
  */
 export function isRecognizedTechnology(tech: string): boolean {
   return (CANONICAL_NAMES as string[]).includes(tech);
@@ -83,10 +90,12 @@ export function normalizeTechnology(text: string): TechnologyName | null {
 
   // Check in order: specific renewables first, then storage/hydrogen, then nuclear,
   // then coal (before oil & gas), then T&D last.
+  // Hydrogen before Hydro (the word "hydrogen" contains "hydro"); Geothermal
+  // before Oil & Gas ("geothermal" contains the alias "thermal"); Grid last.
   const ORDER: TechnologyName[] = [
-    "Solar", "Wind", "Hydro", "Geothermal", "Biomass",
-    "Battery Storage", "Green Hydrogen", "Nuclear",
-    "Coal", "Oil & Gas", "Transmission & Distribution",
+    "Solar", "Wind", "Geothermal", "Hydrogen", "Hydro", "Bioenergy",
+    "Battery & Storage", "Clean Cooking", "Nuclear",
+    "Coal", "Oil & Gas", "Grid Expansion",
   ];
 
   for (const name of ORDER) {
@@ -110,6 +119,7 @@ export function estimateDealSize(
   if (!capacityMw || capacityMw <= 0) return null;
   if (!isRecognizedTechnology(technology)) return null;
   const perMw = TECHNOLOGIES[technology as TechnologyName].costPerMw;
+  if (!perMw) return null; // sectors with no MW benchmark (e.g. Clean Cooking)
   const estimate = Math.round(capacityMw * perMw * 10) / 10;
   return estimate > 0.1 ? estimate : null;
 }

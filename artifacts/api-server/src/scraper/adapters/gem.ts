@@ -3,7 +3,8 @@
  *
  * Pulls 8 tracker CSVs (Solar, Wind, Coal, Gas, Hydro, Bioenergy, Nuclear,
  * Geothermal), filters to African countries, and emits one CandidateDraft
- * per plant. Confidence is high (~0.95) because the data is curated.
+ * per plant. Sizes are benchmark estimates (flagged isEstimated) and
+ * confidence is deliberately moderate (0.6) so new records go to human review.
  */
 
 import { fetchWithRetry } from "../shared/http.js";
@@ -18,7 +19,7 @@ const TRACKERS = [
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Coal-Plant-Tracker.csv", tech: "Coal" },
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Africa-Gas-Tracker.csv", tech: "Oil & Gas" },
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Hydropower-Tracker.csv", tech: "Hydro" },
-  { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Bioenergy-Power-Tracker.csv", tech: "Biomass" },
+  { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Bioenergy-Power-Tracker.csv", tech: "Bioenergy" },
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Nuclear-Power-Tracker.csv", tech: "Nuclear" },
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Geothermal-Power-Tracker.csv", tech: "Geothermal" },
 ];
@@ -75,6 +76,10 @@ async function run(): Promise<AdapterResult> {
         const statusRaw = (row["status"] ?? "").toLowerCase();
         const status = STATUS_MAP[statusRaw] ?? "announced";
 
+        // Cancelled / shelved / retired plants are infrastructure history, not
+        // investment deals — do not ingest them.
+        if (status === "cancelled" || status === "decommissioned") { filtered++; continue; }
+
         const lat = parseNumber(row["latitude"] ?? row["lat"]);
         const lng = parseNumber(row["longitude"] ?? row["lon"] ?? row["lng"]);
         const validLat = lat !== null && lat >= -90 && lat <= 90 ? lat : null;
@@ -88,6 +93,7 @@ async function run(): Promise<AdapterResult> {
           country,
           technology: tracker.tech,
           dealSizeUsdMn: estimateDealSize(validCapacity, tracker.tech),
+          isEstimated: true, // GEM sizes are capacity-based benchmark estimates, never disclosed values
           capacityMw: validCapacity,
           developer: (row["owner"] ?? row["parent"] ?? row["operator"] ?? row["developer"] ?? "").slice(0, 200) || null,
           financiers: null,
@@ -102,7 +108,7 @@ async function run(): Promise<AdapterResult> {
           announcedYear,
           offtaker: null,
           financialCloseDate: null,
-          confidence: 0.95,
+          confidence: 0.6, // route new GEM records through human review, not auto-approve
         });
       }
     } catch (e) {
@@ -119,7 +125,7 @@ export const gemAdapter: RegisteredAdapter = {
     label: "Global Energy Monitor",
     group: "gem",
     schedule: "monthly",
-    defaultConfidence: 0.95,
+    defaultConfidence: 0.6,
   },
   run,
 };

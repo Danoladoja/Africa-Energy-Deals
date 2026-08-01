@@ -20,6 +20,8 @@ export interface Project {
   region: string;
   technology: string;
   dealSizeUsdMn?: number | null;
+  /** True when dealSizeUsdMn is a capacity-based benchmark estimate, not a disclosed value */
+  isEstimated?: boolean;
   investors?: string | null;
   status: string;
   description?: string | null;

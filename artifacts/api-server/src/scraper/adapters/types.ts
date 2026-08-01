@@ -28,6 +28,10 @@ export interface CandidateDraft {
   offtaker: string | null;
   financialCloseDate: string | null;
   confidence: number;        // 0.0–1.0
+  // True when dealSizeUsdMn is a benchmark estimate (capacity × cost/MW) rather
+  // than a disclosed value. The pipeline also sets this automatically when it
+  // estimates a missing size itself.
+  isEstimated?: boolean;
 }
 
 export interface AdapterConfig {

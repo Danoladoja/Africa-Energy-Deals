@@ -23,6 +23,7 @@ import {
 } from "./shared/countries.js";
 import {
   isRecognizedTechnology,
+  normalizeTechnology,
   estimateDealSize,
 } from "./shared/technologies.js";
 import type { CandidateDraft } from "./adapters/types.js";
@@ -180,14 +181,21 @@ async function ingestWithClient(
     return skip("Unrecognized country");
   }
 
-  if (!candidate.technology || !isRecognizedTechnology(candidate.technology)) {
-    return skip("Unrecognized technology");
+  // Normalize free-text technology names (e.g. "Biomass" → "Bioenergy",
+  // "Battery Storage" → "Battery & Storage") instead of silently dropping them.
+  const canonicalTechnology = normalizeTechnology(candidate.technology ?? "");
+  if (!canonicalTechnology) {
+    return skip(`Unrecognized technology: ${candidate.technology ?? "(none)"}`);
   }
 
   // ── Gate 2: Normalize ─────────────────────────────────────
   const normalizedName = normalizeProjectName(name);
   const region = inferRegion(canonicalCountry);
-  const dealSize = candidate.dealSizeUsdMn ?? estimateDealSize(candidate.capacityMw, candidate.technology);
+  const disclosedSize = candidate.dealSizeUsdMn ?? null;
+  const dealSize = disclosedSize ?? estimateDealSize(candidate.capacityMw, canonicalTechnology);
+  // A size is "estimated" if the adapter flagged it, or if we derived it here
+  // from capacity benchmarks because no disclosed value existed.
+  const isEstimated = candidate.isEstimated === true || (disclosedSize === null && dealSize !== null);
 
   // ── In-memory dedup (within this batch) ───────────────────
   if (candidate.newsUrl && batchCache.hasUrl(candidate.newsUrl)) {
@@ -250,8 +258,9 @@ async function ingestWithClient(
       normalizedName,
       country: canonicalCountry,
       region,
-      technology: candidate.technology,
+      technology: canonicalTechnology,
       dealSizeUsdMn: dealSize,
+      isEstimated,
       capacityMw: candidate.capacityMw,
       status: candidate.status ?? "announced",
       description: candidate.description,
@@ -360,7 +369,11 @@ async function gapFillSmart(
   }
   if (c.dfiInvolvement && !existing.dfi_involvement) updates.dfiInvolvement = c.dfiInvolvement;
   if (c.newsUrl && !existing.news_url) updates.newsUrl = c.newsUrl;
-  if (c.dealSizeUsdMn != null && existing.deal_size_usd_mn == null) updates.dealSizeUsdMn = c.dealSizeUsdMn;
+  if (c.dealSizeUsdMn != null && existing.deal_size_usd_mn == null) {
+    updates.dealSizeUsdMn = c.dealSizeUsdMn;
+    // Carry the estimate flag with the value so gap-filled sizes stay honest.
+    updates.isEstimated = c.isEstimated === true;
+  }
   if (c.capacityMw != null && existing.capacity_mw == null) updates.capacityMw = c.capacityMw;
   if (c.latitude != null && existing.latitude == null) updates.latitude = c.latitude;
   if (c.longitude != null && existing.longitude == null) updates.longitude = c.longitude;

@@ -13,6 +13,7 @@ export interface Project {
   region: string;
   technology: string;
   dealSizeUsdMn?: number | null;
+  isEstimated?: boolean;
   investors?: string | null;
   status: string;
   description?: string | null;

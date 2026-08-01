@@ -169,6 +169,7 @@ interface Project {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(mn: number | null | undefined, decimals = 1): string {
   if (!mn) return "—";
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(decimals)}T`;
   if (mn >= 1000) return `$${(mn / 1000).toFixed(decimals)}B`;
   return `$${mn.toFixed(0)}M`;
 }
@@ -1265,7 +1266,7 @@ export default function Dashboard() {
 
         {/* ── Stats Strip ── */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-          <StatCard title="Total Investment"  value={summary ? fmt(summary.totalInvestmentUsdMn) : ""} icon={DollarSign} loading={isLoading} />
+          <StatCard title="Disclosed Investment"  value={summary ? fmt(summary.totalInvestmentUsdMn) : ""} icon={DollarSign} loading={isLoading} />
           <StatCard title="Total Projects"    value={summary ? String(summary.totalProjects)       : ""} icon={Briefcase}  loading={isLoading} />
           <StatCard title="Countries Covered" value={summary ? String(summary.totalCountries)       : ""} icon={Globe}      loading={isLoading} />
           <StatCard title="In Development"    value={summary ? String(summary.activeProjects    ?? 0) : ""} icon={Activity}   loading={isLoading} />

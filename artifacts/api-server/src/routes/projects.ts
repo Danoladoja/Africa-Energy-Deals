@@ -6,7 +6,7 @@ const router: IRouter = Router();
 
 // Valid technology categories (canonical sectors)
 const VALID_TECHNOLOGIES = [
-  "Solar", "Wind", "Hyro", "Geothermal", "Oil & Gas",
+  "Solar", "Wind", "Hydro", "Geothermal", "Oil & Gas",
   "Grid Expansion", "Battery & Storage", "Hydrogen",
   "Nuclear", "Bioenergy", "Clean Cooking", "Coal",
 ];

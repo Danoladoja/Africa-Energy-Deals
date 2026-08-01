@@ -23,7 +23,7 @@ const FALLBACK_SECTOR_COLOR = "#94a3b8";
 
 function dealShareText(project: any) {
   const size = project.dealSizeUsdMn
-    ? (project.dealSizeUsdMn >= 1000 ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B` : `$${project.dealSizeUsdMn}M`)
+    ? (project.dealSizeUsdMn >= 1000 ? `$${(project.dealSizeUsdMn / 1000).toFixed(1)}B` : `$${project.dealSizeUsdMn}M`) + (project.isEstimated ? " (est.)" : "")
     : "undisclosed investment";
   return `🌍 ${project.projectName} — ${size} ${project.technology} project in ${project.country} (${project.status}) | Africa Energy Investment Tracker`;
 }
@@ -601,6 +601,15 @@ function MySavedSearchesDropdown({
 
 type AnyProject = Record<string, any>;
 
+// Single deal-size formatter: handles $M/$B/$T and marks benchmark estimates.
+function fmtDealSize(mn: number | null | undefined, isEstimated?: boolean): string {
+  if (!mn) return "Undisclosed";
+  const suffix = isEstimated ? " est." : "";
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T${suffix}`;
+  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B${suffix}`;
+  return `$${Math.round(mn)}M${suffix}`;
+}
+
 const COMPARE_ROWS: { label: string; key: string; fmt?: (v: any) => string }[] = [
   { label: "Country",        key: "country" },
   { label: "Region",         key: "region" },
@@ -735,7 +744,9 @@ function ComparisonPanel({
               <div className="px-2 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
               {deals.map((d) => {
                 const raw = d[key];
-                const display = fmt ? fmt(raw) : (raw ?? "—");
+                const display = key === "dealSizeUsdMn"
+                  ? (raw ? fmtDealSize(raw, (d as AnyProject).isEstimated) : "—")
+                  : (fmt ? fmt(raw) : (raw ?? "—"));
                 const style = key === "dealSizeUsdMn" ? dealSizeStyle(raw) : {};
                 return (
                   <div key={d.id} className="px-4 py-3 text-sm font-medium text-slate-200" style={style}>
@@ -1190,7 +1201,7 @@ export default function DealTracker() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-sm font-semibold text-foreground">
-                    {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn >= 1000 ? `${(project.dealSizeUsdMn/1000).toFixed(1)}B` : `${project.dealSizeUsdMn}M`}` : "Undisclosed"}
+                    {fmtDealSize(project.dealSizeUsdMn, (project as AnyProject).isEstimated)}
                   </span>
                   <div className="flex items-center gap-1">
                     <ShareButton text={dealShareText(project)} stopPropagation className="p-1" />
@@ -1299,7 +1310,7 @@ export default function DealTracker() {
                           </div>
                         </td>
                         <td className="py-4 px-6 font-mono text-sm">
-                          {project.dealSizeUsdMn ? `$${project.dealSizeUsdMn}M` : 'Undisclosed'}
+                          {fmtDealSize(project.dealSizeUsdMn, (project as AnyProject).isEstimated)}
                         </td>
                         <td className="py-4 px-6">
                           <Badge variant="outline" className={getStatusColor(project.status)}>

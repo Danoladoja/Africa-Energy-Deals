@@ -103,16 +103,13 @@ const TECH_COLORS: Record<string, string> = {
   Hydro:                          "text-cyan-400 bg-cyan-400/10",
   Geothermal:                     "text-red-400 bg-red-400/10",
   "Oil & Gas":                    "text-orange-400 bg-orange-400/10",
-  "Transmission & Distribution":  "text-purple-400 bg-purple-400/10",
-  "Battery Storage":              "text-pink-400 bg-pink-400/10",
-  "Green Hydrogen":               "text-sky-400 bg-sky-400/10",
+  "Grid Expansion":               "text-purple-400 bg-purple-400/10",
+  "Battery & Storage":            "text-pink-400 bg-pink-400/10",
+  Hydrogen:                       "text-sky-400 bg-sky-400/10",
   Nuclear:                        "text-violet-400 bg-violet-400/10",
-  Biomass:                        "text-green-400 bg-green-400/10",
+  Bioenergy:                      "text-green-400 bg-green-400/10",
+  "Clean Cooking":                "text-lime-400 bg-lime-400/10",
   Coal:                           "text-stone-400 bg-stone-400/10",
-  "Grid Expansion":               "text-purple-300 bg-purple-300/10",
-  "Battery & Storage":            "text-pink-300 bg-pink-300/10",
-  Hydrogen:                       "text-sky-300 bg-sky-300/10",
-  Bioenergy:                      "text-green-300 bg-green-300/10",
 };
 
 function ConfidenceBadge({ score }: { score: number | null }) {

@@ -63,6 +63,9 @@ export const projectsTable = pgTable("energy_projects", {
   // ── AI Extraction Metadata ────────────────────────────────────────────────
   confidenceScore: doublePrecision("confidence_score"),
   extractionSource: text("extraction_source"),
+  // True when dealSizeUsdMn is a capacity-based benchmark estimate (capacity × cost/MW),
+  // not a disclosed transaction value. Estimated sizes are excluded from headline dollar totals.
+  isEstimated: boolean("is_estimated").default(false).notNull(),
 
   // ── Community Submissions ─────────────────────────────────────────────────
   submittedByContributorId: integer("submitted_by_contributor_id"),

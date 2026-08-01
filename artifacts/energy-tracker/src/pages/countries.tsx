@@ -46,6 +46,7 @@ const SLOT_COLORS = ["#60a5fa", "#f472b6", "#fb923c"] as const;
 
 function fmt(mn: number | null | undefined): string {
   if (!mn) return "N/A";
+  if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T`;
   if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
   return `$${Math.round(mn)}M`;
 }
@@ -231,7 +232,7 @@ function CountryProfilePanel({
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { icon: DollarSign, label: "Total Investment", value: isLoading ? "—" : fmt(totalInvestment) },
+          { icon: DollarSign, label: "Disclosed Investment", value: isLoading ? "—" : fmt(totalInvestment) },
           { icon: Layers, label: "Projects", value: isLoading ? "—" : String(projects.length) },
           { icon: TrendingUp, label: "Top Sector", value: isLoading ? "—" : topSector, color: SECTOR_COLORS[topSector] },
           { icon: Activity, label: "Avg Deal Size", value: isLoading ? "—" : fmt(avgDealSize) },
@@ -1258,7 +1259,8 @@ export default function CountriesPage() {
   );
 
   function fmt2(mn: number): string {
-    if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
+    if (mn >= 1_000_000) return `$${(mn / 1_000_000).toFixed(1)}T`;
+  if (mn >= 1000) return `$${(mn / 1000).toFixed(1)}B`;
     return `$${mn.toFixed(0)}M`;
   }
 

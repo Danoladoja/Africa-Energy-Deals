@@ -30,13 +30,13 @@ const TECH_KEYWORDS: [RegExp, string][] = [
   [/wind\s*(farm|power|energy|turbine)/i, "Wind"],
   [/hydro|dam|hydroelectric/i, "Hydro"],
   [/geothermal/i, "Geothermal"],
-  [/biomass|bioenergy|biogas|waste.to.energy/i, "Biomass"],
-  [/battery|storage|bess/i, "Battery Storage"],
-  [/hydrogen|electrolys/i, "Green Hydrogen"],
+  [/biomass|bioenergy|biogas|waste.to.energy/i, "Bioenergy"],
+  [/battery|storage|bess/i, "Battery & Storage"],
+  [/hydrogen|electrolys/i, "Hydrogen"],
   [/nuclear|atomic/i, "Nuclear"],
   [/gas\b|lng\b|natural gas/i, "Oil & Gas"],
   [/coal/i, "Coal"],
-  [/transmission|distribution|grid|interconnect/i, "Transmission & Distribution"],
+  [/transmission|distribution|grid|interconnect/i, "Grid Expansion"],
 ];
 
 function inferTechnology(text: string): string | null {
@@ -121,7 +121,7 @@ async function run(): Promise<AdapterResult> {
     }
 
     const text = `${p.project_name ?? ""} ${p.project_abstract?.cdata ?? ""}`;
-    const tech = inferTechnology(text) ?? normalizeTechnology(text) ?? "Transmission & Distribution";
+    const tech = inferTechnology(text) ?? normalizeTechnology(text) ?? "Grid Expansion";
 
     const amountMn = p.totalamt
       ? p.totalamt / 1_000_000
