@@ -83,7 +83,7 @@ function buildNewsletterEmailHtml(newsletter: {
   isAiGenerated?: boolean; // false for hand-written special editions
 }): string {
   const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
-  const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Africa/Lagos" });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -117,7 +117,7 @@ function buildNewsletterEmailHtml(newsletter: {
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:top;">
-          <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; Monthly Intelligence</p>
+          <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; ${newsletter.isAiGenerated === false ? "Special Edition" : "Monthly Intelligence"}</p>
           <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
           <img src="https://afrienergytracker.io/email/masthead-insights.png" width="322" height="96" alt="AfriEnergy Insights"
                style="display:block;border:0;outline:none;text-decoration:none;width:322px;height:auto;max-width:100%;" />
@@ -198,7 +198,7 @@ function buildBriefEmailHtml(newsletter: {
   editionNumber: number;
 }): string {
   const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
-  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "Africa/Lagos" });
 
   return `<!DOCTYPE html>
 <html lang="en">
