@@ -1,78 +1,11 @@
 import { BrevoClient } from "@getbrevo/brevo";
+import { markdownToHtml } from "./newsletter-generator.js";
 import { db, userEmailsTable, newslettersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const SENDER_INSIGHTS = { name: "AfriEnergy Insights", email: "insights@afrienergytracker.io" };
 const SENDER_BRIEF    = { name: "AfriEnergy Brief",    email: "brief@afrienergytracker.io" };
 
-
-function markdownToEmailHtml(md: string): string {
-  let html = md;
-
-  // Tables — dark header rows, clean alternating body rows
-  html = html.replace(/(\|.+\|\n)(\|[-| :]+\|\n)((?:\|.+\|\n?)+)/g, (_match, header, _sep, body) => {
-    const headerCells = header.trim().split("|").filter(Boolean).map(c =>
-      `<th style="font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;background:#0f172a;color:#10b981;font-size:11px;font-weight:700;padding:11px 14px;text-align:left;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">${c.trim()}</th>`
-    ).join("");
-    const bodyRows = body.trim().split("\n").map((row: string, i: number) => {
-      const cells = row.split("|").filter(Boolean).map(c =>
-        `<td style="font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
-      ).join("");
-      return `<tr>${cells}</tr>`;
-    }).join("");
-    return `<div style="border-radius:10px;overflow:hidden;margin:22px 0;border:1px solid #e2e8f0;"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
-  });
-
-  // Blockquotes → key insight callout
-  html = html.replace(/^> (.+)$/gm,
-    '<div style="border-left:4px solid #10b981;background:#f0fdf9;padding:14px 20px;margin:22px 0;border-radius:0 8px 8px 0;color:#065f46;font-size:14px;line-height:1.7;font-style:italic;font-family:\'Manrope\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;">$1</div>'
-  );
-
-  // H2 → section header with green left accent bar
-  html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0f172a;font-size:22px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.4px;line-height:1.25;">$1</h2>'
-  );
-
-  // H3
-  html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
-  );
-
-  // H4
-  html = html.replace(/^#### (.+)$/gm,
-    '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
-  );
-
-  // Links — [text](url)
-  html = html.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
-    '<a href="$2" style="color:#0d9488;text-decoration:underline;font-weight:600;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</a>');
-
-  // Bold and italic
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
-
-  // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
-  html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
-    '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
-  );
-
-  // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
-
-  // Horizontal rules
-  html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
-
-  // Paragraphs
-  html = html.split("\n\n").map(block => {
-    const trimmed = block.trim();
-    if (!trimmed) return "";
-    if (trimmed.startsWith("<")) return trimmed;
-    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
-  }).join("\n");
-
-  return html;
-}
 
 function buildNewsletterEmailHtml(newsletter: {
   title: string;
@@ -82,7 +15,7 @@ function buildNewsletterEmailHtml(newsletter: {
   id: number;
   isAiGenerated?: boolean; // false for hand-written special editions
 }): string {
-  const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
+  const bodyContent = newsletter.contentHtml ?? markdownToHtml(newsletter.content);
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Africa/Lagos" });
 
   return `<!DOCTYPE html>
@@ -95,11 +28,16 @@ function buildNewsletterEmailHtml(newsletter: {
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
-    .outer-td { padding:16px 8px !important; }
-    .content-td { padding:28px 20px !important; }
-    .masthead-td { padding:28px 20px 22px !important; }
-    .title-td { padding:16px 20px !important; }
-    .footer-td { padding:22px 20px !important; }
+    .outer-td { padding:0 !important; }
+    .content-td { padding:26px 18px !important; }
+    .masthead-td { padding:26px 18px 20px !important; }
+    .title-td { padding:16px 18px !important; }
+    .footer-td { padding:22px 18px !important; }
+    .masthead-badge { display:none !important; }
+    .masthead-img { width:250px !important; }
+    h2 { font-size:19px !important; margin:30px 0 12px !important; }
+    h3 { font-size:16px !important; }
+    p, li { font-size:16px !important; line-height:1.75 !important; }
   }
 </style>
 </head>
@@ -119,10 +57,10 @@ function buildNewsletterEmailHtml(newsletter: {
         <td style="vertical-align:top;">
           <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; ${newsletter.isAiGenerated === false ? "Special Edition" : "Monthly Intelligence"}</p>
           <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
-          <img src="https://afrienergytracker.io/email/masthead-insights.png" width="322" height="96" alt="AfriEnergy Insights"
+          <img class="masthead-img" src="https://afrienergytracker.io/email/masthead-insights.png" width="322" height="96" alt="AfriEnergy Insights"
                style="display:block;border:0;outline:none;text-decoration:none;width:322px;height:auto;max-width:100%;" />
         </td>
-        <td align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
+        <td class="masthead-badge" align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
           <div style="background:#0f2318;border:1px solid #1a4a2e;border-radius:8px;padding:12px 16px;text-align:center;display:inline-block;">
             <p style="margin:0;color:#10b981;font-size:13px;font-weight:800;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">#${newsletter.editionNumber}</p>
             <p style="margin:4px 0 0;color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Edition</p>
@@ -197,7 +135,7 @@ function buildBriefEmailHtml(newsletter: {
   contentHtml?: string | null;
   editionNumber: number;
 }): string {
-  const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
+  const bodyContent = newsletter.contentHtml ?? markdownToHtml(newsletter.content);
   const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "Africa/Lagos" });
 
   return `<!DOCTYPE html>
@@ -209,11 +147,16 @@ function buildBriefEmailHtml(newsletter: {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
-  @media only screen and (max-width:480px) {
-    .brief-outer { padding:16px 8px !important; }
-    .brief-header { padding:22px 20px 18px !important; }
-    .brief-content { padding:26px 20px !important; }
-    .brief-footer { padding:18px 20px !important; }
+  @media only screen and (max-width:620px) {
+    .brief-outer { padding:0 !important; }
+    .brief-header { padding:22px 18px 18px !important; }
+    .brief-content { padding:26px 18px !important; }
+    .brief-footer { padding:18px 18px !important; }
+    .masthead-badge { display:none !important; }
+    .masthead-img { width:230px !important; }
+    h2 { font-size:19px !important; margin:30px 0 12px !important; }
+    h3 { font-size:16px !important; }
+    p, li { font-size:16px !important; line-height:1.75 !important; }
   }
 </style>
 </head>
@@ -236,11 +179,11 @@ function buildBriefEmailHtml(newsletter: {
         <td style="vertical-align:middle;">
           <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
           <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
-          <img src="https://afrienergytracker.io/email/masthead-brief.png" width="290" height="34" alt="AfriEnergy Brief"
+          <img class="masthead-img" src="https://afrienergytracker.io/email/masthead-brief.png" width="290" height="34" alt="AfriEnergy Brief"
                style="display:block;border:0;outline:none;text-decoration:none;width:290px;height:auto;max-width:100%;" />
-          <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Biweekly Update &nbsp;·&nbsp; ${dateStr}</p>
+          <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Biweekly Update"} &nbsp;·&nbsp; ${dateStr}</p>
         </td>
-        <td align="right" style="vertical-align:middle;padding-left:16px;white-space:nowrap;">
+        <td class="masthead-badge" align="right" style="vertical-align:middle;padding-left:16px;white-space:nowrap;">
           <div style="border:1px solid #1a3a28;border-radius:6px;padding:8px 12px;text-align:center;display:inline-block;">
             <p style="margin:0;color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">3–5 MIN</p>
             <p style="margin:3px 0 0;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Read</p>
@@ -278,7 +221,7 @@ function buildBriefEmailHtml(newsletter: {
           <p style="margin:0;color:#e2e8f0;font-size:12px;font-weight:600;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker <span style="color:#475569;font-weight:400;">by Africa Energy Pulse</span></p>
           <p style="margin:6px 0 0;color:#334155;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
         </td>
-        <td align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
+        <td class="masthead-badge" align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
           <a href="https://afrienergytracker.io/insights" style="color:#10b981;font-size:11px;font-weight:600;text-decoration:none;display:block;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
           <a href="{{UNSUBSCRIBE_URL}}" style="color:#334155;font-size:10px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
         </td>
@@ -342,7 +285,8 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
     return 0;
   }
 
-  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief");
+  // Specials go out in the Brief format (concise, single-column) per editorial policy
+  const isBrief = newsletter.type === "brief" || newsletter.type === "special" || newsletter.title?.startsWith("AfriEnergy Brief");
   const isAiGenerated = newsletter.type !== "special"; // hand-written specials carry the author byline
   const htmlTemplate = isBrief
     ? buildBriefEmailHtml({
@@ -494,7 +438,7 @@ export function buildFullEmailHtml(newsletter: {
   id?: number;
   type?: string | null;
 }): string {
-  const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
+  const isBrief = newsletter.type === "brief" || newsletter.type === "special" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
   const isAiGenerated = newsletter.type !== "special";
   if (isBrief) {
     return buildBriefEmailHtml({

@@ -248,18 +248,22 @@ export function markdownToHtml(md: string): string {
     '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
   );
 
+  // Links — [text](url)
+  html = html.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+    '<a href="$2" style="color:#0d9488;text-decoration:underline;font-weight:600;">$1</a>');
+
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
 
   // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
   html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
     '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
   );
 
   // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
 
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
@@ -269,7 +273,7 @@ export function markdownToHtml(md: string): string {
     const trimmed = block.trim();
     if (!trimmed) return "";
     if (trimmed.startsWith("<")) return trimmed;
-    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;">${trimmed.replace(/\n/g, " ")}</p>`;
+    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
   }).join("\n");
 
   return html;

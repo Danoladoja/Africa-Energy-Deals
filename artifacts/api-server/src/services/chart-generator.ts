@@ -41,7 +41,8 @@ export interface DealRow {
 const QUICKCHART_URL = "https://quickchart.io/chart";
 
 const AFRIENERGY_GREEN = "#10B981";
-const DARK_BG = "#0b0f1a";
+// Charts render on the newsletter's LIGHT email body — light theme, dark ink.
+const CHART_BG = "#ffffff";
 const CHART_COLORS = [
   "#10B981", "#3B82F6", "#F59E0B", "#8B5CF6",
   "#EF4444", "#06B6D4", "#84CC16", "#F97316",
@@ -54,7 +55,7 @@ async function fetchChartAsBase64(config: object, width = 600, height = 340): Pr
       chart: config,
       width,
       height,
-      backgroundColor: DARK_BG,
+      backgroundColor: CHART_BG,
       format: "png",
     };
     const response = await fetch(QUICKCHART_URL, {
@@ -101,15 +102,15 @@ export async function generateSectorChart(bySector: SectorStat[]): Promise<strin
         title: {
           display: true,
           text: "Investment by Sector (USD $M)",
-          fontColor: "#ffffff",
+          fontColor: "#0f172a",
           fontSize: 14,
           fontStyle: "bold",
         },
         legend: { display: false },
       },
       scales: {
-        xAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
-        yAxes: [{ ticks: { fontColor: "#e2e8f0" }, gridLines: { color: "#1e293b" } }],
+        xAxes: [{ ticks: { fontColor: "#64748b", beginAtZero: true }, gridLines: { color: "#e2e8f0" } }],
+        yAxes: [{ ticks: { fontColor: "#334155" }, gridLines: { color: "#e2e8f0" } }],
       },
     },
   };
@@ -142,20 +143,20 @@ export async function generatePipelineChart(byStage: StageStat[]): Promise<strin
         title: {
           display: true,
           text: "Deal Pipeline by Stage (Project Count)",
-          fontColor: "#ffffff",
+          fontColor: "#0f172a",
           fontSize: 14,
           fontStyle: "bold",
         },
         legend: { display: false },
       },
       scales: {
-        xAxes: [{ ticks: { fontColor: "#e2e8f0" }, gridLines: { color: "#1e293b" } }],
+        xAxes: [{ ticks: { fontColor: "#334155" }, gridLines: { color: "#e2e8f0" } }],
         yAxes: [{
           id: "count",
           type: "linear",
           position: "left",
-          ticks: { fontColor: "#94a3b8", beginAtZero: true },
-          gridLines: { color: "#1e293b" },
+          ticks: { fontColor: "#64748b", beginAtZero: true },
+          gridLines: { color: "#e2e8f0" },
         }],
       },
     },
@@ -187,15 +188,15 @@ export async function generateRegionalChart(byRegion: RegionStat[]): Promise<str
         title: {
           display: true,
           text: "Investment by Region (USD $M)",
-          fontColor: "#ffffff",
+          fontColor: "#0f172a",
           fontSize: 14,
           fontStyle: "bold",
         },
         legend: { display: false },
       },
       scales: {
-        xAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
-        yAxes: [{ ticks: { fontColor: "#e2e8f0" }, gridLines: { color: "#1e293b" } }],
+        xAxes: [{ ticks: { fontColor: "#64748b", beginAtZero: true }, gridLines: { color: "#e2e8f0" } }],
+        yAxes: [{ ticks: { fontColor: "#334155" }, gridLines: { color: "#e2e8f0" } }],
       },
     },
   };
@@ -266,15 +267,15 @@ export async function generateCountryChart(byCountry: CountryStat[]): Promise<st
         title: {
           display: true,
           text: "Top Countries by Investment (USD $M)",
-          fontColor: "#ffffff",
+          fontColor: "#0f172a",
           fontSize: 14,
           fontStyle: "bold",
         },
         legend: { display: false },
       },
       scales: {
-        xAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
-        yAxes: [{ ticks: { fontColor: "#e2e8f0" }, gridLines: { color: "#1e293b" } }],
+        xAxes: [{ ticks: { fontColor: "#64748b", beginAtZero: true }, gridLines: { color: "#e2e8f0" } }],
+        yAxes: [{ ticks: { fontColor: "#334155" }, gridLines: { color: "#e2e8f0" } }],
       },
     },
   };
@@ -308,15 +309,15 @@ export async function generateSectorCountChart(bySector: SectorStat[]): Promise<
         title: {
           display: true,
           text: "Active Projects by Sector",
-          fontColor: "#ffffff",
+          fontColor: "#0f172a",
           fontSize: 14,
           fontStyle: "bold",
         },
         legend: { display: false },
       },
       scales: {
-        xAxes: [{ ticks: { fontColor: "#e2e8f0", maxRotation: 35 }, gridLines: { color: "#1e293b" } }],
-        yAxes: [{ ticks: { fontColor: "#94a3b8", beginAtZero: true }, gridLines: { color: "#1e293b" } }],
+        xAxes: [{ ticks: { fontColor: "#334155", maxRotation: 35 }, gridLines: { color: "#e2e8f0" } }],
+        yAxes: [{ ticks: { fontColor: "#64748b", beginAtZero: true }, gridLines: { color: "#e2e8f0" } }],
       },
     },
   };
