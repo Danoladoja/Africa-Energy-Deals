@@ -35,32 +35,26 @@ export async function generateAndSendBrief(): Promise<void> {
 }
 
 export function startNewsletterScheduler(): void {
-  console.log("[Newsletter Scheduler] Starting dual-publication scheduler...");
+  console.log("[Newsletter Scheduler] Starting bi-weekly scheduler...");
 
-  // ── Monthly: First Monday of each month at 7:00 AM UTC ──────────────────────
-  // Fires every Monday; guard checks if it's the first Monday (date <= 7)
+  // ── Bi-weekly: one publication every other Monday at 07:00 UTC ──────────────
+  // Fires every Monday; only even ISO weeks publish (exactly one email every
+  // two weeks). When the publish Monday is also the month's first Monday, the
+  // full AfriEnergy Insights deep-dive goes out; otherwise the quick Brief.
   cron.schedule("0 7 * * 1", async () => {
     const today = new Date();
-    if (today.getDate() <= 7) {
-      console.log("[Newsletter Scheduler] First Monday of month — generating AfriEnergy Insights...");
-      await generateAndSendInsightsNewsletter();
-    }
-  }, { timezone: "UTC" });
-
-  // ── Biweekly: Even ISO week Mondays (not first Monday) at 7:00 AM UTC ───────
-  // Alternates every other Monday; skips first Monday (that's the Insights day)
-  cron.schedule("0 7 * * 1", async () => {
-    const today = new Date();
-    const isFirstMonday = today.getDate() <= 7;
-    if (isFirstMonday) {
-      return; // Monthly Insights day — skip Brief
-    }
     const weekNumber = getISOWeekNumber(today);
-    if (weekNumber % 2 === 0) {
+    if (weekNumber % 2 !== 0) {
+      return; // off-week Monday — nothing publishes
+    }
+    if (today.getDate() <= 7) {
+      console.log(`[Newsletter Scheduler] Even week ${weekNumber}, first Monday of month — generating AfriEnergy Insights...`);
+      await generateAndSendInsightsNewsletter();
+    } else {
       console.log(`[Newsletter Scheduler] Even week ${weekNumber} — generating Africa Energy Brief...`);
       await generateAndSendBrief();
     }
   }, { timezone: "UTC" });
 
-  console.log("[Newsletter Scheduler] Running — Monthly Insights (1st Monday) + Biweekly Brief (even-week Mondays)");
+  console.log("[Newsletter Scheduler] Running — one publication every other Monday (even ISO weeks, 07:00 UTC)");
 }

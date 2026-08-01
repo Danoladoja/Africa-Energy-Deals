@@ -572,7 +572,7 @@ function NewsletterTab() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">
             <h3 className="text-sm font-bold text-foreground mb-1">Subscribe to AfriEnergy Insights</h3>
-            <p className="text-xs text-muted-foreground">Monthly deep-dive report (1st Monday) + biweekly AfriEnergy Brief (every other Monday).</p>
+            <p className="text-xs text-muted-foreground">One publication every other Monday — the AfriEnergy Insights deep-dive when it falls on the first Monday of the month, the quick AfriEnergy Brief otherwise.</p>
           </div>
           {subscribeMsg ? (
             <p className="text-xs text-primary font-medium">{subscribeMsg}</p>
@@ -605,7 +605,7 @@ function NewsletterTab() {
           </div>
           <div>
             <p className="text-xs font-bold text-foreground">AfriEnergy Insights</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Monthly deep-dive · Published 1st Monday of each month · 2,500–3,500 words + charts</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Deep-dive edition · Published on publish Mondays that fall 1st–7th of the month · 2,500–3,500 words + charts</p>
           </div>
         </div>
         <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-2.5">
@@ -623,7 +623,7 @@ function NewsletterTab() {
         <div className="text-center py-16">
           <Newspaper className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-sm font-medium text-foreground mb-1">No publications yet</h3>
-          <p className="text-xs text-muted-foreground">AfriEnergy Insights publishes on the 1st Monday of each month. AfriEnergy Brief publishes every other Monday. Admins can trigger either manually.</p>
+          <p className="text-xs text-muted-foreground">One publication goes out every other Monday — the Insights deep-dive when it lands on the first Monday of the month, the Brief otherwise. Admins can trigger either manually.</p>
         </div>
       ) : (
         <>

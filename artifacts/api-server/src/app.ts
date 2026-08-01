@@ -9,6 +9,7 @@ import router from "./routes";
 import { db, pool, projectsTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
 import { runStartupMigrations, runDataRepairs } from "./migrate.js";
+import { initSchedules } from "./scheduler.js";
 
 // Run idempotent startup migrations.
 // IMPORTANT: production boots via railway-server.mjs → app.ts (index.ts is never
@@ -21,7 +22,12 @@ pool.query(`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type VARCHAR(20) DE
 runStartupMigrations()
   .catch((err: Error) => console.error("[Migrate] startup migrations failed:", err?.message ?? err))
   .then(() => runDataRepairs())
-  .catch((err: Error) => console.error("[Repair] data repairs failed:", err?.message ?? err));
+  .catch((err: Error) => console.error("[Repair] data repairs failed:", err?.message ?? err))
+  .then(() => {
+    // Recurring jobs (scrapers, newsletter, URL checks) — registered here
+    // because production boots app.ts directly and never runs index.ts.
+    initSchedules();
+  });
 
 const require = createRequire(import.meta.url);
 const swaggerUi = require("swagger-ui-express") as typeof import("swagger-ui-express");
