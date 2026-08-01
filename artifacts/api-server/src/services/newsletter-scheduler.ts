@@ -1,6 +1,18 @@
 import cron from "node-cron";
 import { generateNewsletter, generateBrief, saveNewsletter } from "./newsletter-generator.js";
 import { dispatchNewsletter, dispatchBrief } from "./email-dispatch.js";
+import { db, newslettersTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
+
+/** True if any edition was sent in the last N days (avoids stacking sends
+ *  when a special edition goes out near a scheduled publication). */
+async function sentRecently(days: number): Promise<boolean> {
+  const r = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(newslettersTable)
+    .where(sql`sent_at IS NOT NULL AND sent_at > NOW() - make_interval(days => ${days})`);
+  return (r[0]?.n ?? 0) > 0;
+}
 
 function getISOWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -46,6 +58,10 @@ export function startNewsletterScheduler(): void {
     const weekNumber = getISOWeekNumber(today);
     if (weekNumber % 2 !== 0) {
       return; // off-week Monday — nothing publishes
+    }
+    if (await sentRecently(6)) {
+      console.log("[Newsletter Scheduler] An edition already went out in the last 6 days (e.g. a special) — skipping this cycle.");
+      return;
     }
     if (today.getDate() <= 7) {
       console.log(`[Newsletter Scheduler] Even week ${weekNumber}, first Monday of month — generating AfriEnergy Insights...`);

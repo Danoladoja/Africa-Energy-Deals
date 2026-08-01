@@ -26,7 +26,8 @@ import { ADAPTERS, runAdapter } from "./scraper/runner.js";
 import { runUrlCheckSweep } from "./scraper/url-checker.js";
 import { runFinancingEnrichment } from "./scraper/financing-enrichment.js";
 import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
-import { db, projectsTable, scraperRunsTable } from "@workspace/db";
+import { dispatchNewsletter } from "./services/email-dispatch.js";
+import { db, projectsTable, scraperRunsTable, newslettersTable } from "@workspace/db";
 import { lt, sql } from "drizzle-orm";
 import { PURGE_RETENTION_DAYS } from "@workspace/shared";
 
@@ -100,6 +101,29 @@ export function initSchedules(): void {
     }
   }, { timezone: "UTC" });
   console.log("[Enrichment] Monthly financing sweep scheduled (3rd, 05:30 UTC)");
+
+  // ── Scheduled custom editions (checked every 10 minutes) ───────────────────
+  // Dispatches any draft newsletter whose scheduled_send_at has passed.
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      const due = await db
+        .select({ id: newslettersTable.id, title: newslettersTable.title })
+        .from(newslettersTable)
+        .where(sql`status = 'draft' AND scheduled_send_at IS NOT NULL AND scheduled_send_at <= NOW()`);
+      for (const n of due) {
+        console.log(`[Newsletter Scheduler] Dispatching scheduled edition #${n.id}: ${n.title}`);
+        try {
+          const sent = await dispatchNewsletter(n.id);
+          console.log(`[Newsletter Scheduler] Scheduled edition #${n.id} sent to ${sent} subscribers`);
+        } catch (err) {
+          console.error(`[Newsletter Scheduler] Scheduled edition #${n.id} failed:`, err);
+        }
+      }
+    } catch (err) {
+      console.error("[Newsletter Scheduler] Scheduled-dispatch check failed:", err);
+    }
+  }, { timezone: "UTC" });
+  console.log("[Newsletter Scheduler] Scheduled-dispatch tick registered (every 10 min)");
 
   // ── Newsletter (every other Monday) ─────────────────────────────────────────
   startNewsletterScheduler();

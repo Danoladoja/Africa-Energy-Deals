@@ -43,6 +43,10 @@ function markdownToEmailHtml(md: string): string {
     '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
   );
 
+  // Links — [text](url)
+  html = html.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+    '<a href="$2" style="color:#0d9488;text-decoration:underline;font-weight:600;">$1</a>');
+
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');

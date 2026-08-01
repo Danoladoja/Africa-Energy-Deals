@@ -101,6 +101,7 @@ export async function runStartupMigrations(): Promise<void> {
   await runMigration("newsletters.recipient_count", `ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS recipient_count INTEGER`);
   await runMigration("newsletters.sent_at", `ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP`);
   await runMigration("newsletters.type", `ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'insights'`);
+  await runMigration("newsletters.scheduled_send_at", `ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS scheduled_send_at TIMESTAMPTZ`);
 
   // ── user_emails ───────────────────────────────────────────────────────────
   await runMigration("user_emails.unsubscribe_token", `ALTER TABLE user_emails ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT UNIQUE`);

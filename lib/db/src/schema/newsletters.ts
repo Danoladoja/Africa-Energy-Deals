@@ -16,8 +16,10 @@ export const newslettersTable = pgTable("newsletters", {
   recipientCount: integer("recipient_count"),
   generatedAt: timestamp("generated_at").defaultNow(),
   sentAt: timestamp("sent_at"),
+  // When set on a draft, the scheduler auto-dispatches at/after this time
+  scheduledSendAt: timestamp("scheduled_send_at", { withTimezone: true }),
   status: text("status").default("draft").notNull(), // 'draft' | 'sent' | 'failed'
-  type: text("type").default("insights").notNull(), // 'insights' (monthly) | 'brief' (biweekly)
+  type: text("type").default("insights").notNull(), // 'insights' (monthly) | 'brief' (biweekly) | 'special'
 });
 
 export type Newsletter = typeof newslettersTable.$inferSelect;

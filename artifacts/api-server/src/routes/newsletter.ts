@@ -235,6 +235,47 @@ router.get("/admin/newsletter/job/:jobId", adminAuthMiddleware, (req: Request, r
 });
 
 // POST /api/admin/newsletter/preview — generate monthly Insights without sending (admin only, async)
+// ── Custom special edition (hand-written, optionally scheduled) ─────────────
+// POST /api/admin/newsletter/special  { title, content (markdown), scheduledSendAt? (ISO) }
+// Creates a draft edition with the exact provided text. If scheduledSendAt is
+// set, the scheduler auto-dispatches it at/after that time; otherwise use the
+// existing /admin/newsletter/:id/send or /test-send endpoints.
+router.post("/admin/newsletter/special", adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { title, content, scheduledSendAt } = req.body as { title?: string; content?: string; scheduledSendAt?: string };
+    if (!title || !content) {
+      res.status(400).json({ error: "title and content are required" });
+      return;
+    }
+    let scheduled: Date | null = null;
+    if (scheduledSendAt) {
+      scheduled = new Date(scheduledSendAt);
+      if (isNaN(scheduled.getTime())) {
+        res.status(400).json({ error: "scheduledSendAt must be a valid ISO timestamp" });
+        return;
+      }
+    }
+    const [maxRow] = await db
+      .select({ maxEd: sql<number>`coalesce(max(edition_number), 0)::int` })
+      .from(newslettersTable);
+    const [created] = await db
+      .insert(newslettersTable)
+      .values({
+        editionNumber: (maxRow?.maxEd ?? 0) + 1,
+        title,
+        content,
+        type: "special",
+        status: "draft",
+        scheduledSendAt: scheduled,
+      })
+      .returning({ id: newslettersTable.id, editionNumber: newslettersTable.editionNumber });
+    res.json({ success: true, id: created.id, editionNumber: created.editionNumber, scheduledSendAt: scheduled?.toISOString() ?? null });
+  } catch (err) {
+    console.error("[Newsletter] special create failed:", err);
+    res.status(500).json({ error: "Failed to create special edition" });
+  }
+});
+
 router.post("/admin/newsletter/preview", adminAuthMiddleware, (req: Request, res: Response): void => {
   pruneOldJobs();
   const jobId = makeJobId();
