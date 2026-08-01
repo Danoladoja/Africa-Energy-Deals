@@ -24,18 +24,19 @@ const TRACKERS = [
   { url: "https://globalenergymonitor.org/wp-content/uploads/2024/Global-Geothermal-Power-Tracker.csv", tech: "Geothermal" },
 ];
 
+// Canonical stage values (see shared/deal-stages.ts)
 const STATUS_MAP: Record<string, string> = {
-  "operating": "operational",
-  "operational": "operational",
-  "construction": "construction",
-  "pre-construction": "announced",
-  "permitted": "announced",
-  "announced": "announced",
-  "proposed": "announced",
-  "retired": "decommissioned",
-  "mothballed": "decommissioned",
-  "cancelled": "cancelled",
-  "shelved": "cancelled",
+  "operating": "Commissioned",
+  "operational": "Commissioned",
+  "construction": "Construction",
+  "pre-construction": "Announced",
+  "permitted": "Announced",
+  "announced": "Announced",
+  "proposed": "Announced",
+  "retired": "Decommissioned",
+  "mothballed": "Decommissioned",
+  "cancelled": "Cancelled",
+  "shelved": "Cancelled",
 };
 
 function parseNumber(s: string | undefined): number | null {
@@ -78,7 +79,7 @@ async function run(): Promise<AdapterResult> {
 
         // Cancelled / shelved / retired plants are infrastructure history, not
         // investment deals — do not ingest them.
-        if (status === "cancelled" || status === "decommissioned") { filtered++; continue; }
+        if (status === "Cancelled" || status === "Decommissioned") { filtered++; continue; }
 
         const lat = parseNumber(row["latitude"] ?? row["lat"]);
         const lng = parseNumber(row["longitude"] ?? row["lon"] ?? row["lng"]);

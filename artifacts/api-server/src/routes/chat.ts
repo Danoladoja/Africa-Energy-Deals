@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
-import { db, projectsTable, newslettersTable } from "@workspace/db";
+import { db, projectsTable, newslettersTable, pool } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -105,85 +105,78 @@ router.post("/chat", async (req: Request, res: Response): Promise<void> => {
   };
 
   try {
-    // Query the database for relevant project data (approved only)
-    let projects: any[] = [];
+    // Build grounded context: full-dataset aggregates (disclosed-only, matching
+    // the site's accounting rules) + the largest disclosed deals as compact rows.
+    // This replaces the old approach (500 arbitrary rows, estimate-inflated sums,
+    // 200 full JSON records) with representative, honest, token-efficient context.
+    const NOT_CANCELLED_SQL = `(deal_stage IS NULL OR lower(deal_stage) NOT IN ('cancelled','decommissioned')) AND lower(status) NOT IN ('cancelled','decommissioned')`;
+    const ctxFilters: string[] = [];
+    const ctxVals: unknown[] = [];
+    if (context?.sector) { ctxVals.push(context.sector); ctxFilters.push(`technology = $${ctxVals.length}`); }
+    if (context?.country) { ctxVals.push(context.country); ctxFilters.push(`country = $${ctxVals.length}`); }
+    if (context?.region) { ctxVals.push(context.region); ctxFilters.push(`region = $${ctxVals.length}`); }
+    const ctxWhere = ctxFilters.length ? ` AND ${ctxFilters.join(" AND ")}` : "";
+    const baseWhere = `review_status = 'approved' AND region <> 'Other' AND ${NOT_CANCELLED_SQL}${ctxWhere}`;
+
+    let dataContext = "INTERNAL DATA PROVIDED: (database unavailable)";
+    let ctxSummary = { projects: 0, countries: 0, disclosedBn: "0.0", sectors: 0 };
     try {
-      projects = await db
-        .select()
-        .from(projectsTable)
-        .where(eq(projectsTable.reviewStatus, "approved"))
-        .limit(500);
-    } catch (dbErr) {
-      console.error("[Chat] DB query error:", dbErr);
-    }
+      const [agg, bySector, byRegion, byCountry, topDeals] = await Promise.all([
+        pool.query(`SELECT count(*)::int AS projects, count(distinct country)::int AS countries,
+                           coalesce(sum(deal_size_usd_mn) filter (where is_estimated = false), 0) AS disclosed_mn,
+                           count(*) filter (where is_estimated = false AND deal_size_usd_mn IS NOT NULL)::int AS disclosed_deals
+                    FROM energy_projects WHERE ${baseWhere}`, ctxVals),
+        pool.query(`SELECT technology, count(*)::int AS n,
+                           coalesce(sum(deal_size_usd_mn) filter (where is_estimated = false), 0) AS mn
+                    FROM energy_projects WHERE ${baseWhere} GROUP BY technology ORDER BY mn DESC`, ctxVals),
+        pool.query(`SELECT region, count(*)::int AS n,
+                           coalesce(sum(deal_size_usd_mn) filter (where is_estimated = false), 0) AS mn
+                    FROM energy_projects WHERE ${baseWhere} GROUP BY region ORDER BY mn DESC`, ctxVals),
+        pool.query(`SELECT country, count(*)::int AS n,
+                           coalesce(sum(deal_size_usd_mn) filter (where is_estimated = false), 0) AS mn
+                    FROM energy_projects WHERE ${baseWhere} GROUP BY country ORDER BY mn DESC LIMIT 20`, ctxVals),
+        pool.query(`SELECT id, project_name, country, region, technology, deal_size_usd_mn, is_estimated,
+                           deal_stage, status, announced_year, capacity_mw, developer, financiers,
+                           dfi_involvement, financing_type, extraction_source
+                    FROM energy_projects
+                    WHERE ${baseWhere} AND deal_size_usd_mn IS NOT NULL AND is_estimated = false
+                    ORDER BY deal_size_usd_mn DESC LIMIT 250`, ctxVals),
+      ]);
 
-    // Apply context filters if provided
-    let filteredProjects = projects;
-    if (context) {
-      if (context.sector) {
-        filteredProjects = filteredProjects.filter(p => p.technology === context.sector);
-      }
-      if (context.country) {
-        filteredProjects = filteredProjects.filter(p => p.country === context.country);
-      }
-      if (context.region) {
-        filteredProjects = filteredProjects.filter(p => p.region === context.region);
-      }
-    }
+      const a = agg.rows[0] as { projects: number; countries: number; disclosed_mn: string | number; disclosed_deals: number };
+      ctxSummary = { projects: a.projects, countries: a.countries, disclosedBn: (Number(a.disclosed_mn) / 1000).toFixed(1), sectors: bySector.rows.length };
+      const fmtB = (mn: number) => `$${(Number(mn) / 1000).toFixed(1)}B`;
+      const dealLine = (p: Record<string, unknown>) =>
+        `#${p.id}|${p.project_name}|${p.country}|${p.technology}|$${Math.round(Number(p.deal_size_usd_mn))}M|${p.deal_stage ?? p.status ?? "?"}|${p.announced_year ?? "?"}|` +
+        `${p.capacity_mw ? Math.round(Number(p.capacity_mw)) + "MW" : "-"}|dev:${(p.developer as string | null)?.slice(0, 60) ?? "-"}|fin:${(p.financiers as string | null)?.slice(0, 60) ?? "-"}|` +
+        `dfi:${(p.dfi_involvement as string | null)?.slice(0, 40) ?? "-"}|type:${p.financing_type ?? "-"}`;
 
-    // Build aggregate stats from actual data
-    const totalInvestment = filteredProjects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0);
-    const countries = [...new Set(filteredProjects.map(p => p.country))];
-    const sectors = [...new Set(filteredProjects.map(p => p.technology))];
+      dataContext = `INTERNAL DATA PROVIDED (live AfriEnergy Tracker database${ctxFilters.length ? ", filtered to the user's current view" : ""}):
 
-    // Build the data context message
-    const dataContext = `INTERNAL DATA PROVIDED (${filteredProjects.length} projects from AfriEnergy Tracker PostgreSQL database):
+ACCOUNTING RULES (identical to the public site — always follow them):
+- Dollar totals count DISCLOSED transaction values only. Capacity-based estimates are flagged and EXCLUDED from totals; individual estimated figures must always be described as estimates.
+- Cancelled and decommissioned projects are excluded from all statistics.
 
-AGGREGATE SUMMARY:
-- Total projects in dataset: ${filteredProjects.length}
-- Total tracked investment: $${(totalInvestment / 1000).toFixed(1)}B (USD)
-- Countries covered: ${countries.length} (${countries.slice(0, 10).join(", ")}${countries.length > 10 ? `, +${countries.length - 10} more` : ""})
-- Sectors covered: ${sectors.join(", ")}
+AGGREGATES (cover ALL ${a.projects} tracked projects in scope — not a sample):
+- Tracked projects: ${a.projects} across ${a.countries} countries
+- Disclosed investment: ${fmtB(Number(a.disclosed_mn))} across ${a.disclosed_deals} deals with disclosed values
 
-BY SECTOR:
-${sectors.map(s => {
-  const sectorProjects = filteredProjects.filter(p => p.technology === s);
-  const sectorInvestment = sectorProjects.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0);
-  return `- ${s}: ${sectorProjects.length} projects, $${(sectorInvestment / 1000).toFixed(1)}B total investment`;
-}).join("\n")}
+BY SECTOR (projects, disclosed investment):
+${bySector.rows.map((r: any) => `- ${r.technology}: ${r.n} projects, ${fmtB(Number(r.mn))}`).join("\n")}
 
 BY REGION:
-${["West Africa", "East Africa", "North Africa", "Southern Africa", "Central Africa"].map(r => {
-  const rp = filteredProjects.filter(p => p.region === r);
-  const ri = rp.reduce((sum, p) => sum + (p.dealSizeUsdMn || 0), 0);
-  return `- ${r}: ${rp.length} projects, $${(ri / 1000).toFixed(1)}B`;
-}).join("\n")}
+${byRegion.rows.map((r: any) => `- ${r.region}: ${r.n} projects, ${fmtB(Number(r.mn))}`).join("\n")}
 
-FULL PROJECT DATA (first 200 records for context):
-${JSON.stringify(filteredProjects.slice(0, 200).map(p => ({
-  id: p.id,
-  projectName: p.projectName,
-  country: p.country,
-  region: p.region,
-  technology: p.technology,
-  dealSizeUsdMn: p.dealSizeUsdMn,
-  status: p.status,
-  dealStage: p.dealStage,
-  investors: p.investors,
-  developer: p.developer,
-  financiers: p.financiers,
-  dfiInvolvement: p.dfiInvolvement,
-  offtaker: p.offtaker,
-  announcedYear: p.announcedYear,
-  closedYear: p.closedYear,
-  capacityMw: p.capacityMw,
-  financingType: p.financingType,
-  debtEquitySplit: p.debtEquitySplit,
-  concessionalTerms: p.concessionalTerms,
-  description: p.description,
-})), null, 0)}
+TOP COUNTRIES (by disclosed investment):
+${byCountry.rows.map((r: any) => `- ${r.country}: ${r.n} projects, ${fmtB(Number(r.mn))}`).join("\n")}
 
-IMPORTANT: You may ONLY reference projects and data points from the DATA PROVIDED above. Do NOT use your training data to supplement with projects, statistics, or deals not listed above.`;
+LARGEST DISCLOSED DEALS (top ${topDeals.rows.length}; fields: id|name|country|sector|size|stage|year|capacity|developer|financiers|dfi|financingType):
+${topDeals.rows.map((r: any) => dealLine(r)).join("\n")}
+
+IMPORTANT: You may ONLY reference projects and data points from the DATA PROVIDED above. Do NOT use your training data to supplement with projects, statistics, or deals not listed above. The deal list contains only the largest disclosed-value deals — when asked about totals or counts, use the AGGREGATES section, which covers the full dataset. If a specific project is not in the deal list, say the tracker may hold it but it is outside this conversation's context window.`;
+    } catch (dbErr) {
+      console.error("[Chat] DB context error:", dbErr);
+    }
 
     // Construct the messages array for Claude
     const claudeMessages: Array<{ role: "user" | "assistant"; content: string }> = [
@@ -211,10 +204,10 @@ IMPORTANT: You may ONLY reference projects and data points from the DATA PROVIDE
 
     // Compute and send the data summary from actual query results (NOT from Claude's text)
     const dataSummary = {
-      projectsAnalyzed: filteredProjects.length,
-      totalInvestment: `$${(totalInvestment / 1000).toFixed(1)}B`,
-      countriesCovered: countries.length,
-      sectorsCovered: sectors.length,
+      projectsAnalyzed: ctxSummary.projects,
+      totalInvestment: `$${ctxSummary.disclosedBn}B`,
+      countriesCovered: ctxSummary.countries,
+      sectorsCovered: ctxSummary.sectors,
       queryTimestamp: new Date().toISOString(),
       dataSource: "afrienergytracker_postgresql",
     };

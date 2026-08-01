@@ -27,6 +27,7 @@ import {
   climateTagForTechnology,
   estimateDealSize,
 } from "./shared/technologies.js";
+import { normalizeDealStage } from "./shared/deal-stages.js";
 import type { CandidateDraft } from "./adapters/types.js";
 
 export interface PipelineResult {
@@ -275,7 +276,7 @@ async function ingestWithClient(
       investors: candidate.financiers,       // legacy column — mirror financiers
       dfiInvolvement: candidate.dfiInvolvement,
       offtaker: candidate.offtaker,
-      dealStage: candidate.dealStage,
+      dealStage: normalizeDealStage(candidate.dealStage),
       financialCloseDate: candidate.financialCloseDate,
       financingType: candidate.financingType ?? null,
       ppaTermYears: candidate.ppaTermYears ?? null,

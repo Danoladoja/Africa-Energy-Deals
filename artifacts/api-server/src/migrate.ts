@@ -502,6 +502,38 @@ export async function runDataRepairs(): Promise<void> {
       WHERE financing_type IS NULL
         AND extraction_source IN ('api:worldbank','world-bank','api:afdb','afdb','api:ifc','ifc','api:dfc','dfc','api:gcf','gcf')
     `],
+    // Canonical deal-stage taxonomy: fold legacy variants ("Under Construction",
+    // "Operational", "Permitted", lowercase values) into the canonical set so
+    // every widget counts every deal. Idempotent — canonical values map to themselves.
+    ["deal stage canonicalization", `
+      UPDATE energy_projects
+      SET deal_stage = CASE
+        WHEN lower(deal_stage) LIKE '%decommission%' OR lower(deal_stage) IN ('retired','mothballed') THEN 'Decommissioned'
+        WHEN lower(deal_stage) LIKE '%cancel%' OR lower(deal_stage) = 'shelved' THEN 'Cancelled'
+        WHEN lower(deal_stage) LIKE '%suspend%' THEN 'Suspended'
+        WHEN lower(deal_stage) LIKE '%commission%' OR lower(deal_stage) IN ('operational','operating','active','completed') THEN 'Commissioned'
+        WHEN lower(deal_stage) LIKE '%construct%' THEN 'Construction'
+        WHEN lower(deal_stage) LIKE 'financial%close%' OR lower(deal_stage) = 'financing closed' THEN 'Financial Close'
+        WHEN lower(deal_stage) LIKE '%mandate%' THEN 'Mandated'
+        ELSE 'Announced'
+      END
+      WHERE deal_stage IS NOT NULL
+        AND deal_stage NOT IN ('Announced','Mandated','Financial Close','Construction','Commissioned','Suspended','Cancelled','Decommissioned')
+    `],
+    // Replace machine-stub descriptions ("Wind power plant — GEM GWPT") with a
+    // clean field-derived sentence. Deterministic — no AI, no invention.
+    ["description backfill from fields", `
+      UPDATE energy_projects
+      SET description = TRIM(BOTH ' ' FROM CONCAT(
+        CASE WHEN capacity_mw IS NOT NULL AND capacity_mw > 0 THEN ROUND(capacity_mw)::text || ' MW ' ELSE '' END,
+        technology, ' project in ', country,
+        CASE WHEN announced_year IS NOT NULL THEN ' (announced ' || announced_year || ')' ELSE '' END,
+        CASE WHEN developer IS NOT NULL AND developer <> '' THEN '. Developer: ' || LEFT(developer, 160) ELSE '' END,
+        '. Source: Global Energy Monitor.'
+      ))
+      WHERE extraction_source IN ('api:gem', 'gem')
+        AND (description IS NULL OR description LIKE '%GEM%' OR LENGTH(description) < 40)
+    `],
   ];
 
   for (const [description, statement] of statements) {

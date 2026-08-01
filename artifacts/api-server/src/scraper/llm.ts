@@ -125,6 +125,9 @@ Sovereign Lending, IPP / Concession, PPP / Public-Private, Green / Climate Bond,
 Equity Investment, Export Credit, Bilateral Aid / ODA. Use null if unclear.
 ppaTermYears / ppaTariffUsdKwh / grantComponentUsdMn: only if explicitly stated.
 
+dealStage, if known, MUST be one of: Announced, Mandated, Financial Close,
+Construction, Commissioned, Suspended, Cancelled.
+
 If NOT an Africa energy investment deal, return null.
 Return ONLY valid JSON, no markdown.`;
 
@@ -165,6 +168,9 @@ Blended Finance, Concessional Loan, Grant / Donor Funding, Corporate Finance,
 Sovereign Lending, IPP / Concession, PPP / Public-Private, Green / Climate Bond,
 Equity Investment, Export Credit, Bilateral Aid / ODA. Use null if unclear.
 ppaTermYears / ppaTariffUsdKwh / grantComponentUsdMn: only if explicitly stated.
+
+dealStage, if known, MUST be one of: Announced, Mandated, Financial Close,
+Construction, Commissioned, Suspended, Cancelled.
 
 If NOT an Africa energy investment deal or project, return null.
 Return ONLY valid JSON, no markdown.`;
