@@ -76,6 +76,12 @@ export const projectsTable = pgTable("energy_projects", {
   completenessScore: integer("completeness_score"),
   // Routing reasons: why a candidate was sent to review instead of auto-approved
   reviewNotes: jsonb("review_notes").$type<string[]>().default([]),
+
+  // ── Async URL validation (populated by url-checker sweep) ────────────────
+  // Values: 'unchecked' | 'valid' | 'broken' | 'blocked' | 'timeout'
+  urlStatus: text("url_status").default("unchecked"),
+  urlCheckedAt: timestamp("url_checked_at", { withTimezone: true }),
+  urlHttpStatus: integer("url_http_status"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true });
