@@ -80,6 +80,7 @@ async function run(): Promise<AdapterResult> {
       developer: (row["sponsor"] ?? row["company"] ?? "").slice(0, 200) || null,
       financiers: "International Finance Corporation (IFC)",
       dfiInvolvement: "IFC",
+      financingType: "Project Finance",
       dealStage: row["status"]?.toLowerCase() ?? "announced",
       status: row["status"]?.toLowerCase() ?? "announced",
       description: row["description"]?.slice(0, 500) ?? null,

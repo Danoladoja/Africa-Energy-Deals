@@ -474,6 +474,34 @@ export async function runDataRepairs(): Promise<void> {
       END
       WHERE technology IN ('Biomass', 'Battery Storage', 'Green Hydrogen', 'Transmission & Distribution', 'Hyro')
     `],
+    // Rule-based climate finance classification (IPCC convention): low-carbon
+    // generation = Mitigation, enabling grid infrastructure = Cross-Cutting,
+    // fossil generation = Non-Climate. Fills NULLs only — never overwrites.
+    ["climate finance tag backfill", `
+      UPDATE energy_projects
+      SET climate_finance_tag = CASE
+        WHEN technology IN ('Coal', 'Oil & Gas') THEN 'Non-Climate'
+        WHEN technology = 'Grid Expansion' THEN 'Cross-Cutting'
+        ELSE 'Mitigation'
+      END
+      WHERE climate_finance_tag IS NULL
+        AND technology IN ('Solar','Wind','Hydro','Geothermal','Bioenergy','Battery & Storage',
+                           'Hydrogen','Nuclear','Clean Cooking','Coal','Oil & Gas','Grid Expansion')
+    `],
+    // Deterministic financing defaults for DFI-sourced records: the source
+    // institution defines the instrument class. Fills NULLs only.
+    ["DFI financing type backfill", `
+      UPDATE energy_projects
+      SET financing_type = CASE
+        WHEN extraction_source IN ('api:worldbank', 'world-bank') THEN 'Sovereign Lending'
+        WHEN extraction_source IN ('api:afdb', 'afdb') THEN 'Concessional Loan'
+        WHEN extraction_source IN ('api:ifc', 'ifc') THEN 'Project Finance'
+        WHEN extraction_source IN ('api:dfc', 'dfc') THEN 'Project Finance'
+        WHEN extraction_source IN ('api:gcf', 'gcf') THEN 'Grant / Donor Funding'
+      END
+      WHERE financing_type IS NULL
+        AND extraction_source IN ('api:worldbank','world-bank','api:afdb','afdb','api:ifc','ifc','api:dfc','dfc','api:gcf','gcf')
+    `],
   ];
 
   for (const [description, statement] of statements) {

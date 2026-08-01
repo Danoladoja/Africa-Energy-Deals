@@ -141,6 +141,7 @@ async function run(): Promise<AdapterResult> {
       developer: "World Bank Group",
       financiers: "IBRD/IDA",
       dfiInvolvement: "World Bank",
+      financingType: "Sovereign Lending",
       dealStage: null,
       status: mapStatus(p.status),
       description: p.project_abstract?.cdata?.slice(0, 500) ?? null,

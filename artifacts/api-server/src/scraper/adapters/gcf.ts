@@ -100,6 +100,7 @@ async function run(): Promise<AdapterResult> {
         developer: null,
         financiers: "Green Climate Fund (GCF)",
         dfiInvolvement: "GCF",
+        financingType: "Grant / Donor Funding",
         dealStage: status,
         status,
         description: (p.description ?? p.summary)?.slice(0, 500) ?? null,

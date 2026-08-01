@@ -123,3 +123,15 @@ export function estimateDealSize(
   const estimate = Math.round(capacityMw * perMw * 10) / 10;
   return estimate > 0.1 ? estimate : null;
 }
+
+/**
+ * Rule-based climate finance classification by sector (IPCC convention:
+ * low-carbon generation = Mitigation; enabling infrastructure = Cross-Cutting).
+ */
+export function climateTagForTechnology(tech: string): "Mitigation" | "Cross-Cutting" | "Non-Climate" | null {
+  const t = normalizeTechnology(tech);
+  if (!t) return null;
+  if (t === "Coal" || t === "Oil & Gas") return "Non-Climate";
+  if (t === "Grid Expansion") return "Cross-Cutting";
+  return "Mitigation";
+}

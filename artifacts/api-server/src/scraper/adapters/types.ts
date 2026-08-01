@@ -27,6 +27,11 @@ export interface CandidateDraft {
   announcedYear: number | null;
   offtaker: string | null;
   financialCloseDate: string | null;
+  // Financing structure (optional — set by DFI adapters and LLM extraction)
+  financingType?: string | null;
+  ppaTermYears?: number | null;
+  ppaTariffUsdKwh?: number | null;
+  grantComponent?: number | null;
   confidence: number;        // 0.0–1.0
   // True when dealSizeUsdMn is a benchmark estimate (capacity × cost/MW) rather
   // than a disclosed value. The pipeline also sets this automatically when it

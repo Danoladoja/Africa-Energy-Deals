@@ -66,6 +66,7 @@ async function run(): Promise<AdapterResult> {
       developer: (row["client"] ?? "").slice(0, 200) || null,
       financiers: "US Development Finance Corporation (DFC)",
       dfiInvolvement: "DFC",
+      financingType: "Project Finance",
       dealStage: "construction",
       status: "construction",
       description: row["description"]?.slice(0, 500) ?? null,

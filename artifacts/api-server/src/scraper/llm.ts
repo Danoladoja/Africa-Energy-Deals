@@ -109,11 +109,21 @@ Return a JSON object with these fields:
   "dfiInvolvement": string | null,
   "dealStage": string | null,
   "announcedYear": number | null,
+  "financingType": string | null,
+  "ppaTermYears": number | null,
+  "ppaTariffUsdKwh": number | null,
+  "grantComponentUsdMn": number | null,
   "confidence": number
 }
 
 Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Bioenergy, Nuclear,
 Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Clean Cooking, Coal.
+
+financingType, if stated or clearly implied, MUST be one of: Project Finance,
+Blended Finance, Concessional Loan, Grant / Donor Funding, Corporate Finance,
+Sovereign Lending, IPP / Concession, PPP / Public-Private, Green / Climate Bond,
+Equity Investment, Export Credit, Bilateral Aid / ODA. Use null if unclear.
+ppaTermYears / ppaTariffUsdKwh / grantComponentUsdMn: only if explicitly stated.
 
 If NOT an Africa energy investment deal, return null.
 Return ONLY valid JSON, no markdown.`;
@@ -140,11 +150,21 @@ Return a JSON object with these fields:
   "dfiInvolvement": string | null,
   "dealStage": string | null,
   "announcedYear": number | null,
+  "financingType": string | null,
+  "ppaTermYears": number | null,
+  "ppaTariffUsdKwh": number | null,
+  "grantComponentUsdMn": number | null,
   "confidence": number
 }
 
 Technology MUST be one of: Solar, Wind, Hydro, Geothermal, Bioenergy, Nuclear,
 Oil & Gas, Grid Expansion, Battery & Storage, Hydrogen, Clean Cooking, Coal.
+
+financingType, if stated or clearly implied, MUST be one of: Project Finance,
+Blended Finance, Concessional Loan, Grant / Donor Funding, Corporate Finance,
+Sovereign Lending, IPP / Concession, PPP / Public-Private, Green / Climate Bond,
+Equity Investment, Export Credit, Bilateral Aid / ODA. Use null if unclear.
+ppaTermYears / ppaTariffUsdKwh / grantComponentUsdMn: only if explicitly stated.
 
 If NOT an Africa energy investment deal or project, return null.
 Return ONLY valid JSON, no markdown.`;
@@ -162,6 +182,10 @@ interface RawExtract {
   dfiInvolvement?: string | null;
   dealStage?: string | null;
   announcedYear?: number | null;
+  financingType?: string | null;
+  ppaTermYears?: number | null;
+  ppaTariffUsdKwh?: number | null;
+  grantComponentUsdMn?: number | null;
   confidence?: number;
 }
 
@@ -200,6 +224,10 @@ function toCandidateDraft(
     announcedYear: typeof parsed.announcedYear === "number" ? parsed.announcedYear : null,
     offtaker: null,
     financialCloseDate: null,
+    financingType: parsed.financingType ? String(parsed.financingType) : null,
+    ppaTermYears: typeof parsed.ppaTermYears === "number" ? Math.round(parsed.ppaTermYears) : null,
+    ppaTariffUsdKwh: typeof parsed.ppaTariffUsdKwh === "number" ? parsed.ppaTariffUsdKwh : null,
+    grantComponent: typeof parsed.grantComponentUsdMn === "number" ? parsed.grantComponentUsdMn : null,
     confidence: typeof parsed.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.7,
   };
 }
@@ -280,4 +308,58 @@ export async function extractDealFromGovernmentSource(
   if (!parsed) return null;
 
   return toCandidateDraft(parsed, { newsUrl: null, sourceUrl, countryOverride: countryHint });
+}
+
+// ── Financing enrichment ─────────────────────────────────────────────────────
+
+const FINANCING_PROMPT = `You are an energy-finance analyst. Given text from an article
+or project page about a SPECIFIC known energy deal, extract ONLY financing-structure
+details that are explicitly stated. Never guess or infer numbers.
+
+Return JSON:
+{
+  "financingType": string | null,   // one of: Project Finance, Blended Finance, Concessional Loan, Grant / Donor Funding, Corporate Finance, Sovereign Lending, IPP / Concession, PPP / Public-Private, Green / Climate Bond, Equity Investment, Export Credit, Bilateral Aid / ODA
+  "ppaTermYears": number | null,    // power purchase agreement term, years
+  "ppaTariffUsdKwh": number | null, // PPA tariff in USD per kWh (convert cents: 8.5 US cents = 0.085)
+  "grantComponentUsdMn": number | null, // grant portion in USD millions
+  "financiers": string | null,      // lenders / equity providers, semicolon-separated
+  "dfiInvolvement": string | null   // development finance institutions involved
+}
+
+If the text does not clearly describe this deal's financing, return all nulls.
+Return ONLY valid JSON, no markdown.`;
+
+export interface FinancingExtract {
+  financingType: string | null;
+  ppaTermYears: number | null;
+  ppaTariffUsdKwh: number | null;
+  grantComponentUsdMn: number | null;
+  financiers: string | null;
+  dfiInvolvement: string | null;
+}
+
+/** Extract financing details for a known deal from source-page text. */
+export async function extractFinancingFromText(
+  projectName: string,
+  country: string,
+  pageText: string,
+): Promise<FinancingExtract | null> {
+  const context = `Deal: ${projectName} (${country})\n\nSource text:\n${pageText.slice(0, 6000)}`;
+  const raw = await callLLM(FINANCING_PROMPT, context, "financing-enrichment");
+  if (!raw) return null;
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const p = JSON.parse(match[0]) as Partial<FinancingExtract>;
+    return {
+      financingType: p.financingType ? String(p.financingType) : null,
+      ppaTermYears: typeof p.ppaTermYears === "number" ? Math.round(p.ppaTermYears) : null,
+      ppaTariffUsdKwh: typeof p.ppaTariffUsdKwh === "number" ? p.ppaTariffUsdKwh : null,
+      grantComponentUsdMn: typeof p.grantComponentUsdMn === "number" ? p.grantComponentUsdMn : null,
+      financiers: p.financiers ? String(p.financiers) : null,
+      dfiInvolvement: p.dfiInvolvement ? String(p.dfiInvolvement) : null,
+    };
+  } catch {
+    return null;
+  }
 }

@@ -24,6 +24,7 @@
 import cron from "node-cron";
 import { ADAPTERS, runAdapter } from "./scraper/runner.js";
 import { runUrlCheckSweep } from "./scraper/url-checker.js";
+import { runFinancingEnrichment } from "./scraper/financing-enrichment.js";
 import { startNewsletterScheduler } from "./services/newsletter-scheduler.js";
 import { db, projectsTable, scraperRunsTable } from "@workspace/db";
 import { lt, sql } from "drizzle-orm";
@@ -85,6 +86,20 @@ export function initSchedules(): void {
     }
   }, { timezone: "UTC" });
   console.log("[UrlCheck] Daily sweep scheduled at 05:00 UTC");
+
+  // ── Monthly financing enrichment sweep (3rd of month, 05:30 UTC) ───────────
+  // Revisits source pages of the largest disclosed deals missing financing data.
+  // ~60 LLM calls/month ≈ well under $1; guarded by the daily budget cap.
+  cron.schedule("30 5 3 * *", async () => {
+    console.log("[Enrichment] Starting monthly financing enrichment sweep…");
+    try {
+      const r = await runFinancingEnrichment({ limit: 60 });
+      console.log(`[Enrichment] Monthly sweep done — enriched:${r.enriched} fields:${r.fieldsWritten}`);
+    } catch (err) {
+      console.error("[Enrichment] Sweep error:", err);
+    }
+  }, { timezone: "UTC" });
+  console.log("[Enrichment] Monthly financing sweep scheduled (3rd, 05:30 UTC)");
 
   // ── Newsletter (every other Monday) ─────────────────────────────────────────
   startNewsletterScheduler();

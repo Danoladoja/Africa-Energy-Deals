@@ -11,6 +11,7 @@
  */
 
 import { Router, type IRouter } from "express";
+import { runFinancingEnrichment } from "../scraper/financing-enrichment.js";
 import { db, scraperRunsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
@@ -142,6 +143,22 @@ router.post("/scraper/check-urls", async (req, res) => {
     res.json(report);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+
+
+// ── Manual financing enrichment trigger ─────────────────────────────────────
+// POST /api/scraper/financing-enrichment  { limit?: number }  (admin only)
+// Revisits source pages of the largest disclosed deals missing financing data.
+router.post("/scraper/financing-enrichment", adminAuthMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number((req.body as { limit?: number })?.limit ?? 60), 1), 150);
+    const summary = await runFinancingEnrichment({ limit });
+    res.json(summary);
+  } catch (err) {
+    console.error("[Enrichment] Manual run failed:", err);
+    res.status(500).json({ error: "Enrichment run failed" });
   }
 });
 

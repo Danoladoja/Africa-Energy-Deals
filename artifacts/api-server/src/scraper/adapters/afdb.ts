@@ -99,6 +99,7 @@ async function run(): Promise<AdapterResult> {
           developer: null,
           financiers: "African Development Bank (AfDB)",
           dfiInvolvement: "AfDB",
+          financingType: "Concessional Loan",
           dealStage: status,
           status,
           description: a.description?.slice(0, 500) ?? null,

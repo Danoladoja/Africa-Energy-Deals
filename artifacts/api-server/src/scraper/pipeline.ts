@@ -24,6 +24,7 @@ import {
 import {
   isRecognizedTechnology,
   normalizeTechnology,
+  climateTagForTechnology,
   estimateDealSize,
 } from "./shared/technologies.js";
 import type { CandidateDraft } from "./adapters/types.js";
@@ -276,6 +277,11 @@ async function ingestWithClient(
       offtaker: candidate.offtaker,
       dealStage: candidate.dealStage,
       financialCloseDate: candidate.financialCloseDate,
+      financingType: candidate.financingType ?? null,
+      ppaTermYears: candidate.ppaTermYears ?? null,
+      ppaTariffUsdKwh: candidate.ppaTariffUsdKwh ?? null,
+      grantComponent: candidate.grantComponent ?? null,
+      climateFinanceTag: climateTagForTechnology(canonicalTechnology),
       isAutoDiscovered: true,
       reviewStatus,
       discoveredAt: new Date(),
@@ -347,7 +353,8 @@ async function gapFillSmart(
   const r = await client.query(
     `SELECT developer, financiers, dfi_involvement, news_url,
             deal_size_usd_mn, capacity_mw, latitude, longitude,
-            confidence_score, extraction_source
+            confidence_score, extraction_source,
+            financing_type, ppa_term_years, ppa_tariff_usd_kwh, grant_component
      FROM energy_projects WHERE id = $1`,
     [existingId],
   );
@@ -377,6 +384,10 @@ async function gapFillSmart(
   if (c.capacityMw != null && existing.capacity_mw == null) updates.capacityMw = c.capacityMw;
   if (c.latitude != null && existing.latitude == null) updates.latitude = c.latitude;
   if (c.longitude != null && existing.longitude == null) updates.longitude = c.longitude;
+  if (c.financingType && !existing.financing_type) updates.financingType = c.financingType;
+  if (c.ppaTermYears != null && existing.ppa_term_years == null) updates.ppaTermYears = c.ppaTermYears;
+  if (c.ppaTariffUsdKwh != null && existing.ppa_tariff_usd_kwh == null) updates.ppaTariffUsdKwh = c.ppaTariffUsdKwh;
+  if (c.grantComponent != null && existing.grant_component == null) updates.grantComponent = c.grantComponent;
 
   // Always update confidence + source if higher confidence
   const existingConfidence = typeof existing.confidence_score === "number" ? existing.confidence_score : 0;
