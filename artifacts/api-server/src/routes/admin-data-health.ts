@@ -58,6 +58,10 @@ router.get("/admin/data-health", async (req, res) => {
         WHERE review_status = 'approved'
           AND deal_size_usd_mn IS NULL
           AND capacity_mw IS NULL
+          -- Cancelled/decommissioned projects are excluded from all analytics,
+          -- so missing figures on them are not actionable data issues.
+          AND (deal_stage IS NULL OR lower(deal_stage) NOT IN ('cancelled', 'decommissioned'))
+          AND lower(status) NOT IN ('cancelled', 'decommissioned')
         ORDER BY country, technology
       `),
 
@@ -121,12 +125,29 @@ router.get("/admin/data-health", async (req, res) => {
         .filter(f => r[f.key] == null || r[f.key] === "")
         .map(f => f.label),
     }));
+    // A URL group is only an open issue if at least one pair of records in it
+    // has NOT been reviewed and dismissed as legitimately distinct. Groups where
+    // every pair is dismissed (e.g. one GEM page covering two real assets) are
+    // resolved, not pending.
+    const dismissed = await db.execute(sql`SELECT id_a, id_b FROM dismissed_duplicates`);
+    const dismissedSet = new Set(dismissed.rows.map((d: any) => `${d.id_a}:${d.id_b}`));
+    const openDuplicateUrls = duplicateUrls.rows.filter((g: any) => {
+      const ids: number[] = (g.ids ?? []).map(Number);
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const key = `${Math.min(ids[i], ids[j])}:${Math.max(ids[i], ids[j])}`;
+          if (!dismissedSet.has(key)) return true; // an unreviewed pair remains
+        }
+      }
+      return false;
+    });
+
     res.json({
       summary: {
         nonCanonicalCount: nonCanonical.rows.length,
         mismatchCount: mismatches.rows.filter((r: any) => r.suggested_technology).length,
         missingDataCount: missingBoth.rows.length,
-        duplicateUrlCount: duplicateUrls.rows.length,
+        duplicateUrlCount: openDuplicateUrls.length,
         lowCompletenessCount: lowCompletenessRows.length,
         lastAuditAt: new Date().toISOString(),
         totalApproved: techDistribution.rows.reduce((s: number, r: any) => 
@@ -135,7 +156,7 @@ router.get("/admin/data-health", async (req, res) => {
       nonCanonicalTechnologies: nonCanonical.rows,
       keywordMismatches: mismatches.rows.filter((r: any) => r.suggested_technology),
       missingDealAndCapacity: missingBoth.rows,
-      duplicateSourceUrls: duplicateUrls.rows,
+      duplicateSourceUrls: openDuplicateUrls,
       techDistribution: techDistribution.rows,
       lowCompletenessProjects: lowCompletenessRows,
       validTechnologies: VALID_TECHNOLOGIES,
