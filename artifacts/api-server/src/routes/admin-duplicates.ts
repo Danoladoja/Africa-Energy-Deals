@@ -157,7 +157,11 @@ router.post("/admin/projects/merge", async (req, res) => {
       "commissioningDate", "announcementDate", "debtEquitySplit", "grantComponent",
       "financingType", "financingSubTypes", "concessionalTerms", "ppaTermYears",
       "ppaTariffUsdKwh", "guarantor", "climateFinanceTag", "confidenceScore",
-      "extractionSource", "submittedByContributorId", "communitySubmissionId",
+      // NOTE: extractionSource is deliberately NOT gap-filled — the kept
+      // record's provenance must never be overwritten by its removed twin
+      // (doing so once caused disclosed seed values to be re-flagged as
+      // GEM estimates by the startup backfill).
+      "submittedByContributorId", "communitySubmissionId",
       "approvedBy", "normalizedName",
     ] as const;
 
@@ -166,6 +170,12 @@ router.post("/admin/projects/merge", async (req, res) => {
       if ((keep as any)[col] === null && (remove as any)[col] !== null) {
         fillUpdates[col] = (remove as any)[col];
       }
+    }
+
+    // If the deal size was copied from the removed twin, its estimate flag
+    // must travel with it — a copied estimate must never look disclosed.
+    if ("dealSizeUsdMn" in fillUpdates) {
+      fillUpdates.isEstimated = (remove as any).isEstimated === true;
     }
 
     if (Object.keys(fillUpdates).length > 0) {

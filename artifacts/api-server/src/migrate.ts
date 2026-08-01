@@ -450,13 +450,27 @@ export async function runDataRepairs(): Promise<void> {
     ["energy_projects.is_estimated column", `
       ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS is_estimated BOOLEAN NOT NULL DEFAULT FALSE
     `],
-    // One-time backfill: every GEM-sourced deal size was produced by
-    // estimateDealSize(), never disclosed — flag them all. Idempotent:
-    // after the first run no rows match the WHERE clause.
+    // Corrective repair: the admin merge tool used to copy extraction_source
+    // from a removed GEM twin onto a kept hand-researched record, which made
+    // the GEM backfill below wrongly flag DISCLOSED seed values as estimates.
+    // Hand-researched records are identifiable by is_auto_discovered = FALSE.
+    // Restore their disclosed status and clear the polluted provenance.
+    ["restore disclosed seed values (merge provenance pollution)", `
+      UPDATE energy_projects
+      SET is_estimated = FALSE, extraction_source = NULL
+      WHERE is_auto_discovered = FALSE
+        AND extraction_source IN ('api:gem', 'gem')
+        AND deal_size_usd_mn IS NOT NULL
+    `],
+    // One-time backfill: every GEM-scraped deal size was produced by
+    // estimateDealSize(), never disclosed — flag them all. Scoped to
+    // auto-discovered records so merged hand-researched records are never
+    // touched. Idempotent: after the first run no rows match.
     ["is_estimated backfill (GEM)", `
       UPDATE energy_projects
       SET is_estimated = TRUE
       WHERE extraction_source IN ('api:gem', 'gem')
+        AND is_auto_discovered = TRUE
         AND deal_size_usd_mn IS NOT NULL
         AND is_estimated = FALSE
     `],
