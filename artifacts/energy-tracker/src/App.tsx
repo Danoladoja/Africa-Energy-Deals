@@ -28,6 +28,7 @@ const WatchesPage      = lazy(() => import("@/pages/watches"));
 const EmbedDeals       = lazy(() => import("@/pages/embed-deals"));
 const EmbedChart       = lazy(() => import("@/pages/embed-chart"));
 const ApiDocsPage      = lazy(() => import("@/pages/api-docs"));
+const MethodologyPage  = lazy(() => import("@/pages/methodology"));
 const AdminScraperPage  = lazy(() => import("@/pages/admin-scraper"));
 const AdminDashboard   = lazy(() => import("@/pages/admin-dashboard"));
 const ComparePage      = lazy(() => import("@/pages/compare"));
@@ -249,6 +250,7 @@ function Router() {
           )}
         </Route>
         <Route path="/api-docs" component={ApiDocsPage} />
+        <Route path="/methodology" component={MethodologyPage} />
         <Route path="/contribute/auth" component={ContributeAuthCallback} />
         <Route path="/contribute" component={ContributePage} />
         <Route path="/contributors/me" component={ContributorMePage} />

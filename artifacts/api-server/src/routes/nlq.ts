@@ -63,7 +63,7 @@ Return ONLY the JSON object.`;
 
 // ── POST /api/nlq ─────────────────────────────────────────────────────────────
 router.post("/nlq", async (req, res) => {
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ip = req.ip ?? "unknown"; // trust proxy is set — req.ip is the real client
 
   if (!checkRateLimit(ip)) {
     res.status(429).json({ error: "Rate limit exceeded. Please wait a minute and try again." });

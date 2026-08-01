@@ -70,7 +70,7 @@ DATA SCHEMA — Each project record contains:
 
 // POST /api/chat — SSE streaming chat endpoint
 router.post("/chat", async (req: Request, res: Response): Promise<void> => {
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ip = req.ip ?? "unknown"; // trust proxy is set — req.ip is the real client
 
   if (!checkChatRateLimit(ip)) {
     res.status(429).json({ error: "Rate limit exceeded. Please wait a minute and try again." });

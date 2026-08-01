@@ -60,7 +60,7 @@ const WIDGET_META: Record<WidgetId, { label: string; colSpan: 1 | 2; icon: React
   "capital-by-year":    { label: "Capital Committed by Year",  colSpan: 2, icon: TrendingUp, color: "#38bdf8" },
   "deals-by-tech":      { label: "Deals by Technology",        colSpan: 1, icon: Zap,        color: "#facc15" },
   "top-investors":      { label: "Top 10 Investors",           colSpan: 1, icon: Briefcase,  color: "#fb923c" },
-  "pipeline-funnel":    { label: "Deal Pipeline Funnel",       colSpan: 2, icon: Activity,   color: "#38bdf8" },
+  "pipeline-funnel":    { label: "Deals by Stage",              colSpan: 2, icon: Activity,   color: "#38bdf8" },
   "country-heatmap":    { label: "Country × Sector Heatmap",   colSpan: 2, icon: Globe,      color: "#38bdf8" },
   "financing-overview": { label: "Financing Structure Overview", colSpan: 2, icon: DollarSign, color: "#a78bfa" },
 };
@@ -361,17 +361,10 @@ function FunnelViz({ data }: { data: { stage: string; count: number; investment:
     <div className="space-y-1.5">
       {data.map((d, i) => {
         const widthPct = 30 + 70 * (d.count / maxCount);
-        const prev = i > 0 ? data[i - 1] : null;
-        const convPct = prev && prev.count > 0 ? Math.round((d.count / prev.count) * 100) : null;
+        // NOTE: no "conversion %" between stages — deals enter the tracker at
+        // any stage, so stage-to-stage ratios would be meaningless.
         return (
           <div key={d.stage}>
-            {convPct !== null && (
-              <div className="flex items-center justify-center gap-2 py-0.5">
-                <div className="h-px flex-1 bg-muted/30" />
-                <span className="text-[10px] text-muted-foreground/50 font-medium">↓ {convPct}% conversion</span>
-                <div className="h-px flex-1 bg-muted/30" />
-              </div>
-            )}
             <div className="flex items-center gap-4">
               <div className="w-28 text-right text-xs text-muted-foreground font-medium shrink-0">{d.stage}</div>
               <div className="flex-1 relative h-11 flex items-center justify-center" style={{ paddingLeft: `${(100 - widthPct) / 2}%`, paddingRight: `${(100 - widthPct) / 2}%` }}>
@@ -860,7 +853,7 @@ export default function Dashboard() {
       );
 
       case "pipeline-funnel": return (
-        <ChartCard title="Deal Pipeline Funnel" subtitle="Announced → Mandated → Financial Close → Construction → Commissioned" icon={Activity} iconColor="#38bdf8">
+        <ChartCard title="Deals by Stage" subtitle="Where tracked deals currently sit in the development lifecycle" icon={Activity} iconColor="#38bdf8">
           {isLoading ? <Skeleton className="h-56 w-full rounded-xl" /> : funnelData.funnel.length === 0 ? (
             <div className="h-32 flex items-center justify-center text-muted-foreground/50 text-sm">No stage data</div>
           ) : (
@@ -961,6 +954,22 @@ export default function Dashboard() {
         const byType = financingStats?.byFinancingType ?? [];
         const byClimate = financingStats?.byClimateTag ?? [];
         const totalDeals = byType.reduce((s, r) => s + r.count, 0);
+
+        // No financing-type data yet — show a compact honest note instead of an
+        // empty chart (an empty chart reads as "broken"; a note reads as "planned").
+        if (!fsLoading && totalDeals === 0) {
+          return (
+            <ChartCard title="Financing Structure Overview" subtitle="Deal count and capital by financing type · DFI participation · PPA benchmarks" icon={DollarSign} iconColor="#a78bfa">
+              <div className="py-10 px-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Financing-structure data (financing type, PPA terms, grant components) is still being
+                  collected for tracked deals. This panel switches on automatically once deals carry
+                  financing metadata.
+                </p>
+              </div>
+            </ChartCard>
+          );
+        }
         const totalInv = byType.reduce((s, r) => s + r.totalInvestmentUsdMn, 0);
         const donutData = byType.slice(0, 8).map(r => ({
           name: r.type ?? "Unknown",

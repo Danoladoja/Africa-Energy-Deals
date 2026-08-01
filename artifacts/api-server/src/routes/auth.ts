@@ -1,9 +1,12 @@
 import { Router } from "express";
+import { makeRateLimiter } from "../middleware/rate-limit.js";
 import crypto from "crypto";
 import { db, userEmailsTable, magicLinkTokensTable, sessionsTable } from "@workspace/db";
 import { eq, lt } from "drizzle-orm";
 import { sendEmail, magicLinkEmail } from "../services/email.js";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
+
+const magicLinkLimiter = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 5, label: "sign-in" });
 
 const router = Router();
 
@@ -41,7 +44,7 @@ async function upsertUserEmail(email: string) {
   }
 }
 
-router.post("/auth/email", async (req, res) => {
+router.post("/auth/email", magicLinkLimiter, async (req, res) => {
   const { email } = req.body as { email?: string };
   if (!email || typeof email !== "string") {
     res.status(400).json({ error: "Email is required." });
@@ -72,7 +75,7 @@ router.post("/auth/email", async (req, res) => {
   }
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", magicLinkLimiter, async (req, res) => {
   const { email } = req.body as { email?: string };
   if (!email || typeof email !== "string") {
     res.status(400).json({ error: "Email is required." });

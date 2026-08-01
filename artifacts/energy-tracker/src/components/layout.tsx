@@ -28,6 +28,7 @@ import {
   ListTodo,
   Newspaper,
   AlertCircle,
+  BookOpenText,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -545,6 +546,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 Developer
               </div>
               <NavItem item={{ name: "API Docs", href: "/api-docs", icon: Code2 }} />
+              <NavItem item={{ name: "Methodology", href: "/methodology", icon: BookOpenText }} />
               {isAuthenticated && (
                 <>
                   <div className="px-4 mt-4 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">

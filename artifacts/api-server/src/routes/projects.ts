@@ -127,7 +127,7 @@ function allowSimilarRequest(ip: string): boolean {
 // GET /api/projects/similar?name=X&country=Y — public fuzzy name search (10/min per IP)
 // IMPORTANT: must be declared before /projects/:id to prevent "similar" matching as an ID
 router.get("/projects/similar", async (req, res) => {
-  const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "unknown").split(",")[0].trim();
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown"; // trust proxy is set — req.ip is the real client
   if (!allowSimilarRequest(ip)) {
     return res.status(429).json({ error: "Too many requests. Please wait a moment." });
   }

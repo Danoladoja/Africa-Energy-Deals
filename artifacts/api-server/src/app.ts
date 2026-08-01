@@ -35,6 +35,11 @@ const yaml = require("js-yaml") as typeof import("js-yaml");
 
 const app: Express = express();
 
+// Behind Railway's proxy: makes req.ip the real client IP (from X-Forwarded-For
+// set by the proxy) so per-IP rate limiting actually works. Never parse
+// X-Forwarded-For manually — clients can spoof it.
+app.set("trust proxy", 1);
+
 // CORS: restrict to known origins
 const allowedOrigins = [
   "https://afrienergytracker.io",

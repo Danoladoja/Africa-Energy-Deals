@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { makeRateLimiter } from "../middleware/rate-limit.js";
 import { db, newslettersTable, userEmailsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { generateNewsletter, generateBrief, saveNewsletter, reviseNewsletter, markdownToHtml } from "../services/newsletter-generator.js";
@@ -22,6 +23,8 @@ function parseNewsletterSections(markdown: string): Array<{ heading: string; bod
   return sections;
 }
 
+
+const subscribeLimiter = makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 5, label: "subscription" });
 
 const router: IRouter = Router();
 
@@ -136,7 +139,7 @@ router.get("/newsletters/:id", async (req: Request, res: Response): Promise<void
 });
 
 // POST /api/newsletters/subscribe — subscribe email
-router.post("/newsletters/subscribe", async (req: Request, res: Response): Promise<void> => {
+router.post("/newsletters/subscribe", subscribeLimiter, async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body ?? {};
   if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
     res.status(400).json({ error: "Valid email is required" });

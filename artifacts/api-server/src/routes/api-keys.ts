@@ -1,8 +1,11 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { makeRateLimiter } from "../middleware/rate-limit.js";
 import { db, apiKeysTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendEmail } from "../services/email.js";
+
+const keyRequestLimiter = makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 3, label: "API key" });
 
 const router: IRouter = Router();
 
@@ -74,7 +77,7 @@ export async function apiKeyMiddleware(req: Request, res: Response, next: NextFu
 }
 
 // POST /api/keys/request — request a new API key
-router.post("/keys/request", async (req: Request, res: Response): Promise<void> => {
+router.post("/keys/request", keyRequestLimiter, async (req: Request, res: Response): Promise<void> => {
   const { organization, email, tier = "free" } = req.body ?? {};
 
   if (!organization || typeof organization !== "string" || organization.trim().length < 2) {
