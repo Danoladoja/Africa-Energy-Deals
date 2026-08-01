@@ -12,11 +12,11 @@ function markdownToEmailHtml(md: string): string {
   // Tables — dark header rows, clean alternating body rows
   html = html.replace(/(\|.+\|\n)(\|[-| :]+\|\n)((?:\|.+\|\n?)+)/g, (_match, header, _sep, body) => {
     const headerCells = header.trim().split("|").filter(Boolean).map(c =>
-      `<th style="background:#0f172a;color:#10b981;font-size:11px;font-weight:700;padding:11px 14px;text-align:left;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">${c.trim()}</th>`
+      `<th style="font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;background:#0f172a;color:#10b981;font-size:11px;font-weight:700;padding:11px 14px;text-align:left;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">${c.trim()}</th>`
     ).join("");
     const bodyRows = body.trim().split("\n").map((row: string, i: number) => {
       const cells = row.split("|").filter(Boolean).map(c =>
-        `<td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
+        `<td style="font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">${c.trim()}</td>`
       ).join("");
       return `<tr>${cells}</tr>`;
     }).join("");
@@ -45,20 +45,20 @@ function markdownToEmailHtml(md: string): string {
 
   // Links — [text](url)
   html = html.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
-    '<a href="$2" style="color:#0d9488;text-decoration:underline;font-weight:600;">$1</a>');
+    '<a href="$2" style="color:#0d9488;text-decoration:underline;font-weight:600;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</a>');
 
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a;font-weight:700;">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
 
   // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
   html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
     '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
   );
 
   // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
 
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
@@ -68,7 +68,7 @@ function markdownToEmailHtml(md: string): string {
     const trimmed = block.trim();
     if (!trimmed) return "";
     if (trimmed.startsWith("<")) return trimmed;
-    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;">${trimmed.replace(/\n/g, " ")}</p>`;
+    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
   }).join("\n");
 
   return html;
@@ -80,6 +80,7 @@ function buildNewsletterEmailHtml(newsletter: {
   contentHtml?: string | null;
   editionNumber: number;
   id: number;
+  isAiGenerated?: boolean; // false for hand-written special editions
 }): string {
   const bodyContent = newsletter.contentHtml ?? markdownToEmailHtml(newsletter.content);
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -148,10 +149,15 @@ function buildNewsletterEmailHtml(newsletter: {
   <tr><td style="background:#fffdf5;border-top:1px solid #fef3c7;border-bottom:1px solid #fef3c7;padding:14px 44px;">
     <table cellpadding="0" cellspacing="0">
       <tr>
+        ${newsletter.isAiGenerated === false ? `
+        <td style="vertical-align:top;padding-right:10px;font-size:15px;line-height:1;">✍️</td>
+        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
+          <strong style="color:#92400e;">Written by Daniel Oladoja</strong>, Founder, AfriEnergy Tracker. Figures verified against the live database at time of writing.
+        </td>` : `
         <td style="vertical-align:top;padding-right:10px;font-size:15px;line-height:1;">⚠️</td>
-        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
           <strong style="color:#92400e;">AI-Generated Analysis:</strong> Content produced by Claude AI from the AfriEnergy Tracker database. Grounded in real tracked project data — always verify critical figures before making investment or policy decisions.
-        </td>
+        </td>`}
       </tr>
     </table>
   </td></tr>
@@ -186,6 +192,7 @@ function buildNewsletterEmailHtml(newsletter: {
 }
 
 function buildBriefEmailHtml(newsletter: {
+  isAiGenerated?: boolean;
   title: string;
   content: string;
   contentHtml?: string | null;
@@ -257,8 +264,10 @@ function buildBriefEmailHtml(newsletter: {
 
   <!-- DISCLAIMER -->
   <tr><td style="background:#f8f9fb;border-top:1px solid #e2e8f0;padding:12px 36px;">
-    <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      ⚠️ <strong style="color:#64748b;">AI-generated briefing</strong> from AfriEnergy Tracker data. Verify critical figures before decisions.
+    <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
+      ${newsletter.isAiGenerated === false
+        ? `✍️ <strong style="color:#64748b;">Written by Daniel Oladoja</strong>, Founder, AfriEnergy Tracker.`
+        : `⚠️ <strong style="color:#64748b;">AI-generated briefing</strong> from AfriEnergy Tracker data. Verify critical figures before decisions.`}
     </p>
   </td></tr>
 
@@ -335,12 +344,14 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
   }
 
   const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief");
+  const isAiGenerated = newsletter.type !== "special"; // hand-written specials carry the author byline
   const htmlTemplate = isBrief
     ? buildBriefEmailHtml({
         title: newsletter.title,
         content: newsletter.content,
         contentHtml: newsletter.contentHtml ?? null,
         editionNumber: newsletter.editionNumber,
+        isAiGenerated,
       })
     : buildNewsletterEmailHtml({
         title: newsletter.title,
@@ -348,6 +359,7 @@ export async function dispatchNewsletter(newsletterId: number): Promise<number> 
         contentHtml: newsletter.contentHtml ?? null,
         editionNumber: newsletter.editionNumber,
         id: newsletter.id,
+        isAiGenerated,
       });
 
   const sender = isBrief ? SENDER_BRIEF : SENDER_INSIGHTS;
@@ -484,12 +496,14 @@ export function buildFullEmailHtml(newsletter: {
   type?: string | null;
 }): string {
   const isBrief = newsletter.type === "brief" || newsletter.title?.startsWith("AfriEnergy Brief") || newsletter.title?.startsWith("Africa Energy Brief");
+  const isAiGenerated = newsletter.type !== "special";
   if (isBrief) {
     return buildBriefEmailHtml({
       title: newsletter.title,
       content: newsletter.content,
       contentHtml: newsletter.contentHtml,
       editionNumber: newsletter.editionNumber,
+      isAiGenerated,
     });
   }
   return buildNewsletterEmailHtml({
@@ -498,5 +512,6 @@ export function buildFullEmailHtml(newsletter: {
     contentHtml: newsletter.contentHtml,
     editionNumber: newsletter.editionNumber,
     id: newsletter.id ?? 0,
+    isAiGenerated,
   });
 }
