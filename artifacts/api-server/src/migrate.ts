@@ -430,42 +430,61 @@ export async function runStartupMigrations(): Promise<void> {
     ON CONFLICT (key) DO NOTHING
   `);
 
-  // ── Data credibility: estimated vs disclosed deal sizes ──────────────────
-  // is_estimated marks deal sizes that are capacity-based benchmark estimates
-  // (capacity × cost/MW) rather than publicly disclosed transaction values.
-  // Estimated sizes are excluded from all headline dollar totals in /api/stats/*.
-  await runMigration("energy_projects.is_estimated", `
-    ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS is_estimated BOOLEAN NOT NULL DEFAULT FALSE
-  `);
-
-  // One-time backfill: every GEM-sourced deal size was produced by
-  // estimateDealSize(), never disclosed — flag them all. Idempotent:
-  // after the first run no rows match the WHERE clause.
-  await runMigration("energy_projects.is_estimated backfill (GEM)", `
-    UPDATE energy_projects
-    SET is_estimated = TRUE
-    WHERE extraction_source = 'api:gem'
-      AND deal_size_usd_mn IS NOT NULL
-      AND is_estimated = FALSE
-  `);
-
-  // ── Data credibility: canonical technology names ──────────────────────────
-  // The scraper historically wrote its own technology names ("Biomass",
-  // "Battery Storage", "Green Hydrogen", "Transmission & Distribution") which
-  // the frontend taxonomy never displayed. Fold them into the canonical
-  // 12-sector taxonomy. Also repairs any rows created with the old "Hyro" typo.
-  await runMigration("energy_projects technology canonicalization", `
-    UPDATE energy_projects
-    SET technology = CASE technology
-      WHEN 'Biomass' THEN 'Bioenergy'
-      WHEN 'Battery Storage' THEN 'Battery & Storage'
-      WHEN 'Green Hydrogen' THEN 'Hydrogen'
-      WHEN 'Transmission & Distribution' THEN 'Grid Expansion'
-      WHEN 'Hyro' THEN 'Hydro'
-      ELSE technology
-    END
-    WHERE technology IN ('Biomass', 'Battery Storage', 'Green Hydrogen', 'Transmission & Distribution', 'Hyro')
-  `);
-
   console.log("[Migrate] All startup migrations complete.");
+}
+
+/**
+ * Data credibility repairs — run independently of the main migration sequence
+ * so a failure elsewhere can never block them. Every statement is idempotent
+ * and errors are logged per-statement without aborting the rest.
+ *
+ * Called from app.ts at server startup (the production entry point).
+ */
+export async function runDataRepairs(): Promise<void> {
+  console.log("[Repair] Running data credibility repairs…");
+
+  const statements: Array<[string, string]> = [
+    // is_estimated marks deal sizes that are capacity-based benchmark estimates
+    // (capacity × cost/MW) rather than publicly disclosed transaction values.
+    // Estimated sizes are excluded from all headline dollar totals in /api/stats/*.
+    ["energy_projects.is_estimated column", `
+      ALTER TABLE energy_projects ADD COLUMN IF NOT EXISTS is_estimated BOOLEAN NOT NULL DEFAULT FALSE
+    `],
+    // One-time backfill: every GEM-sourced deal size was produced by
+    // estimateDealSize(), never disclosed — flag them all. Idempotent:
+    // after the first run no rows match the WHERE clause.
+    ["is_estimated backfill (GEM)", `
+      UPDATE energy_projects
+      SET is_estimated = TRUE
+      WHERE extraction_source IN ('api:gem', 'gem')
+        AND deal_size_usd_mn IS NOT NULL
+        AND is_estimated = FALSE
+    `],
+    // Fold legacy scraper technology names into the canonical 12-sector
+    // taxonomy. Also repairs any rows created with the old "Hyro" typo.
+    ["technology canonicalization", `
+      UPDATE energy_projects
+      SET technology = CASE technology
+        WHEN 'Biomass' THEN 'Bioenergy'
+        WHEN 'Battery Storage' THEN 'Battery & Storage'
+        WHEN 'Green Hydrogen' THEN 'Hydrogen'
+        WHEN 'Transmission & Distribution' THEN 'Grid Expansion'
+        WHEN 'Hyro' THEN 'Hydro'
+        ELSE technology
+      END
+      WHERE technology IN ('Biomass', 'Battery Storage', 'Green Hydrogen', 'Transmission & Distribution', 'Hyro')
+    `],
+  ];
+
+  for (const [description, statement] of statements) {
+    try {
+      const result = await pool.query(statement);
+      const rows = typeof result.rowCount === "number" ? ` (${result.rowCount} rows)` : "";
+      console.log(`[Repair] ✓ ${description}${rows}`);
+    } catch (err) {
+      console.error(`[Repair] ✗ ${description}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  console.log("[Repair] Data credibility repairs complete.");
 }

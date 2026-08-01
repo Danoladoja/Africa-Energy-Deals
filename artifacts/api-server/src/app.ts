@@ -8,11 +8,20 @@ import { dirname, join, resolve } from "path";
 import router from "./routes";
 import { db, pool, projectsTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
+import { runStartupMigrations, runDataRepairs } from "./migrate.js";
 
-// Run idempotent startup migrations
+// Run idempotent startup migrations.
+// IMPORTANT: production boots via railway-server.mjs → app.ts (index.ts is never
+// executed on Railway), so migrations MUST be triggered here, not in index.ts.
+// Data repairs run after — and independently of — the main sequence, so a
+// failure in one can never block the other.
 pool.query(`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'insights'`).catch((err: Error) => {
   console.error("[Migration] newsletters.type:", err.message);
 });
+runStartupMigrations()
+  .catch((err: Error) => console.error("[Migrate] startup migrations failed:", err?.message ?? err))
+  .then(() => runDataRepairs())
+  .catch((err: Error) => console.error("[Repair] data repairs failed:", err?.message ?? err));
 
 const require = createRequire(import.meta.url);
 const swaggerUi = require("swagger-ui-express") as typeof import("swagger-ui-express");
