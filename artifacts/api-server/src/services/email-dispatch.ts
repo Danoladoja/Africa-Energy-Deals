@@ -23,6 +23,8 @@ function buildNewsletterEmailHtml(newsletter: {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${newsletter.title}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
@@ -30,7 +32,7 @@ function buildNewsletterEmailHtml(newsletter: {
   @media only screen and (max-width:620px) {
     .outer-td { padding:0 !important; }
     .content-td { padding:26px 18px !important; }
-    .masthead-td { padding:26px 18px 20px !important; }
+    .masthead-td { padding:14px 0 14px !important; }
     .title-td { padding:16px 18px !important; }
     .footer-td { padding:22px 18px !important; }
     .masthead-badge { display:none !important; }
@@ -51,25 +53,14 @@ function buildNewsletterEmailHtml(newsletter: {
   <tr><td style="background:#10b981;height:3px;border-radius:2px 2px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
 
   <!-- MASTHEAD -->
-  <tr><td class="masthead-td" style="background:#080d1a;padding:36px 44px 28px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="vertical-align:top;">
-          <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; ${newsletter.isAiGenerated === false ? "Special Edition" : "Monthly Intelligence"}</p>
-          <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
-          <img class="masthead-img" src="https://afrienergytracker.io/email/masthead-insights.png" width="322" height="96" alt="AfriEnergy Insights"
-               style="display:block;border:0;outline:none;text-decoration:none;width:322px;height:auto;max-width:100%;" />
-        </td>
-        <td class="masthead-badge" align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
-          <div style="background:#0f2318;border:1px solid #1a4a2e;border-radius:8px;padding:12px 16px;text-align:center;display:inline-block;">
-            <p style="margin:0;color:#10b981;font-size:13px;font-weight:800;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">#${newsletter.editionNumber}</p>
-            <p style="margin:4px 0 0;color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Edition</p>
-          </div>
-        </td>
-      </tr>
-    </table>
-    <div style="height:1px;background:#1a2744;margin:22px 0 18px;">&nbsp;</div>
-    <p style="margin:0;color:#64748b;font-size:13px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${dateStr}</p>
+  <tr><td class="masthead-td" style="background:#080d1a;padding:22px 0 20px;">
+    <!-- Full-width banner: eyebrow + wordmark baked as an image in true brand
+         fonts — renders identically in every client and survives Gmail's
+         dark-mode inversion (the image IS the header). -->
+    <img src="https://afrienergytracker.io/email/banner-insights.png" width="600" height="150" alt="Africa Energy Pulse — AfriEnergy Insights"
+         style="display:block;border:0;outline:none;text-decoration:none;width:100%;height:auto;" />
+    <div style="height:1px;background:#1a2744;margin:18px 44px 14px;">&nbsp;</div>
+    <p style="margin:0 44px;color:#64748b;font-size:13px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Edition #" + newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</p>
   </td></tr>
 
   <!-- TITLE BAND -->
@@ -143,13 +134,15 @@ function buildBriefEmailHtml(newsletter: {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${newsletter.title}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
     .brief-outer { padding:0 !important; }
-    .brief-header { padding:22px 18px 18px !important; }
+    .brief-header { padding:12px 0 12px !important; }
     .brief-content { padding:26px 18px !important; }
     .brief-footer { padding:18px 18px !important; }
     .masthead-badge { display:none !important; }
@@ -167,30 +160,23 @@ function buildBriefEmailHtml(newsletter: {
 <table width="100%" style="max-width:600px;" cellpadding="0" cellspacing="0">
 
   <!-- Dual-tone top strip -->
-  <tr>
-    <td style="background:#10b981;height:3px;width:70%;font-size:0;line-height:0;">&nbsp;</td>
-    <td style="background:#065f46;height:3px;width:30%;font-size:0;line-height:0;">&nbsp;</td>
-  </tr>
+  <!-- Dual-tone strip nested in ONE cell — a bare two-cell row here turned the
+       whole email into a 2-column table and squeezed every other row to 70% width -->
+  <tr><td style="font-size:0;line-height:0;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td width="70%" style="background:#10b981;height:3px;font-size:0;line-height:0;">&nbsp;</td>
+      <td width="30%" style="background:#065f46;height:3px;font-size:0;line-height:0;">&nbsp;</td>
+    </tr></table>
+  </td></tr>
 
   <!-- COMPACT HEADER -->
-  <tr><td class="brief-header" style="background:#080d1a;padding:26px 36px 22px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="vertical-align:middle;">
-          <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
-          <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
-          <img class="masthead-img" src="https://afrienergytracker.io/email/masthead-brief.png" width="290" height="34" alt="AfriEnergy Brief"
-               style="display:block;border:0;outline:none;text-decoration:none;width:290px;height:auto;max-width:100%;" />
-          <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Biweekly Update"} &nbsp;·&nbsp; ${dateStr}</p>
-        </td>
-        <td class="masthead-badge" align="right" style="vertical-align:middle;padding-left:16px;white-space:nowrap;">
-          <div style="border:1px solid #1a3a28;border-radius:6px;padding:8px 12px;text-align:center;display:inline-block;">
-            <p style="margin:0;color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">3–5 MIN</p>
-            <p style="margin:3px 0 0;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Read</p>
-          </div>
-        </td>
-      </tr>
-    </table>
+  <tr><td class="brief-header" style="background:#080d1a;padding:18px 0 16px;">
+    <!-- Full-width banner: eyebrow + wordmark baked as an image in true brand
+         fonts — renders identically in every client and survives Gmail's
+         dark-mode inversion (the image IS the header). -->
+    <img src="https://afrienergytracker.io/email/banner-brief.png" width="600" height="94" alt="Africa Energy Pulse — AfriEnergy Brief"
+         style="display:block;border:0;outline:none;text-decoration:none;width:100%;height:auto;" />
+    <p style="margin:10px 36px 0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Biweekly Update"} &nbsp;·&nbsp; ${dateStr}</p>
   </td></tr>
 
   <!-- GREEN RULE + TITLE -->

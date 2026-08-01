@@ -235,7 +235,7 @@ export function markdownToHtml(md: string): string {
 
   // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0f172a;font-size:22px;font-weight:800;margin:40px 0 14px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.4px;line-height:1.25;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:20px;font-weight:800;margin:40px 0 16px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:1px;line-height:1.3;text-transform:uppercase;">$1</h2>'
   );
 
   // H3
@@ -268,11 +268,15 @@ export function markdownToHtml(md: string): string {
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
 
-  // Paragraphs
+  // Paragraphs — only true block-level elements skip the <p> wrapper.
+  // A block starting with an INLINE tag (<strong>, <a>, <em>) is still a
+  // paragraph; failing to wrap those fused consecutive bold-led paragraphs
+  // into one unspaced blob.
+  const BLOCK_START = /^<(h[1-6]|div|ul|ol|table|hr|blockquote|p|img)\b/i;
   html = html.split("\n\n").map(block => {
     const trimmed = block.trim();
     if (!trimmed) return "";
-    if (trimmed.startsWith("<")) return trimmed;
+    if (BLOCK_START.test(trimmed)) return trimmed;
     return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
   }).join("\n");
 
