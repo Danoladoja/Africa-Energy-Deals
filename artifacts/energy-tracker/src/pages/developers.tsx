@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -44,7 +45,7 @@ function extractEntities(projects: Project[]): EntityRow[] {
     if (!key || key.length < 2) return;
     if (!map[key]) map[key] = { investment: 0, count: 0, countries: new Set(), sectors: {} };
     map[key].count++;
-    map[key].investment += project.dealSizeUsdMn ?? 0;
+    map[key].investment += disclosedUsdMn(project);
     map[key].countries.add(project.country);
     map[key].sectors[project.technology] = (map[key].sectors[project.technology] ?? 0) + 1;
   };

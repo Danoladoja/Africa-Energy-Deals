@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { disclosedUsdMn } from "../../lib/deal-math";
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronRight, Home } from "lucide-react";
 import { SECTOR_COLORS, REGION_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
@@ -45,7 +46,7 @@ function buildTree(
     return p.status || "Unknown";
   };
   const getValue = (p: TreeProject): number =>
-    metric === "totalInvestmentUsdMn" ? (p.dealSizeUsdMn ?? 0) : 1;
+    metric === "totalInvestmentUsdMn" ? disclosedUsdMn(p) : 1;
 
   const filtered = drillKey ? projects.filter(p => getKey1(p) === drillKey) : projects;
 

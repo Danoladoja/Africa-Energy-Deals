@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { Layout } from "@/components/layout";
 import { PageTransition } from "@/components/page-transition";
 import {
@@ -407,7 +408,7 @@ export default function VizStudio() {
     const map = new Map<string, { technology: string; totalInvestmentUsdMn: number; projectCount: number }>();
     for (const p of spotlightProjects.projects) {
       const ex = map.get(p.technology) ?? { technology: p.technology, totalInvestmentUsdMn: 0, projectCount: 0 };
-      map.set(p.technology, { technology: p.technology, totalInvestmentUsdMn: ex.totalInvestmentUsdMn + (p.dealSizeUsdMn ?? 0), projectCount: ex.projectCount + 1 });
+      map.set(p.technology, { technology: p.technology, totalInvestmentUsdMn: ex.totalInvestmentUsdMn + disclosedUsdMn(p), projectCount: ex.projectCount + 1 });
     }
     return Array.from(map.values()).sort((a, b) => b.totalInvestmentUsdMn - a.totalInvestmentUsdMn);
   }, [spotlightProjects]);
@@ -418,7 +419,7 @@ export default function VizStudio() {
     for (const p of spotlightProjects.projects) {
       if (!p.announcedYear) continue;
       const ex = map.get(p.announcedYear) ?? { year: p.announcedYear, totalInvestmentUsdMn: 0, projectCount: 0 };
-      map.set(p.announcedYear, { year: p.announcedYear, totalInvestmentUsdMn: ex.totalInvestmentUsdMn + (p.dealSizeUsdMn ?? 0), projectCount: ex.projectCount + 1 });
+      map.set(p.announcedYear, { year: p.announcedYear, totalInvestmentUsdMn: ex.totalInvestmentUsdMn + disclosedUsdMn(p), projectCount: ex.projectCount + 1 });
     }
     return Array.from(map.values()).sort((a, b) => a.year - b.year);
   }, [spotlightProjects]);
@@ -428,7 +429,7 @@ export default function VizStudio() {
     return [...(byCountry || [])].filter(c => c.region === selectedSpotlight).sort((a, b) => b.totalInvestmentUsdMn - a.totalInvestmentUsdMn);
   }, [spotlightType, byCountry, selectedSpotlight]);
 
-  const spotlightTotalInvestment = useMemo(() => spotlightProjects?.projects?.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0) ?? 0, [spotlightProjects]);
+  const spotlightTotalInvestment = useMemo(() => spotlightProjects?.projects?.reduce((s, p) => s + disclosedUsdMn(p), 0) ?? 0, [spotlightProjects]);
   const spotlightProjectCount = spotlightProjects?.projects?.length ?? 0;
   const spotlightTopTech = spotlightTechData[0]?.technology ?? "—";
 

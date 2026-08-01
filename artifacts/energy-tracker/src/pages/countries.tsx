@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -118,20 +119,20 @@ function CountryProfilePanel({
   const projects = projectsData?.projects ?? [];
 
   const totalInvestment = useMemo(
-    () => projects.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0),
+    () => projects.reduce((s, p) => s + disclosedUsdMn(p), 0),
     [projects]
   );
   const avgDealSize = useMemo(() => {
-    const withSize = projects.filter((p) => p.dealSizeUsdMn);
+    const withSize = projects.filter((p) => disclosedUsdMn(p) > 0);
     if (!withSize.length) return null;
-    return withSize.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0) / withSize.length;
+    return withSize.reduce((s, p) => s + disclosedUsdMn(p), 0) / withSize.length;
   }, [projects]);
 
   const sectorTotals = useMemo(() => {
     const map: Record<string, { investment: number; count: number }> = {};
     for (const p of projects) {
       if (!map[p.technology]) map[p.technology] = { investment: 0, count: 0 };
-      map[p.technology].investment += p.dealSizeUsdMn ?? 0;
+      map[p.technology].investment += disclosedUsdMn(p);
       map[p.technology].count += 1;
     }
     return Object.entries(map)
@@ -145,7 +146,7 @@ function CountryProfilePanel({
     const map: Record<number, number> = {};
     for (const p of projects) {
       if (p.announcedYear) {
-        map[p.announcedYear] = (map[p.announcedYear] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        map[p.announcedYear] = (map[p.announcedYear] ?? 0) + disclosedUsdMn(p);
       }
     }
     return Object.entries(map)
@@ -158,7 +159,7 @@ function CountryProfilePanel({
     for (const p of projects) {
       if (p.developer) {
         if (!map[p.developer]) map[p.developer] = { investment: 0, count: 0 };
-        map[p.developer].investment += p.dealSizeUsdMn ?? 0;
+        map[p.developer].investment += disclosedUsdMn(p);
         map[p.developer].count += 1;
       }
     }
@@ -704,14 +705,14 @@ function CompareTab({
     return selected.map((country, i) => {
       const stat = countryStats?.find((c) => c.country === country);
       const projects = projectSets[i];
-      const totalInvestment = projects.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0);
-      const withSize = projects.filter((p) => p.dealSizeUsdMn);
+      const totalInvestment = projects.reduce((s, p) => s + disclosedUsdMn(p), 0);
+      const withSize = projects.filter((p) => disclosedUsdMn(p) > 0);
       const avgDealSize = withSize.length > 0
-        ? withSize.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0) / withSize.length
+        ? withSize.reduce((s, p) => s + disclosedUsdMn(p), 0) / withSize.length
         : null;
       const sectorMap: Record<string, number> = {};
       for (const p of projects) {
-        sectorMap[p.technology] = (sectorMap[p.technology] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        sectorMap[p.technology] = (sectorMap[p.technology] ?? 0) + disclosedUsdMn(p);
       }
       const topSector = Object.entries(sectorMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
       return { country, region: stat?.region ?? "Africa", totalInvestment, projectCount: projects.length, topSector, avgDealSize };
@@ -732,7 +733,7 @@ function CompareTab({
     const perCountry = selected.map((_, i) => {
       const map: Record<string, number> = {};
       for (const p of projectSets[i]) {
-        map[p.technology] = (map[p.technology] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        map[p.technology] = (map[p.technology] ?? 0) + disclosedUsdMn(p);
         sectors.add(p.technology);
       }
       return map;
@@ -759,7 +760,7 @@ function CompareTab({
       const row: any = { bucket: label };
       selected.forEach((c, i) => {
         row[c] = projectSets[i].filter((p) => {
-          const s = p.dealSizeUsdMn ?? 0;
+          const s = disclosedUsdMn(p);
           return s >= min && s < max;
         }).length;
       });
@@ -773,7 +774,7 @@ function CompareTab({
       const map: Record<number, number> = {};
       for (const p of projectSets[i]) {
         if (p.announcedYear) {
-          map[p.announcedYear] = (map[p.announcedYear] ?? 0) + (p.dealSizeUsdMn ?? 0);
+          map[p.announcedYear] = (map[p.announcedYear] ?? 0) + disclosedUsdMn(p);
           yearSet.add(p.announcedYear);
         }
       }

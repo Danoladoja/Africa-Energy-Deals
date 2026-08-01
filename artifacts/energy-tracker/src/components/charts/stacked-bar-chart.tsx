@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { disclosedUsdMn } from "../../lib/deal-math";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, Cell, LabelList,
@@ -47,7 +48,7 @@ function pivotData(
     return p.financingType || "Other";
   };
   const getValue = (p: StackProject): number =>
-    metric === "totalInvestmentUsdMn" ? (p.dealSizeUsdMn ?? 0) : 1;
+    metric === "totalInvestmentUsdMn" ? disclosedUsdMn(p) : 1;
 
   const rowMap = new Map<string, Map<string, number>>();
   const allKeys = new Set<string>();

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { disclosedUsdMn } from "../../lib/deal-math";
 import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine, Label,
@@ -118,7 +119,7 @@ function buildCountryDots(
       sectorCount.set(c, new Map());
     }
     const agg = aggMap.get(c)!;
-    agg.dealSizeUsdMn += p.dealSizeUsdMn ?? 0;
+    agg.dealSizeUsdMn += disclosedUsdMn(p);
     agg.capacityMw += p.capacityMw ?? 0;
     agg.projectCount += 1;
     const sc = sectorCount.get(c)!;

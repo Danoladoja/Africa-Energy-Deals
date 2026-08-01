@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ExportDropdown } from "@/components/export-dropdown";
@@ -329,15 +330,15 @@ export default function ComparePage() {
     return selected.map((country, i) => {
       const stat = countryStats?.find((c) => c.country === country);
       const projects = projectSets[i];
-      const totalInvestment = projects.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0);
-      const withSize = projects.filter((p) => p.dealSizeUsdMn);
+      const totalInvestment = projects.reduce((s, p) => s + disclosedUsdMn(p), 0);
+      const withSize = projects.filter((p) => disclosedUsdMn(p) > 0);
       const avgDealSize = withSize.length > 0
-        ? withSize.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0) / withSize.length
+        ? withSize.reduce((s, p) => s + disclosedUsdMn(p), 0) / withSize.length
         : null;
 
       const sectorMap: Record<string, number> = {};
       for (const p of projects) {
-        sectorMap[p.technology] = (sectorMap[p.technology] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        sectorMap[p.technology] = (sectorMap[p.technology] ?? 0) + disclosedUsdMn(p);
       }
       const topSector = Object.entries(sectorMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
@@ -369,7 +370,7 @@ export default function ComparePage() {
     const perCountry = selected.map((_, i) => {
       const map: Record<string, number> = {};
       for (const p of projectSets[i]) {
-        map[p.technology] = (map[p.technology] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        map[p.technology] = (map[p.technology] ?? 0) + disclosedUsdMn(p);
         sectors.add(p.technology);
       }
       return map;
@@ -399,7 +400,7 @@ export default function ComparePage() {
       const row: any = { bucket: label };
       selected.forEach((c, i) => {
         row[c] = projectSets[i].filter((p) => {
-          const s = p.dealSizeUsdMn ?? 0;
+          const s = disclosedUsdMn(p);
           return s >= min && s < max;
         }).length;
       });
@@ -415,7 +416,7 @@ export default function ComparePage() {
       const map: Record<number, number> = {};
       for (const p of projectSets[i]) {
         if (p.announcedYear) {
-          map[p.announcedYear] = (map[p.announcedYear] ?? 0) + (p.dealSizeUsdMn ?? 0);
+          map[p.announcedYear] = (map[p.announcedYear] ?? 0) + disclosedUsdMn(p);
           yearSet.add(p.announcedYear);
         }
       }

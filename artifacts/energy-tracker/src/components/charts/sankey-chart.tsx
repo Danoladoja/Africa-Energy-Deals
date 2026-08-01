@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { disclosedUsdMn } from "../../lib/deal-math";
 import { Sankey, Tooltip, ResponsiveContainer } from "recharts";
 import { SECTOR_COLORS, REGION_COLORS, FINANCING_COLORS, getColor, formatVal, FALLBACK_COLORS } from "@/utils/chart-colors";
 
@@ -44,7 +45,7 @@ function buildSankey(
   const flowMap = new Map<LinkKey, number>();
 
   for (const p of projects) {
-    const v = p.dealSizeUsdMn ?? 0;
+    const v = disclosedUsdMn(p);
     if (v === 0) continue;
     const f = getKey(p, from as any);
     const t = getKey(p, to as any);

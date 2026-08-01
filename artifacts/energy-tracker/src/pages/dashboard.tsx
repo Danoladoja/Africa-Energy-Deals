@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useGetSummaryStats } from "@workspace/api-client-react";
@@ -513,7 +514,7 @@ export default function Dashboard() {
     for (const p of filtered) {
       for (const [groupName, g] of Object.entries(ENERGY_GROUPS)) {
         if ((g.sectors as readonly string[]).includes(p.technology)) {
-          groups[groupName].investment += p.dealSizeUsdMn ?? 0;
+          groups[groupName].investment += disclosedUsdMn(p);
           groups[groupName].count++;
         }
       }
@@ -535,7 +536,7 @@ export default function Dashboard() {
       const y = p.announcedYear;
       if (!y || y < 2000 || y > 2030) continue;
       if (!map[y]) map[y] = { annual: 0, count: 0 };
-      map[y].annual += p.dealSizeUsdMn ?? 0;
+      map[y].annual += disclosedUsdMn(p);
       map[y].count++;
     }
     let cumulative = 0;
@@ -553,7 +554,7 @@ export default function Dashboard() {
     for (const p of filtered) {
       if (!map[p.technology]) map[p.technology] = { count: 0, investment: 0 };
       map[p.technology].count++;
-      map[p.technology].investment += p.dealSizeUsdMn ?? 0;
+      map[p.technology].investment += disclosedUsdMn(p);
     }
     return Object.entries(map)
       .map(([technology, v]) => ({ technology, ...v, color: SECTOR_COLORS[technology] ?? "#94a3b8" }))
@@ -569,7 +570,7 @@ export default function Dashboard() {
         ...(p.investors || "").split(",").map(s => s.trim()),
       ].filter(Boolean) as string[];
       for (const e of entities) {
-        map[e] = (map[e] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        map[e] = (map[e] ?? 0) + disclosedUsdMn(p);
       }
     }
     return Object.entries(map)
@@ -588,7 +589,7 @@ export default function Dashboard() {
       const stage = normalizeStage(p);
       if (stageMap[stage]) {
         stageMap[stage].count++;
-        stageMap[stage].investment += p.dealSizeUsdMn ?? 0;
+        stageMap[stage].investment += disclosedUsdMn(p);
       }
     }
     const suspended = stageMap["Suspended"];
@@ -610,10 +611,10 @@ export default function Dashboard() {
     const cellMap: Record<string, Record<string, { inv: number; count: number }>> = {};
 
     for (const p of filtered) {
-      countryTotals[p.country] = (countryTotals[p.country] ?? 0) + (p.dealSizeUsdMn ?? 0);
+      countryTotals[p.country] = (countryTotals[p.country] ?? 0) + disclosedUsdMn(p);
       if (!cellMap[p.country]) cellMap[p.country] = {};
       if (!cellMap[p.country][p.technology]) cellMap[p.country][p.technology] = { inv: 0, count: 0 };
-      cellMap[p.country][p.technology].inv += p.dealSizeUsdMn ?? 0;
+      cellMap[p.country][p.technology].inv += disclosedUsdMn(p);
       cellMap[p.country][p.technology].count++;
     }
 
@@ -640,7 +641,7 @@ export default function Dashboard() {
     const countryTotals: Record<string, { investment: number; count: number }> = {};
     for (const p of filtered) {
       if (!countryTotals[p.country]) countryTotals[p.country] = { investment: 0, count: 0 };
-      countryTotals[p.country].investment += p.dealSizeUsdMn ?? 0;
+      countryTotals[p.country].investment += disclosedUsdMn(p);
       countryTotals[p.country].count++;
     }
     const countryRows = Object.entries(countryTotals)
@@ -685,7 +686,7 @@ export default function Dashboard() {
     const countryTotals: Record<string, { investment: number; count: number }> = {};
     for (const p of filtered) {
       if (!countryTotals[p.country]) countryTotals[p.country] = { investment: 0, count: 0 };
-      countryTotals[p.country].investment += p.dealSizeUsdMn ?? 0;
+      countryTotals[p.country].investment += disclosedUsdMn(p);
       countryTotals[p.country].count++;
     }
     const countryRows = Object.entries(countryTotals)

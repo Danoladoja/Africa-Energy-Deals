@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -99,14 +100,14 @@ export default function CountryProfile() {
 
   // ── Derived metrics ──────────────────────────────────────────────────────
   const totalInvestment = useMemo(
-    () => projects.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0),
+    () => projects.reduce((s, p) => s + disclosedUsdMn(p), 0),
     [projects]
   );
 
   const avgDealSize = useMemo(() => {
-    const withSize = projects.filter((p) => p.dealSizeUsdMn);
+    const withSize = projects.filter((p) => disclosedUsdMn(p) > 0);
     if (!withSize.length) return null;
-    return withSize.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0) / withSize.length;
+    return withSize.reduce((s, p) => s + disclosedUsdMn(p), 0) / withSize.length;
   }, [projects]);
 
   // Sector breakdown
@@ -114,7 +115,7 @@ export default function CountryProfile() {
     const map: Record<string, { investment: number; count: number }> = {};
     for (const p of projects) {
       if (!map[p.technology]) map[p.technology] = { investment: 0, count: 0 };
-      map[p.technology].investment += p.dealSizeUsdMn ?? 0;
+      map[p.technology].investment += disclosedUsdMn(p);
       map[p.technology].count += 1;
     }
     return Object.entries(map)
@@ -129,7 +130,7 @@ export default function CountryProfile() {
     const map: Record<number, number> = {};
     for (const p of projects) {
       if (p.announcedYear) {
-        map[p.announcedYear] = (map[p.announcedYear] ?? 0) + (p.dealSizeUsdMn ?? 0);
+        map[p.announcedYear] = (map[p.announcedYear] ?? 0) + disclosedUsdMn(p);
       }
     }
     return Object.entries(map)
@@ -143,7 +144,7 @@ export default function CountryProfile() {
     for (const p of projects) {
       if (p.developer) {
         if (!map[p.developer]) map[p.developer] = { investment: 0, count: 0 };
-        map[p.developer].investment += p.dealSizeUsdMn ?? 0;
+        map[p.developer].investment += disclosedUsdMn(p);
         map[p.developer].count += 1;
       }
     }

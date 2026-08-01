@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useLocation } from "wouter";
 import {
   PieChart, Pie, Cell as PieCell,
@@ -123,7 +124,7 @@ export function extractMatrixEntities(projects: Project[]): MatrixEntityRow[] {
     };
     const acc = map[key];
     acc.count++;
-    const inv = p.dealSizeUsdMn ?? 0;
+    const inv = disclosedUsdMn(p);
     acc.investment += inv;
     acc.countries.add(p.country);
 

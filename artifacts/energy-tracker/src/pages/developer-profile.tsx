@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { disclosedUsdMn } from "../lib/deal-math";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -83,7 +84,7 @@ export default function DeveloperProfile() {
   );
 
   // ── Derived stats ────────────────────────────────────────────────────────
-  const totalInvestment = useMemo(() => projects.reduce((s, p) => s + (p.dealSizeUsdMn ?? 0), 0), [projects]);
+  const totalInvestment = useMemo(() => projects.reduce((s, p) => s + disclosedUsdMn(p), 0), [projects]);
   const countries = useMemo(() => [...new Set(projects.map((p) => p.country))].sort(), [projects]);
 
   const sectorData = useMemo(() => {
@@ -91,7 +92,7 @@ export default function DeveloperProfile() {
     for (const p of projects) {
       if (!map[p.technology]) map[p.technology] = { count: 0, investment: 0 };
       map[p.technology].count++;
-      map[p.technology].investment += p.dealSizeUsdMn ?? 0;
+      map[p.technology].investment += disclosedUsdMn(p);
     }
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v }))
@@ -103,7 +104,7 @@ export default function DeveloperProfile() {
     for (const p of projects) {
       if (!map[p.country]) map[p.country] = { count: 0, investment: 0 };
       map[p.country].count++;
-      map[p.country].investment += p.dealSizeUsdMn ?? 0;
+      map[p.country].investment += disclosedUsdMn(p);
     }
     return Object.entries(map)
       .map(([country, v]) => ({ country, ...v }))
@@ -129,7 +130,7 @@ export default function DeveloperProfile() {
     const arr = [...projects];
     arr.sort((a, b) => {
       let diff = 0;
-      if (sortKey === "dealSizeUsdMn") diff = (a.dealSizeUsdMn ?? 0) - (b.dealSizeUsdMn ?? 0);
+      if (sortKey === "dealSizeUsdMn") diff = disclosedUsdMn(a) - disclosedUsdMn(b);
       else if (sortKey === "country") diff = a.country.localeCompare(b.country);
       else if (sortKey === "status") diff = a.status.localeCompare(b.status);
       else if (sortKey === "announcedYear") diff = (a.announcedYear ?? 0) - (b.announcedYear ?? 0);
