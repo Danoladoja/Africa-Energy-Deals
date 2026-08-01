@@ -118,10 +118,9 @@ function buildNewsletterEmailHtml(newsletter: {
       <tr>
         <td style="vertical-align:top;">
           <p style="margin:0 0 14px;color:#10b981;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse &nbsp;·&nbsp; Monthly Intelligence</p>
-          <p style="margin:0;font-size:38px;font-weight:800;line-height:1.0;letter-spacing:-1.5px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">
-            <span style="color:#ffffff;">AfriEnergy</span><br>
-            <span style="color:#10b981;">Insights</span>
-          </p>
+          <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
+          <img src="https://afrienergytracker.io/email/masthead-insights.png" width="322" height="96" alt="AfriEnergy Insights"
+               style="display:block;border:0;outline:none;text-decoration:none;width:322px;height:auto;max-width:100%;" />
         </td>
         <td align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
           <div style="background:#0f2318;border:1px solid #1a4a2e;border-radius:8px;padding:12px 16px;text-align:center;display:inline-block;">
@@ -236,9 +235,9 @@ function buildBriefEmailHtml(newsletter: {
       <tr>
         <td style="vertical-align:middle;">
           <p style="margin:0 0 10px;color:#10b981;font-size:9px;font-weight:700;letter-spacing:4px;text-transform:uppercase;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Africa Energy Pulse</p>
-          <p style="margin:0;font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-0.5px;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;">
-            <span style="color:#ffffff;">AfriEnergy </span><span style="color:#10b981;">Brief</span>
-          </p>
+          <!-- Wordmark as image: true Syne typography in every client (Gmail strips webfonts) -->
+          <img src="https://afrienergytracker.io/email/masthead-brief.png" width="290" height="34" alt="AfriEnergy Brief"
+               style="display:block;border:0;outline:none;text-decoration:none;width:290px;height:auto;max-width:100%;" />
           <p style="margin:7px 0 0;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Biweekly Update &nbsp;·&nbsp; ${dateStr}</p>
         </td>
         <td align="right" style="vertical-align:middle;padding-left:16px;white-space:nowrap;">
