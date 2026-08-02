@@ -318,8 +318,9 @@ router.post("/admin/projects/create", async (req, res) => {
     const [created] = await db.insert(projectsTable).values({
       projectName: String(b.projectName),
       country: String(b.country),
-      region: str(b.region),
+      region: str(b.region) ?? "Unknown",
       technology: String(b.technology),
+      status: str(b.status) ?? "announced", // NOT NULL in schema; mirrors pipeline default
       dealSizeUsdMn: num(b.dealSizeUsdMn),
       capacityMw: num(b.capacityMw),
       announcedYear: num(b.announcedYear),
