@@ -20,3 +20,18 @@ Tracked follow-ups from the August 1, 2026 credibility and data-quality overhaul
 
 4. **Developer name cleanup.** Strip ownership artifacts like "[100%]" from
    developer/investor names at ingestion and via one-time backfill.
+
+5. **Adapter endpoint migration (PRIORITY — most sources rotted since April).**
+   The Aug 2, 2026 manual run exposed widespread source link-rot; until these
+   are fixed, scheduled scrapes will collect little or nothing:
+   - `gem`: all tracker download URLs return HTTP 410 Gone — GEM has moved its
+     data files; locate the new release URLs (or switch to their API) and update.
+   - `aiddata`, `dfc`: dataset endpoints return 404 — find current URLs.
+   - `ifc`: both project-listing endpoints return 404.
+   - `afdb`: returns 403 — likely bot-blocking or a moved path; may need a new
+     data source (AfDB data portal / open-data API).
+   - News feeds: ESI Africa (403), Engineering News, PV Magazine Africa,
+     Recharge News, Business Insider Africa (404s), APO Group (TLS mismatch) —
+     prune dead feeds and source replacements.
+   Two code bugs found in the same run are already fixed (news batch URL lookup
+   double-bind; World Bank countryname arriving as an array).

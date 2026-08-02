@@ -110,7 +110,7 @@ export function isRecognizedCountry(text: string): boolean {
  * can distinguish "country unknown but in Africa" from "not African at all".
  */
 export function normalizeCountry(text: string): string | null {
-  if (!text) return null;
+  if (!text || typeof text !== "string") return null; // guard: API fields can arrive as arrays/objects
   const trimmed = text.trim();
   if (!trimmed) return null;
 

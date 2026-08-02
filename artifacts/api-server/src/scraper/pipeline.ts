@@ -96,10 +96,13 @@ async function batchUrlLookup(urls: string[]): Promise<Map<string, number>> {
     const client = await pool.connect();
     try {
       await client.query("SET search_path TO public");
+      // Both IN lists reference the SAME $1..$n placeholders, so the values
+      // array must contain each URL exactly once — passing the chunk twice
+      // makes Postgres reject the bind ("supplies 2n parameters, requires n").
       const r = await client.query(
         `SELECT id, news_url, news_url_2 FROM energy_projects
          WHERE news_url IN (${placeholders}) OR news_url_2 IN (${placeholders})`,
-        [...chunk, ...chunk],
+        chunk,
       );
       for (const row of r.rows as Array<{ id: number; news_url: string | null; news_url_2: string | null }>) {
         if (row.news_url && chunk.includes(row.news_url)) map.set(row.news_url, row.id);

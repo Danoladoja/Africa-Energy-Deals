@@ -114,7 +114,12 @@ async function run(): Promise<AdapterResult> {
   let filtered = 0;
 
   for (const p of projects) {
-    const country = normalizeCountry(p.countryname ?? p.countryshortname ?? "");
+    // The WB projects API returns countryname as an array of strings in
+    // current responses (it was a plain string historically) — coerce both.
+    const rawCountry = [p.countryname, p.countryshortname]
+      .map((v) => (Array.isArray(v) ? v[0] : v))
+      .find((v) => typeof v === "string" && v.length > 0) ?? "";
+    const country = normalizeCountry(rawCountry);
     if (!country || !isRecognizedCountry(country)) {
       filtered++;
       continue;
