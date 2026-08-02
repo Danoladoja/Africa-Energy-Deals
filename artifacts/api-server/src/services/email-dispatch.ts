@@ -27,7 +27,6 @@ function buildNewsletterEmailHtml(newsletter: {
 <meta name="supported-color-schemes" content="light">
 <title>${newsletter.title}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
     .outer-td { padding:0 !important; }
@@ -43,29 +42,26 @@ function buildNewsletterEmailHtml(newsletter: {
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#e8ecf0;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#e8ecf0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf0;">
 <tr><td class="outer-td" align="center" style="padding:32px 16px 48px;">
 <table width="100%" style="max-width:620px;" cellpadding="0" cellspacing="0">
 
-  <!-- Top green accent line -->
-  <tr><td style="background:#10b981;height:3px;border-radius:2px 2px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
-
-  <!-- MASTHEAD -->
-  <tr><td class="masthead-td" style="background:#080d1a;padding:22px 0 20px;">
-    <!-- Full-width banner: eyebrow + wordmark baked as an image in true brand
-         fonts — renders identically in every client and survives Gmail's
-         dark-mode inversion (the image IS the header). -->
-    <img src="https://afrienergytracker.io/email/banner-insights.png" width="600" height="150" alt="Africa Energy Pulse — AfriEnergy Insights"
+  <!-- HEADER: the ONLY dark surface is the banner image itself (accent strip,
+       eyebrow, wordmark all baked in) — Gmail dark mode cannot take it apart.
+       Everything below is light-by-design so forced inversion stays coherent. -->
+  <tr><td class="masthead-td" style="padding:0;font-size:0;line-height:0;">
+    <img src="https://afrienergytracker.io/email/banner-insights.png" width="600" height="165" alt="Africa Energy Pulse — AfriEnergy Insights"
          style="display:block;border:0;outline:none;text-decoration:none;width:100%;height:auto;" />
-    <div style="height:1px;background:#1a2744;margin:18px 44px 14px;">&nbsp;</div>
-    <p style="margin:0 44px;color:#64748b;font-size:13px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Edition #" + newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</p>
+  </td></tr>
+  <tr><td style="background:#f8fafc;padding:10px 44px;border-bottom:1px solid #e2e8f0;">
+    <p style="margin:0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Edition #" + newsletter.editionNumber} &nbsp;·&nbsp; ${dateStr}</p>
   </td></tr>
 
-  <!-- TITLE BAND -->
-  <tr><td class="title-td" style="background:#0d1526;padding:18px 44px;border-top:1px solid #1a2744;border-bottom:3px solid #10b981;">
-    <p style="margin:0;color:#f1f5f9;font-size:17px;font-weight:700;line-height:1.4;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">${newsletter.title}</p>
+  <!-- TITLE BAND (light by design) -->
+  <tr><td class="title-td" style="background:#f0fdf9;padding:18px 44px;border-left:4px solid #10b981;border-bottom:1px solid #e2e8f0;">
+    <p style="margin:0;color:#0f172a;font-size:17px;font-weight:800;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">${newsletter.title}</p>
   </td></tr>
 
   <!-- CONTENT BODY -->
@@ -79,11 +75,11 @@ function buildNewsletterEmailHtml(newsletter: {
       <tr>
         ${newsletter.isAiGenerated === false ? `
         <td style="vertical-align:top;padding-right:10px;font-size:15px;line-height:1;">✍️</td>
-        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
+        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
           <strong style="color:#92400e;">Written by Daniel Oladoja</strong>, Founder, AfriEnergy Tracker. Figures verified against the live database at time of writing.
         </td>` : `
         <td style="vertical-align:top;padding-right:10px;font-size:15px;line-height:1;">⚠️</td>
-        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
+        <td style="color:#78350f;font-size:12px;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
           <strong style="color:#92400e;">AI-Generated Analysis:</strong> Content produced by Claude AI from the AfriEnergy Tracker database. Grounded in real tracked project data — always verify critical figures before making investment or policy decisions.
         </td>`}
       </tr>
@@ -91,23 +87,24 @@ function buildNewsletterEmailHtml(newsletter: {
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td class="footer-td" style="background:#080d1a;border-radius:0 0 4px 4px;padding:28px 44px;">
+  <!-- FOOTER (light by design — inverts gracefully in dark-mode clients) -->
+  <tr><td class="footer-td" style="background:#f8fafc;border-top:2px solid #10b981;border-radius:0 0 4px 4px;padding:26px 44px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:top;">
-          <p style="margin:0;color:#e2e8f0;font-size:13px;font-weight:700;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker</p>
-          <p style="margin:3px 0 0;color:#475569;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">by Africa Energy Pulse</p>
-          <p style="margin:12px 0 0;color:#334155;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
+          <p style="margin:0;color:#0f172a;font-size:13px;font-weight:700;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker</p>
+          <p style="margin:3px 0 0;color:#64748b;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">by Africa Energy Pulse</p>
+          <p style="margin:12px 0 0;color:#64748b;font-size:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
         </td>
         <td align="right" style="vertical-align:top;padding-left:20px;white-space:nowrap;">
-          <a href="https://afrienergytracker.io/insights" style="color:#10b981;font-size:12px;font-weight:600;text-decoration:none;display:block;margin-bottom:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
-          <a href="{{UNSUBSCRIBE_URL}}" style="color:#475569;font-size:11px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
+          <a href="https://afrienergytracker.io/insights" style="color:#0d9488;font-size:12px;font-weight:700;text-decoration:none;display:block;margin-bottom:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#64748b;font-size:11px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
         </td>
       </tr>
     </table>
-    <div style="height:1px;background:#1e293b;margin:20px 0 16px;">&nbsp;</div>
-    <p style="margin:0;color:#334155;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#10b981;text-decoration:none;">afrienergytracker.io</a>
+    <div style="height:1px;background:#e2e8f0;margin:20px 0 16px;">&nbsp;</div>
+    <p style="margin:0;color:#94a3b8;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#0d9488;text-decoration:none;">afrienergytracker.io</a>
     </p>
   </td></tr>
 
@@ -138,7 +135,6 @@ function buildBriefEmailHtml(newsletter: {
 <meta name="supported-color-schemes" content="light">
 <title>${newsletter.title}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
   img { max-width:100% !important; height:auto !important; display:block; }
   @media only screen and (max-width:620px) {
     .brief-outer { padding:0 !important; }
@@ -153,36 +149,31 @@ function buildBriefEmailHtml(newsletter: {
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#eaecef;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#eaecef;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaecef;">
 <tr><td class="brief-outer" align="center" style="padding:28px 16px 44px;">
 <table width="100%" style="max-width:600px;" cellpadding="0" cellspacing="0">
 
   <!-- Dual-tone top strip -->
-  <!-- Dual-tone strip nested in ONE cell — a bare two-cell row here turned the
-       whole email into a 2-column table and squeezed every other row to 70% width -->
-  <tr><td style="font-size:0;line-height:0;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="70%" style="background:#10b981;height:3px;font-size:0;line-height:0;">&nbsp;</td>
-      <td width="30%" style="background:#065f46;height:3px;font-size:0;line-height:0;">&nbsp;</td>
-    </tr></table>
-  </td></tr>
+  <!-- Accent strip is baked into the banner image (a bare two-cell row here
+       once turned the whole email into a 2-column table — never again) -->
 
   <!-- COMPACT HEADER -->
-  <tr><td class="brief-header" style="background:#080d1a;padding:18px 0 16px;">
-    <!-- Full-width banner: eyebrow + wordmark baked as an image in true brand
-         fonts — renders identically in every client and survives Gmail's
-         dark-mode inversion (the image IS the header). -->
-    <img src="https://afrienergytracker.io/email/banner-brief.png" width="600" height="94" alt="Africa Energy Pulse — AfriEnergy Brief"
+  <!-- HEADER: the ONLY dark surface is the banner image itself (accent strip,
+       eyebrow, wordmark all baked in) — Gmail dark mode cannot take it apart.
+       Everything below is light-by-design so forced inversion stays coherent. -->
+  <tr><td class="brief-header" style="padding:0;font-size:0;line-height:0;">
+    <img src="https://afrienergytracker.io/email/banner-brief.png" width="600" height="112" alt="Africa Energy Pulse — AfriEnergy Brief"
          style="display:block;border:0;outline:none;text-decoration:none;width:100%;height:auto;" />
-    <p style="margin:10px 36px 0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Biweekly Update"} &nbsp;·&nbsp; ${dateStr}</p>
+  </td></tr>
+  <tr><td style="background:#f8fafc;padding:9px 36px;border-bottom:1px solid #e2e8f0;">
+    <p style="margin:0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${newsletter.isAiGenerated === false ? "Special Edition" : "Biweekly Update"} &nbsp;·&nbsp; ${dateStr}</p>
   </td></tr>
 
-  <!-- GREEN RULE + TITLE -->
-  <tr><td style="background:#10b981;height:2px;font-size:0;line-height:0;">&nbsp;</td></tr>
-  <tr><td style="background:#0d1526;padding:14px 36px;border-bottom:1px solid #1a2744;">
-    <p style="margin:0;color:#e2e8f0;font-size:15px;font-weight:700;line-height:1.4;font-family:'Syne','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.1px;">${newsletter.title}</p>
+  <!-- TITLE BAND (light by design) -->
+  <tr><td style="background:#f0fdf9;padding:13px 36px;border-left:4px solid #10b981;border-bottom:1px solid #e2e8f0;">
+    <p style="margin:0;color:#0f172a;font-size:15px;font-weight:800;line-height:1.4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.1px;">${newsletter.title}</p>
   </td></tr>
 
   <!-- CONTENT -->
@@ -192,7 +183,7 @@ function buildBriefEmailHtml(newsletter: {
 
   <!-- DISCLAIMER -->
   <tr><td style="background:#f8f9fb;border-top:1px solid #e2e8f0;padding:12px 36px;">
-    <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">
+    <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
       ${newsletter.isAiGenerated === false
         ? `✍️ <strong style="color:#64748b;">Written by Daniel Oladoja</strong>, Founder, AfriEnergy Tracker.`
         : `⚠️ <strong style="color:#64748b;">AI-generated briefing</strong> from AfriEnergy Tracker data. Verify critical figures before decisions.`}
@@ -200,22 +191,23 @@ function buildBriefEmailHtml(newsletter: {
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td class="brief-footer" style="background:#080d1a;border-radius:0 0 4px 4px;padding:20px 36px;">
+  <!-- FOOTER (light by design — inverts gracefully in dark-mode clients) -->
+  <tr><td class="brief-footer" style="background:#f8fafc;border-top:2px solid #10b981;border-radius:0 0 4px 4px;padding:18px 36px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <p style="margin:0;color:#e2e8f0;font-size:12px;font-weight:600;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker <span style="color:#475569;font-weight:400;">by Africa Energy Pulse</span></p>
-          <p style="margin:6px 0 0;color:#334155;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
+          <p style="margin:0;color:#0f172a;font-size:12px;font-weight:700;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AfriEnergy Tracker <span style="color:#64748b;font-weight:400;">by Africa Energy Pulse</span></p>
+          <p style="margin:6px 0 0;color:#64748b;font-size:11px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">You're receiving this as a subscriber to AfriEnergy Insights.</p>
         </td>
-        <td class="masthead-badge" align="right" style="vertical-align:top;padding-left:16px;white-space:nowrap;">
-          <a href="https://afrienergytracker.io/insights" style="color:#10b981;font-size:11px;font-weight:600;text-decoration:none;display:block;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
-          <a href="{{UNSUBSCRIBE_URL}}" style="color:#334155;font-size:10px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
+        <td align="right" style="vertical-align:top;padding-left:16px;">
+          <a href="https://afrienergytracker.io/insights" style="color:#0d9488;font-size:11px;font-weight:700;text-decoration:none;display:block;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">View on web →</a>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color:#64748b;font-size:10px;text-decoration:underline;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Unsubscribe</a>
         </td>
       </tr>
     </table>
-    <div style="height:1px;background:#1e293b;margin:14px 0 12px;">&nbsp;</div>
-    <p style="margin:0;color:#334155;font-size:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#10b981;text-decoration:none;">afrienergytracker.io</a>
+    <div style="height:1px;background:#e2e8f0;margin:14px 0 12px;">&nbsp;</div>
+    <p style="margin:0;color:#94a3b8;font-size:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      © ${new Date().getFullYear()} Africa Energy Pulse &nbsp;·&nbsp; <a href="https://afrienergytracker.io" style="color:#0d9488;text-decoration:none;">afrienergytracker.io</a>
     </p>
   </td></tr>
 

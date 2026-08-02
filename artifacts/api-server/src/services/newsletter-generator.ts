@@ -235,17 +235,17 @@ export function markdownToHtml(md: string): string {
 
   // H2 → section header with green left accent bar
   html = html.replace(/^## (.+)$/gm,
-    '<h2 style="color:#0f172a;font-size:20px;font-weight:800;margin:40px 0 16px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:1px;line-height:1.3;text-transform:uppercase;">$1</h2>'
+    '<h2 style="color:#0f172a;font-size:20px;font-weight:800;margin:40px 0 16px;padding:2px 0 2px 16px;border-left:4px solid #10b981;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:1px;line-height:1.3;text-transform:uppercase;">$1</h2>'
   );
 
   // H3
   html = html.replace(/^### (.+)$/gm,
-    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
+    '<h3 style="color:#1e293b;font-size:17px;font-weight:700;margin:28px 0 10px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:-0.2px;">$1</h3>'
   );
 
   // H4
   html = html.replace(/^#### (.+)$/gm,
-    '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Syne\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
+    '<h4 style="color:#1e293b;font-size:14px;font-weight:700;margin:20px 0 8px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;letter-spacing:0;">$1</h4>'
   );
 
   // Links — [text](url)
@@ -257,13 +257,13 @@ export function markdownToHtml(md: string): string {
   html = html.replace(/\*(.+?)\*/g, '<em style="color:#334155;">$1</em>');
 
   // Bullet lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
+  html = html.replace(/^[-*] (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Helvetica,Arial,sans-serif;">$1</li>');
   html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>\s*)+/g,
     '<ul style="padding-left:24px;margin:14px 0;list-style-type:disc;">$&</ul>'
   );
 
   // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Manrope,Helvetica,Arial,sans-serif;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin:6px 0;color:#374151;font-size:15px;line-height:1.7;padding-left:4px;font-family:Helvetica,Arial,sans-serif;">$1</li>');
 
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />');
@@ -277,7 +277,7 @@ export function markdownToHtml(md: string): string {
     const trimmed = block.trim();
     if (!trimmed) return "";
     if (BLOCK_START.test(trimmed)) return trimmed;
-    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Manrope','Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
+    return `<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${trimmed.replace(/\n/g, " ")}</p>`;
   }).join("\n");
 
   return html;
