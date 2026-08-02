@@ -17,6 +17,7 @@ router.use("/admin/duplicates", adminAuthMiddleware);
 router.use("/admin/projects/merge", adminAuthMiddleware);
 router.use("/admin/projects/delete", adminAuthMiddleware);
 router.use("/admin/projects/patch", adminAuthMiddleware);
+router.use("/admin/projects/create", adminAuthMiddleware);
 router.use("/admin/setup-extensions", adminAuthMiddleware);
 router.use("/admin/dismissed-duplicates", adminAuthMiddleware);
 
@@ -245,6 +246,15 @@ router.post("/admin/projects/patch", async (req, res) => {
       description: "description",
       technology: "technology",
       sourceUrl: "sourceUrl",
+      newsUrl: "newsUrl",
+      dealStage: "dealStage",
+      investors: "investors",
+      financiers: "financiers",
+      dfiInvolvement: "dfiInvolvement",
+      climateFinanceTag: "climateFinanceTag",
+      // Allows an admin to mark a value as verified-disclosed (false) after
+      // replacing a capacity-derived estimate with a sourced transaction value.
+      isEstimated: "isEstimated",
     };
 
     const updates: Record<string, unknown> = {};
@@ -273,6 +283,71 @@ router.post("/admin/projects/patch", async (req, res) => {
   } catch (err) {
     console.error("[Patch]", err);
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/admin/projects/create — manually add a verified deal (admin only).
+// For hand-researched records: inserted pre-approved, marked human-entered
+// (isAutoDiscovered=false) and disclosed (isEstimated=false) unless stated.
+router.post("/admin/projects/create", async (req, res) => {
+  try {
+    const b = req.body as Record<string, unknown>;
+    const required = ["projectName", "country", "technology", "sourceUrl"] as const;
+    for (const f of required) {
+      if (!b[f] || typeof b[f] !== "string") {
+        return res.status(400).json({ error: `${f} (string) is required` });
+      }
+    }
+
+    // Reject duplicates by name + country (case-insensitive), same as the API route
+    const [clash] = await db
+      .select({ id: projectsTable.id, projectName: projectsTable.projectName })
+      .from(projectsTable)
+      .where(and(
+        sql`lower(${projectsTable.projectName}) = lower(${String(b.projectName)})`,
+        sql`lower(${projectsTable.country}) = lower(${String(b.country)})`,
+      ))
+      .limit(1);
+    if (clash) {
+      return res.status(409).json({ error: "Duplicate project", existingId: clash.id });
+    }
+
+    const num = (v: unknown) => (v === undefined || v === null || v === "" ? null : Number(v));
+    const str = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null);
+
+    const [created] = await db.insert(projectsTable).values({
+      projectName: String(b.projectName),
+      country: String(b.country),
+      region: str(b.region),
+      technology: String(b.technology),
+      dealSizeUsdMn: num(b.dealSizeUsdMn),
+      capacityMw: num(b.capacityMw),
+      announcedYear: num(b.announcedYear),
+      closedYear: num(b.closedYear),
+      dealStage: str(b.dealStage),
+      developer: str(b.developer),
+      investors: str(b.investors),
+      financiers: str(b.financiers),
+      dfiInvolvement: str(b.dfiInvolvement),
+      climateFinanceTag: str(b.climateFinanceTag),
+      description: str(b.description),
+      sourceUrl: String(b.sourceUrl),
+      newsUrl: str(b.newsUrl),
+      reviewStatus: "approved",
+      isAutoDiscovered: false,
+      isEstimated: b.isEstimated === true, // default: human-entered values are disclosed
+    } as any).returning({ id: projectsTable.id, projectName: projectsTable.projectName });
+
+    await db.insert(reviewerAuditLogTable).values({
+      action: "project_manual_create",
+      actor: "admin",
+      metadata: { id: created.id, name: created.projectName },
+    });
+
+    return res.status(201).json({ success: true, id: created.id });
+  } catch (err) {
+    console.error("[AdminCreate]", err);
+    return res.status(500).json({ error: String(err) });
   }
 });
 
